@@ -114,3 +114,16 @@ test('the admin command runs as the service user with the services\' settings', 
   assert.match(admin, /runuser -u \$\{SERVICE_USER\} -- \/usr\/local\/bin\/node .*indexer\/src\/admin\.ts "\$@"$/m);
   assert.equal(spawnSync('sh', ['-n', `${deploy}templates/eventindex-admin`]).status, 0);
 });
+
+test('nginx logs no visitor address: every server block uses a format without one', () => {
+  const http = read('templates/nginx-http.conf');
+  const formats = [...http.matchAll(/log_format\s+eventindex\s+([^;]+);/g)];
+  assert.equal(formats.length, 1, 'one eventindex log format, in the port-80 file nginx always loads');
+  assert.doesNotMatch(formats[0]![1]!, /remote_addr|remote_user|x_forwarded_for|x_real_ip|realip|http_referer/);
+  for (const path of ['templates/nginx-http.conf', 'templates/nginx-tls.conf']) {
+    const blocks = read(path).split(/^server \{/m).slice(1);
+    assert.ok(blocks.length > 0, path);
+    for (const block of blocks) assert.match(block, /^\s*access_log \/var\/log\/nginx\/access\.log eventindex;$/m, `${path}: ${block.slice(0, 80)}`);
+    assert.doesNotMatch(read(path), /access_log(?![^;]*\beventindex;)[^;]*;/, `${path}: an access_log with another format`);
+  }
+});

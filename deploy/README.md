@@ -255,6 +255,10 @@ undone, and the calendar is never indexed again.
 
 ## Logs
 
+nginx's access log (`/var/log/nginx/access.log`) records time, host, request,
+status, size and duration, and no visitor address. Its error log still names
+the client of a failed request.
+
 ```sh
 journalctl -u eventindex-indexer -u eventindex-api -u strfry -u litestream --since today
 journalctl -u eventindex-relay-export
