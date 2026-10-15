@@ -1,0 +1,56 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Luma//Events with Journaling Studio//EN
+X-WR-CALNAME:Events with Journaling Studio
+X-WR-CALDESC:Luma Calendar
+REFRESH-INTERVAL;VALUE=DURATION:PT12H
+X-PUBLISHED-TTL:PT12H
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:20260513T223000Z
+DTEND:20260514T003000Z
+DTSTAMP:20261015T180709Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-WnuvM9zwtqOXj95@events.lu.ma
+SUMMARY:intentional journaling & mindfulness collaging w/ @journalingstudio
+DESCRIPTION:Get up-to-date information at: https://luma.com/ir4fie8p\n\nAdd
+ ress:\nharicot vert's dreamworld\nKings County, NY\nUnited States\n\nHoste
+ d by craftnook & Journaling Studio
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250829
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260915T223000Z
+DTEND:20260916T003000Z
+DTSTAMP:20261015T180709Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-ILpIInTRKRV1pnY@events.lu.ma
+SUMMARY:fall equinox journaling w/ @journalingstudio
+DESCRIPTION:Get up-to-date information at: https://luma.com/craftnook-5iza\
+ n\nAddress:\nharicot vert's dreamworld\nBrooklyn, NY\nUnited States\n\nHos
+ ted by craftnook & Journaling Studio
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250829
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261017T130000Z
+DTEND:20261017T163000Z
+DTSTAMP:20261015T180709Z
+ORGANIZER;CN="Journaling Studio":MAILTO:redacted@example.invalid
+UID:evt-GFwHKLJqGjJK7k9@events.lu.ma
+SUMMARY:mcglorick bird club x journaling classes: fall outing
+DESCRIPTION:Get up-to-date information at: https://luma.com/fallbirdclubjou
+ rnalingstass\n\nAddress:\nMsgr. McGolrick Park\nBrooklyn, NY\nUnited State
+ s\n\nHosted by Journaling Studio
+LOCATION:Msgr. McGolrick Park, Russell Street &, Nassau Ave, Brooklyn, NY 
+ 11222, USA
+GEO:40.7244763;-73.9433497
+SEQUENCE:214250829
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR

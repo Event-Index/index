@@ -1,0 +1,14 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Index//fixture//EN
+X-WR-CALNAME:Open Maps Group
+BEGIN:VEVENT
+UID:joint-talk@maps.example.org
+DTSTAMP:20261015T120000Z
+DTSTART:20261026T170000Z
+DTEND:20261026T190000Z
+SUMMARY:Joint talk: transit maps
+URL:https://example.org/events/joint-talk
+ORGANIZER;CN="Transit Riders Union":mailto:redacted@example.invalid
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,56 @@
+{
+  "city": "Los Angeles",
+  "country": "US",
+  "geonames_id": 5368361,
+  "source": "luma",
+  "found_via": "luma:discplace-OgfEAh5KgfMzise",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-3bByN8QckalAUO4",
+    "cal-9dlTIhjaH2sJAkX",
+    "cal-9zT7G6mc6kBqETE",
+    "cal-EWwbcp3x4z2kxyv",
+    "cal-HOwk70F1O7tbbQa",
+    "cal-KE4ycEhrf9Aw0rP",
+    "cal-SRZBqShHEEHRr2D",
+    "cal-SSay36XBRyiE7GN",
+    "cal-WzW0dzPGPFNnqXh",
+    "cal-ZH82puPbs9de7T1",
+    "cal-cIL2FvDfGyDzLLI",
+    "cal-gVylU502z5Syfto",
+    {
+      "id": "cal-2lMyMdGMWYK1Nob",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-AdcOr9SSSLqSrch",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-OLISY1FFLMgoLaY",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-lxlgGUdO5E9XRBM",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-pWi6S1dNJdd7Co9",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-7gMK57gHsxMh8fI",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-mKhrnCIIIOzAVrO",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-qAYk8R3TiHGXYKv",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

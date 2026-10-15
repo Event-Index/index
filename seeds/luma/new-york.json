@@ -1,0 +1,52 @@
+{
+  "city": "New York",
+  "country": "US",
+  "geonames_id": 5128581,
+  "source": "luma",
+  "found_via": "luma:discplace-Izx1rQVSh8njYpP",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-BvuRd9eaZnDGBwy",
+    "cal-H1FY60pnZtchaf4",
+    "cal-HESIMY29s0r6fKn",
+    "cal-HH5XBdHyWPt0yhB",
+    "cal-Or0NdeYS6Dd43c4",
+    "cal-SRZBqShHEEHRr2D",
+    "cal-TcmWOVKS0jgxwH3",
+    "cal-UcmN4kNlEUzV7pS",
+    "cal-VtoEJdCDdRHAJom",
+    "cal-dJW8pHtgKfG2HK8",
+    "cal-f6iLyfD3TN5qUO2",
+    "cal-jX1B0ZAFOrl7UEw",
+    "cal-ntaub36zjjTvcnl",
+    {
+      "id": "cal-ZGCxlwslp1K0wqD",
+      "found_via": "btcmap:freedomlab-nyc"
+    },
+    {
+      "id": "cal-3WVqvbZj1HkqC9w",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-EpqkMBrIPXa045L",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-Hy2kYk86h48eefz",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-KWnW3NnanYA9mfF",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-LzyQl8yXg5Xz7CP",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-o6HIuv6Jc42P3Se",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": []
+}

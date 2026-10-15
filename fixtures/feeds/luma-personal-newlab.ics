@@ -1,0 +1,65 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Luma//Personal//EN
+X-WR-CALNAME:Personal
+X-WR-CALDESC:Luma Calendar
+REFRESH-INTERVAL;VALUE=DURATION:PT12H
+X-PUBLISHED-TTL:PT12H
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:20250612T180000Z
+DTEND:20250612T200000Z
+DTSTAMP:20261015T180657Z
+ORGANIZER;CN="Newlab Brooklyn":MAILTO:redacted@example.invalid
+UID:evt-Ad7IFvNP9FmcWYF@events.lu.ma
+SUMMARY:Pride Bingo Brunch
+DESCRIPTION:Get up-to-date information at: https://luma.com/0lmvrtj0\n\nAd
+ dress:\nCafe / Loading Dock\n\nHosted by Newlab Brooklyn
+LOCATION:Cafe / Loading Dock
+SEQUENCE:214250817
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261015T210000Z
+DTEND:20261015T230000Z
+DTSTAMP:20261015T180657Z
+ORGANIZER;CN="Newlab Brooklyn":MAILTO:redacted@example.invalid
+UID:evt-8obJGsASb0HxSiX@events.lu.ma
+SUMMARY:Drink & Draw
+DESCRIPTION:Get up-to-date information at: https://luma.com/pi1ww9st\n\nAd
+ dress:\nNewlab\nBrooklyn, NY\nUnited States\n\nHosted by Newlab Brooklyn
+LOCATION:Newlab, 19 Morris Ave, Brooklyn, NY 11205, USA
+GEO:40.6988592;-73.9747271
+SEQUENCE:214250817
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261022T190000Z
+DTEND:20261022T230000Z
+DTSTAMP:20261015T180657Z
+ORGANIZER;CN="Newlab Brooklyn":MAILTO:redacted@example.invalid
+UID:evt-UMs536mdiTrCvEk@events.lu.ma
+SUMMARY:Wicked Wicks & Whiskey
+DESCRIPTION:Get up-to-date information at: https://luma.com/pwgwy6yr\n\nAd
+ dress:\nNewlab\nBrooklyn, NY\nUnited States\n\nHosted by Newlab Brooklyn
+LOCATION:Newlab, 19 Morris Ave, Brooklyn, NY 11205, USA
+GEO:40.6988592;-73.9747271
+SEQUENCE:214250817
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261027T210000Z
+DTEND:20261028T010000Z
+DTSTAMP:20261015T180657Z
+ORGANIZER;CN="Newlab Brooklyn":MAILTO:redacted@example.invalid
+UID:evt-Ex21UdEuJ5mztWi@events.lu.ma
+SUMMARY:Pawn Chess Club x Newlab
+DESCRIPTION:Get up-to-date information at: https://luma.com/mvj1yfaa\n\nAd
+ dress:\nNewlab\nBrooklyn, NY\nUnited States\n\nHosted by Newlab Brooklyn
+LOCATION:Newlab, 19 Morris Ave, Brooklyn, NY 11205, USA
+GEO:40.6988592;-73.9747271
+SEQUENCE:214250817
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR

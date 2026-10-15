@@ -1,0 +1,15 @@
+{
+  "city": "Los Angeles",
+  "country": "US",
+  "geonames_id": 5368361,
+  "source": "meetup",
+  "found_at": "2026-10-15",
+  "calendars": [],
+  "skipped": [
+    {
+      "id": "bitplebsla",
+      "reason": "http-403",
+      "found_via": "btcmap:bitplebs-los-angeles"
+    }
+  ]
+}

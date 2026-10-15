@@ -1,0 +1,68 @@
+# Event Index
+
+An open directory of public event calendars.
+
+Event Index keeps a directory of public iCalendar feeds (an organizer's
+calendar on Luma, a Meetup group, a Mobilizon group, a public Google calendar,
+any `.ics` URL), polls each feed, and keeps every event as a normalized
+iCalendar record. It serves each record as:
+
+- **iCalendar** (`.ics`, RFC 5545, with RFC 7986 calendar properties),
+- **jCal** (RFC 7265),
+- **schema.org/Event JSON-LD**, and
+- **NIP-52 calendar events** (kinds 31922 and 31923) on nostr relays, signed by
+  one key per calendar, so each event shows its own organizer as host.
+
+The directory itself is a decentralized list on nostr, and its data is in the
+public domain.
+
+Status: early. Implemented and tested against captured feeds: the normalizer,
+the platform adapters (Luma, Meetup, Mobilizon, Google), the projector (NIP-52,
+`.ics`, jCal, JSON-LD and the calendar keys' own events), the indexer rules
+(co-hosts, vanished events, quarantine, schedule, submission checks),
+`index.db`, `vault.db`, and one poll of one calendar end to end (fetch,
+normalize, project, sign, publish, record). Not implemented: the scheduler that
+runs polls, the HTTP API and the directory's publishing.
+
+## Layout
+
+| Path | What it holds |
+|---|---|
+| `indexer/` | the poller, the normalizer, the platform adapters and the projector |
+| `api/` | the HTTP API |
+| `relay/` | the configuration of the index's own relay (strfry) |
+| `spec/` | the iCalendar profile, the platform adapters, the NIP-52 mapping, the API reference |
+| `seeds/` | organizer calendar lists by platform and city |
+| `fixtures/` | captured and synthetic feeds the tests run against |
+| `scripts/` | maintenance tools |
+
+## Using the index
+
+The API is versioned under `https://api.eventindex.space/api/1.0/` and is
+specified in [`spec/api.md`](spec/api.md). Read endpoints need no key. Every
+response credits the organizer and the platform the event comes from and links
+back to the event's own page; keep that attribution when you reuse event
+content.
+
+## Running it
+
+Requires Node.js 22.18 or later (TypeScript runs through Node's type stripping;
+there is no build step).
+
+```sh
+npm install
+npm test
+npm run typecheck
+```
+
+## Licenses
+
+- Code: Apache License 2.0 ([`LICENSE`](LICENSE)).
+- Directory data (entries, calendar metadata, poll statistics, seed lists):
+  CC0 1.0 ([`seeds/LICENSE`](seeds/LICENSE)).
+- Event content remains its organizers'.
+
+## Credits
+
+- [NosFabrica](https://nosfabrica.com) is a core maintainer of Event Index.
+- [Brainstorm](https://brainstorm.world) is one consumer of the index.

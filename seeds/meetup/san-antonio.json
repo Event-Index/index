@@ -1,0 +1,15 @@
+{
+  "city": "San Antonio",
+  "country": "US",
+  "geonames_id": 4726206,
+  "source": "meetup",
+  "found_at": "2026-10-15",
+  "calendars": [],
+  "skipped": [
+    {
+      "id": "sanantoniobitcoinclub",
+      "reason": "http-404",
+      "found_via": "btcmap:san-antonio-bitcoin-club"
+    }
+  ]
+}

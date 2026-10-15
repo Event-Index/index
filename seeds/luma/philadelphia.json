@@ -1,0 +1,48 @@
+{
+  "city": "Philadelphia",
+  "country": "US",
+  "geonames_id": 4560349,
+  "source": "luma",
+  "found_via": "luma:discplace-VGLZZfVwOKRD1Yd",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-IoEG4tZhggc7X0s",
+    "cal-VyTAwWI5zLiGOR2",
+    "cal-XuH5N1PpodNOgMo",
+    "cal-iUI1Lv6b4Blx2fN",
+    "cal-ognDKwStICAW6bF",
+    "cal-rAxoKrEETVxl0eX",
+    "cal-s0hIkjIqVvTXRBG",
+    "cal-y49M9hS8tNrhMfU",
+    {
+      "id": "cal-01MfYm2KS7tZLQj",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-Co1CHVSpagHVfDN",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-EPmHIMLZdqxKsEc",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-IJwhYWkDE3MRAGY",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-Z7tFDINYieipA3H",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-i6MkfxivHIUYp1r",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-ch6gRFZuCEuprZQ",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

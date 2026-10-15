@@ -1,0 +1,65 @@
+{
+  "city": "Chicago",
+  "country": "US",
+  "geonames_id": 4887398,
+  "source": "luma",
+  "found_via": "luma:discplace-NdGm35qFD0vaXNF",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-2MaopjwQTRbceSD",
+    "cal-4aZNJctieE3F5rr",
+    "cal-ApR1I7hbfVbwLvI",
+    "cal-DSnld01UWZDaDCc",
+    "cal-JmweYmdVRApSl7a",
+    "cal-KsHGVUHLwGXH8z9",
+    "cal-fhmVDkmA30zkuOl",
+    "cal-jQDgcdNrZjIPdiP",
+    "cal-w8tRO92LUoIk2dR",
+    {
+      "id": "cal-8akdUMYAfu9cxxO",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-G0WcUbDBH3lnfsn",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-OYITlscSXimeHlH",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-VSgt8Nr7xMJQTEt",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-yxtXKzeqewaVXhb",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-FrBqCDGF9AXkVPu",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-I7NchQx0Xyfw7iy",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-MRZBkx8KwpMOYIZ",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-oCiEMCp0McviM97",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-sXWdH9xQozUaqyo",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-saWFkMV0ehp8wR2",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

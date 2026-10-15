@@ -1,0 +1,99 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Luma//welcome to the craftnook//EN
+X-WR-CALNAME:welcome to the craftnook
+X-WR-CALDESC:Luma Calendar
+REFRESH-INTERVAL;VALUE=DURATION:PT12H
+X-PUBLISHED-TTL:PT12H
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:20260513T223000Z
+DTEND:20260514T003000Z
+DTSTAMP:20261015T180656Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-WnuvM9zwtqOXj95@events.lu.ma
+SUMMARY:intentional journaling & mindfulness collaging w/ @journalingstudio
+DESCRIPTION:Get up-to-date information at: https://luma.com/ir4fie8p\n\nAdd
+ ress:\nharicot vert's dreamworld\nKings County, NY\nUnited States\n\nHoste
+ d by craftnook & Journaling Studio
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250816
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260521
+DTEND;VALUE=DATE:20260525
+DTSTAMP:20261015T180656Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-AVAR3ma6MSbXSpC@events.lu.ma
+SUMMARY:haricot vert philadelphia pop-up at bodie fairmount
+DESCRIPTION:Get up-to-date information at: https://luma.com/xa81cesw\n\nAd
+ dress:\n2026 Fairmount Ave\nPhiladelphia, PA\nUnited States\n\nHosted by c
+ raftnook
+LOCATION:2026 Fairmount Ave, Philadelphia, PA 19130, USA
+GEO:39.9670767;-75.1712004
+SEQUENCE:214250816
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260915T223000Z
+DTEND:20260916T003000Z
+DTSTAMP:20261015T180656Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-ILpIInTRKRV1pnY@events.lu.ma
+SUMMARY:fall equinox journaling w/ @journalingstudio
+DESCRIPTION:Get up-to-date information at: https://luma.com/craftnook-5iza\
+ n\nAddress:\nharicot vert's dreamworld\nBrooklyn, NY\nUnited States\n\nHos
+ ted by craftnook & Journaling Studio
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250816
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261016T160000Z
+DTEND:20261017T220000Z
+DTSTAMP:20261015T180656Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-BY6CUfvAuCM89l4@events.lu.ma
+SUMMARY:studio cleanout sale
+DESCRIPTION:Get up-to-date information at: https://luma.com/craftnook-f70s
+ \n\nAddress:\nCheck event page for more details.\n\nHosted by craftnook
+LOCATION:https://luma.com/event/evt-BY6CUfvAuCM89l4
+GEO:40.72793586074224;-73.95586641937976
+SEQUENCE:214250816
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261018T160000Z
+DTEND:20261018T190000Z
+DTSTAMP:20261015T180656Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-1JShHuzUFGWW57n@events.lu.ma
+SUMMARY:precious plushie taxidermy
+DESCRIPTION:Get up-to-date information at: https://luma.com/utagve9p\n\nAd
+ dress:\nharicot vert's dreamworld\nKings County, New York\nUnited States\n
+ \nHosted by craftnook
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250816
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261024T160000Z
+DTEND:20261024T200000Z
+DTSTAMP:20261015T180656Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-PDzqdd9OU1nQXYz@events.lu.ma
+SUMMARY:craftyween party
+DESCRIPTION:Get up-to-date information at: https://luma.com/kzgy86qv\n\nAd
+ dress:\nharicot vert's dreamworld\nKings County, New York\nUnited States\n
+ \nHosted by craftnook
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250816
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,27 @@
+{
+  "name": "event-index",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An open directory of public iCalendar feeds, served as iCalendar, jCal, schema.org JSON-LD and NIP-52.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test \"indexer/test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.4.0",
+    "better-sqlite3": "13.0.3",
+    "ical.js": "2.2.1",
+    "nostr-tools": "2.25.2",
+    "timezones-ical-library": "2.3.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "22.18.0",
+    "typescript": "5.9.3"
+  }
+}

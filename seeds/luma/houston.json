@@ -1,0 +1,38 @@
+{
+  "city": "Houston",
+  "country": "US",
+  "geonames_id": 4699066,
+  "source": "luma",
+  "found_via": "luma:discplace-aQeJaEtqg3shHZ1",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-8csow2B7sbFzL6e",
+    "cal-IQ8PDOkIO071YJw",
+    "cal-J3Z5U1SGTGq0Ku6",
+    "cal-LCwzDC0bD43UhXc",
+    "cal-RzxCLP2wcu81dFl",
+    "cal-lOCkTjQPARq1Aon",
+    {
+      "id": "cal-AfS3yYNDBC1A0hK",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-B9LaTYcfKpWU6sw",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-GclNQaMzUCNDGcu",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-30nXlza6F1IE4U1",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-dfjjsyaAFOJVBCk",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

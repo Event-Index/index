@@ -1,0 +1,18 @@
+{
+  "city": "San Diego",
+  "country": "US",
+  "geonames_id": 5391811,
+  "source": "meetup",
+  "found_at": "2026-10-15",
+  "calendars": [
+    {
+      "id": "sdbitcoiners",
+      "found_via": "btcmap:san-diego-bitcoiners"
+    },
+    {
+      "id": "pythonsd",
+      "found_via": "maintainer"
+    }
+  ],
+  "skipped": []
+}

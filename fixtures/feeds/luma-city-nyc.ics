@@ -1,0 +1,74 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Luma//What‘s Happening in New York//EN
+X-WR-CALNAME:What‘s Happening in New York
+X-WR-CALDESC:Luma Calendar
+REFRESH-INTERVAL;VALUE=DURATION:PT12H
+X-PUBLISHED-TTL:PT12H
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:20261015T210000Z
+DTEND:20261015T230000Z
+DTSTAMP:20261015T180631Z
+ORGANIZER;CN="Newlab Brooklyn":MAILTO:redacted@example.invalid
+UID:evt-8obJGsASb0HxSiX@events.lu.ma
+SUMMARY:Drink & Draw
+DESCRIPTION:Get up-to-date information at: https://luma.com/pi1ww9st\n\nAdd
+ ress:\nNewlab\nBrooklyn, NY\nUnited States\n\nUnleash your inner ghoulish 
+ artist! Join us for a spooky Halloween Drink & Draw with festive sips and 
+ live models!\n\nHosted by Newlab Brooklyn
+LOCATION:Newlab, 19 Morris Ave, Brooklyn, NY 11205, USA
+GEO:40.6988592;-73.9747271
+SEQUENCE:214250791
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261015T213000Z
+DTEND:20261016T000000Z
+DTSTAMP:20261015T180631Z
+ORGANIZER;CN="Host Name":MAILTO:redacted@example.invalid
+UID:evt-7h9SGiYxFEGPhAu@events.lu.ma
+SUMMARY:Infra Demo Night | New York City
+DESCRIPTION:Get up-to-date information at: https://luma.com/0svlrcnu\n\nAdd
+ ress:\nCheck event page for more details.\n\nWe're back & bringing togethe
+ r New York City's infrastructure software startup community for food, drin
+ ks, and demos.\n\nHosted by Host Name & 4 others
+LOCATION:https://luma.com/event/evt-7h9SGiYxFEGPhAu
+GEO:40.75321562473894;-73.99095151803778
+SEQUENCE:214250791
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261018T160000Z
+DTEND:20261018T190000Z
+DTSTAMP:20261015T180631Z
+ORGANIZER;CN="craftnook":MAILTO:redacted@example.invalid
+UID:evt-1JShHuzUFGWW57n@events.lu.ma
+SUMMARY:precious plushie taxidermy
+DESCRIPTION:Get up-to-date information at: https://luma.com/utagve9p\n\nAdd
+ ress:\nharicot vert's dreamworld\nKings County, New York\nUnited States\n\
+ nA little strange. A little silly. Give a vintage plushie a very unexpecte
+ d second life.\n\nHosted by craftnook
+LOCATION:haricot vert's dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA
+GEO:40.7155365;-73.9619548
+SEQUENCE:214250791
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261021T130000Z
+DTEND:20261021T210000Z
+DTSTAMP:20261015T180631Z
+ORGANIZER;CN="Luma Event":MAILTO:redacted@example.invalid
+UID:evt-heTu9wrNlIirk1G@events.lu.ma
+SUMMARY:Squarespace Circle Day 2026 (In-Person)
+DESCRIPTION:Get up-to-date information at: https://luma.com/circle-day-2026
+ -in-person\n\nAddress:\n8 Clarkson St\nNew York, NY\nUnited States\n\nDisc
+ over your source of design with Squarespace’s most innovative creators a
+ t Circle Day 2026 on Wednesday, October 21.
+LOCATION:8 Clarkson St, New York, NY 10014, USA
+GEO:40.7292268;-74.0057576
+SEQUENCE:214250791
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR

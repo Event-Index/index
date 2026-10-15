@@ -1,0 +1,81 @@
+BEGIN:VCALENDAR
+CALSCALE:GREGORIAN
+VERSION:2.0
+PRODID:-//Elixir ICalendar//Mobilizon 5.2.4//EN
+BEGIN:VEVENT
+ATTACH;FMTTYPE=image/jpeg:https://mobilizon.fr/media/a1689adf91845c0aa8f9c76b1833608fd16b4aba2ed091cfa28969cbe88bd7bc.jpg?name=event_banner.jpg
+DESCRIPTION:Software Crafters LyonNous vous proposons une soirée pour parler de la unconference qui s'est tenue le 9 octobre à Lyon. Ensemble\, partageons nos impressions et faisons le bilan de cette récente aventure.\-\-\-Pour toute question\, rendez-vous sur le Discord.
+DTEND;TZID=Europe/Paris:20261015T210000
+DTSTAMP:20261015T180823Z
+DTSTART;TZID=Europe/Paris:20261015T190000
+LOCATION:
+ORGANIZER:Lyon Tech Hub
+STATUS:CONFIRMED
+SUMMARY:[SWCrafters] [En ligne] Soirée retour Unconference du 9 octobre
+UID:ef6c676c-2ade-4e5a-85c9-9af55b530295
+URL:https://mobilizon.fr/events/ef6c676c-2ade-4e5a-85c9-9af55b530295
+END:VEVENT
+BEGIN:VEVENT
+ATTACH;FMTTYPE=image/jpeg:https://mobilizon.fr/media/2da432cd5459af4f49a1797d2b179eb1dfb9839800c5e799d456c7c0ca576209.jpg?name=event_banner.jpg
+CATEGORIES:data
+DESCRIPTION:Lyon Data ScienceLe **Lyon Data Club** est un rendez-vous bimensuel\, ouvert et bienveillant\, pour échanger entre praticiens et praticiennes de la donnée.**Taille** : \~20 personnes.**Objectifs**\- Partager projets\\, blocages\\, questions
+DTEND;TZID=Europe/Paris:20261020T200000
+DTSTAMP:20261015T180823Z
+DTSTART;TZID=Europe/Paris:20261020T183000
+LOCATION:Tuba lyon Place Charles Béraudier\, 69003 Lyon\, France\, Lyon  Lyon  fr
+ORGANIZER:Lyon Tech Hub
+STATUS:CONFIRMED
+SUMMARY:[LyonDataScience] Lyon Data Club – Échange entre praticiens de la donnée
+UID:c93acabc-0885-40ca-b861-565079746ed2
+URL:https://mobilizon.fr/events/c93acabc-0885-40ca-b861-565079746ed2
+END:VEVENT
+BEGIN:VEVENT
+ATTACH;FMTTYPE=image/jpeg:https://mobilizon.fr/media/e3044d2ace8df10ab17e7a5a4adac5696596463e7dee1f82adf26b7603065037.jpg?name=event_banner.jpg
+DESCRIPTION:LyonJSCe mois-ci\, on change un peu les habitudes !Au lieu de notre meetup mensuel habituel\, on vous propose de nous retrouver pour un **ApéroJS**\, un format que nous n'avions pas organisé depuis un bon moment.
+DTEND;TZID=Europe/Paris:20261020T210000
+DTSTAMP:20261015T180823Z
+DTSTART;TZID=Europe/Paris:20261020T190000
+LOCATION:Malting-Pot Part-Dieu 2 Pl. de Francfort\, 69003 Lyon\, France\, Lyon  Lyon  fr
+ORGANIZER:Lyon Tech Hub
+STATUS:CONFIRMED
+SUMMARY:[LyonJS] #118 ApéroJS 🍻
+UID:9b5cce5d-6d31-422a-b5b1-40052db4be02
+URL:https://mobilizon.fr/events/9b5cce5d-6d31-422a-b5b1-40052db4be02
+END:VEVENT
+BEGIN:VEVENT
+DTEND;TZID=Europe/Paris:20261021T203000
+DTSTAMP:20261015T180823Z
+DTSTART;TZID=Europe/Paris:20261021T190000
+LOCATION:
+ORGANIZER:Lyon Tech Hub
+STATUS:CONFIRMED
+SUMMARY:[LyonTechHub] LAWS :: Lyon AWS User Group
+UID:9b4b1a85-cf27-48cb-8155-ca05e848f1b0
+URL:https://mobilizon.fr/events/9b4b1a85-cf27-48cb-8155-ca05e848f1b0
+END:VEVENT
+BEGIN:VEVENT
+DTEND;TZID=Europe/Paris:20261021T203000
+DTSTAMP:20261015T180823Z
+DTSTART;TZID=Europe/Paris:20261021T190000
+LOCATION:
+ORGANIZER:Lyon Tech Hub
+STATUS:CONFIRMED
+SUMMARY:[LyonTechHub] LAWS :: Lyon AWS User Group
+UID:e39f1b4a-3ef1-483b-9374-74f0cebb7295
+URL:https://mobilizon.fr/events/e39f1b4a-3ef1-483b-9374-74f0cebb7295
+END:VEVENT
+BEGIN:VEVENT
+ATTACH;FMTTYPE=image/png:https://mobilizon.fr/media/514156d97caa78d01a39a945de251d7ca475501a194926d1beb32d85d4ba1957.png?name=event_banner.png
+DESCRIPTION:Atelier animé les étudiant•e•s de la Licence Colibre\, partenaire de l'ALDIL.Pour s'initier à l'infographie\, création numérique et retouche d'image.
+DTEND;TZID=Europe/Paris:20261105T210000
+DTSTAMP:20261015T180823Z
+DTSTART;TZID=Europe/Paris:20261105T190000
+GEO:45.755975;4.847774
+LOCATION:Maison pour tous / Salle des Rancy\, 249 rue Vendôme\, LYON\, 69003\, Auvergne-Rhône-Alpes\, France
+ORGANIZER:Lyon Tech Hub
+STATUS:CONFIRMED
+SUMMARY:[Aldil] Jeudi du graphisme : Concevez une visite virtuelle
+UID:ad34a371-50d1-4cda-b5de-1a3e74417428
+URL:https://mobilizon.fr/events/ad34a371-50d1-4cda-b5de-1a3e74417428
+END:VEVENT
+END:VCALENDAR

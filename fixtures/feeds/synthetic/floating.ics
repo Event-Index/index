@@ -1,0 +1,14 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Index//fixture//EN
+X-WR-CALNAME:Floating Times With Calendar Zone
+X-WR-TIMEZONE:America/Chicago
+BEGIN:VEVENT
+UID:floating-1@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+DTSTART:20261020T190000
+DTEND:20261020T210000
+SUMMARY:Floating evening talk
+LOCATION:Community Hall
+END:VEVENT
+END:VCALENDAR

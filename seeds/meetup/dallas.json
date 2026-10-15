@@ -1,0 +1,14 @@
+{
+  "city": "Dallas",
+  "country": "US",
+  "geonames_id": 4684888,
+  "source": "meetup",
+  "found_at": "2026-10-15",
+  "calendars": [
+    {
+      "id": "dallas-bitcoin-meetup-group",
+      "found_via": "btcmap:dallas-bitcoin"
+    }
+  ],
+  "skipped": []
+}

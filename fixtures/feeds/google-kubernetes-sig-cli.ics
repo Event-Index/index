@@ -1,0 +1,78 @@
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:calendar@kubernetes.io
+X-WR-TIMEZONE:America/Los_Angeles
+BEGIN:VTIMEZONE
+TZID:America/Los_Angeles
+X-LIC-LOCATION:America/Los_Angeles
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0800
+TZOFFSETTO:-0700
+TZNAME:PDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0800
+TZNAME:PST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=America/Los_Angeles:20261111T090000
+DTEND;TZID=America/Los_Angeles:20261111T100000
+DTSTAMP:20261015T180807Z
+ORGANIZER;CN=redacted@example.invalid:mailto:redacted@example.invalid
+UID:0l893qetg1o0pmufr6bgki87jd_R20260930T160000@google.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN=re
+ dacted@example.invalid;X-NUM-GUESTS=0:mailto:redacted@example.invalid
+RECURRENCE-ID;TZID=America/Los_Angeles:20261111T090000
+CLASS:PUBLIC
+CREATED:20200626T115140Z
+DESCRIPTION:<span>Join Zoom Meeting: <a href="https://zoom.us/j/288426795">
+ https://zoom.us/j/288426795</a></span><br><span>Agenda: </span><a href="ht
+ tps://docs.google.com/document/d/1I1UFGHMDO7mMbDbioQp52DEJXEhk1qymch3qL5-E
+ N10/edit">Kubernetes SIG CLI - Meeting Agenda and Notes</a>
+LAST-MODIFIED:20261014T150006Z
+LOCATION:https://zoom.us/j/288426795
+SEQUENCE:0
+STATUS:CONFIRMED
+SUMMARY:SIG CLI Biweekly Meetings
+TRANSP:TRANSPARENT
+ATTACH;FILENAME=Kubernetes SIG CLI - Meeting Agenda and Notes;FMTTYPE=appli
+ cation/vnd.google-apps.document:https://docs.google.com/document/d/1I1UFGHM
+ DO7mMbDbioQp52DEJXEhk1qymch3qL5-EN10/edit?usp=sharing
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/Los_Angeles:20260930T090000
+DTEND;TZID=America/Los_Angeles:20260930T100000
+RRULE:FREQ=WEEKLY;WKST=MO;INTERVAL=2;BYDAY=WE
+EXDATE;TZID=America/Los_Angeles:20260930T090000
+EXDATE;TZID=America/Los_Angeles:20261014T090000
+DTSTAMP:20261015T180807Z
+ORGANIZER;CN=redacted@example.invalid:mailto:redacted@example.invalid
+UID:0l893qetg1o0pmufr6bgki87jd_R20260930T160000@google.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN=re
+ dacted@example.invalid;X-NUM-GUESTS=0:mailto:redacted@example.invalid
+CLASS:PUBLIC
+CREATED:20200626T115140Z
+DESCRIPTION:<span>Join Zoom Meeting: <a href="https://zoom.us/j/288426795">
+ https://zoom.us/j/288426795</a></span><br><span>Agenda: </span><a href="ht
+ tps://docs.google.com/document/d/1I1UFGHMDO7mMbDbioQp52DEJXEhk1qymch3qL5-E
+ N10/edit">Kubernetes SIG CLI - Meeting Agenda and Notes</a>
+LAST-MODIFIED:20261014T150006Z
+LOCATION:https://zoom.us/j/288426795
+SEQUENCE:0
+STATUS:CONFIRMED
+SUMMARY:SIG CLI Biweekly Meetings
+TRANSP:TRANSPARENT
+ATTACH;FILENAME=Kubernetes SIG CLI - Meeting Agenda and Notes;FMTTYPE=appli
+ cation/vnd.google-apps.document:https://docs.google.com/document/d/1I1UFGHM
+ DO7mMbDbioQp52DEJXEhk1qymch3qL5-EN10/edit?usp=sharing
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,50 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Index//fixture//EN
+X-WR-CALNAME:Malformed Events
+BEGIN:VEVENT
+UID:no-summary@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+DTSTART:20261021T180000Z
+DTEND:20261021T190000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:no-start@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+SUMMARY:An event without a start
+END:VEVENT
+BEGIN:VEVENT
+UID:twice@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+DTSTART:20261022T180000Z
+DTEND:20261022T190000Z
+SEQUENCE:1
+SUMMARY:Stale copy
+END:VEVENT
+BEGIN:VEVENT
+UID:twice@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+DTSTART:20261022T180000Z
+DTEND:20261022T193000Z
+SEQUENCE:2
+SUMMARY:Current copy
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20261015T120000Z
+DTSTART:20261023T180000Z
+SUMMARY:An event without a UID
+END:VEVENT
+BEGIN:VEVENT
+UID:long@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+DTSTART:20261024T180000Z
+DTEND:20261024T190000Z
+SUMMARY:Long description with emoji
+DESCRIPTION:Ein Abend für alle 🎉🎉. Café, crème brûlée und Gespräche über 
+ offene Daten. 👩🏽‍💻 Wir treffen uns im Hinterhof\, gleich neben der Bäckerei. 
+ Bitte bringt gute Laune mit und erzählt euren Freundinnen und Freunden davon
+ \, denn wir freuen uns über jede neue Person. Danach gehen wir gemeinsam ess
+ en 🍜🍜🍜 und reden weiter über Karten, Busfahrpläne und Bibliotheken, bis 
+ die Lichter ausgehen. Ende.
+END:VEVENT
+END:VCALENDAR

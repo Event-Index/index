@@ -1,0 +1,136 @@
+{
+  "description": "US cities with more than 1,000,000 residents (US Census Bureau city population estimates, Vintage 2024), and the seed lists for each. Coordinates and ids from GeoNames (CC BY 4.0).",
+  "cities": [
+    {
+      "name": "New York",
+      "slug": "new-york",
+      "country": "US",
+      "geonames_id": 5128581,
+      "latitude": 40.71427,
+      "longitude": -74.00597,
+      "luma_discover": "luma:discplace-Izx1rQVSh8njYpP",
+      "seeds": [
+        "luma/new-york.json"
+      ]
+    },
+    {
+      "name": "Los Angeles",
+      "slug": "los-angeles",
+      "country": "US",
+      "geonames_id": 5368361,
+      "latitude": 34.05223,
+      "longitude": -118.24368,
+      "luma_discover": "luma:discplace-OgfEAh5KgfMzise",
+      "seeds": [
+        "luma/los-angeles.json",
+        "meetup/los-angeles.json"
+      ]
+    },
+    {
+      "name": "Chicago",
+      "slug": "chicago",
+      "country": "US",
+      "geonames_id": 4887398,
+      "latitude": 41.85003,
+      "longitude": -87.65005,
+      "luma_discover": "luma:discplace-NdGm35qFD0vaXNF",
+      "seeds": [
+        "luma/chicago.json"
+      ]
+    },
+    {
+      "name": "Houston",
+      "slug": "houston",
+      "country": "US",
+      "geonames_id": 4699066,
+      "latitude": 29.76328,
+      "longitude": -95.36327,
+      "luma_discover": "luma:discplace-aQeJaEtqg3shHZ1",
+      "seeds": [
+        "luma/houston.json"
+      ]
+    },
+    {
+      "name": "Phoenix",
+      "slug": "phoenix",
+      "country": "US",
+      "geonames_id": 5308655,
+      "latitude": 33.44838,
+      "longitude": -112.07404,
+      "luma_discover": "luma:discplace-Vk9M1gTb4AMVXuD",
+      "seeds": [
+        "luma/phoenix.json"
+      ]
+    },
+    {
+      "name": "Philadelphia",
+      "slug": "philadelphia",
+      "country": "US",
+      "geonames_id": 4560349,
+      "latitude": 39.95238,
+      "longitude": -75.16362,
+      "luma_discover": "luma:discplace-VGLZZfVwOKRD1Yd",
+      "seeds": [
+        "luma/philadelphia.json"
+      ]
+    },
+    {
+      "name": "San Antonio",
+      "slug": "san-antonio",
+      "country": "US",
+      "geonames_id": 4726206,
+      "latitude": 29.42412,
+      "longitude": -98.49363,
+      "luma_discover": null,
+      "seeds": [
+        "meetup/san-antonio.json"
+      ]
+    },
+    {
+      "name": "San Diego",
+      "slug": "san-diego",
+      "country": "US",
+      "geonames_id": 5391811,
+      "latitude": 32.71571,
+      "longitude": -117.16472,
+      "luma_discover": "luma:discplace-MNBATdzid940kqJ",
+      "seeds": [
+        "luma/san-diego.json",
+        "meetup/san-diego.json"
+      ]
+    },
+    {
+      "name": "Dallas",
+      "slug": "dallas",
+      "country": "US",
+      "geonames_id": 4684888,
+      "latitude": 32.78306,
+      "longitude": -96.80667,
+      "luma_discover": "luma:discplace-Ez9iuaZfs6AZDls",
+      "seeds": [
+        "luma/dallas.json",
+        "meetup/dallas.json"
+      ]
+    },
+    {
+      "name": "Jacksonville",
+      "slug": "jacksonville",
+      "country": "US",
+      "geonames_id": 4160021,
+      "latitude": 30.33218,
+      "longitude": -81.65565,
+      "luma_discover": null,
+      "seeds": []
+    },
+    {
+      "name": "Fort Worth",
+      "slug": "fort-worth",
+      "country": "US",
+      "geonames_id": 4691930,
+      "latitude": 32.72541,
+      "longitude": -97.32085,
+      "luma_discover": null,
+      "seeds": []
+    }
+  ]
+}

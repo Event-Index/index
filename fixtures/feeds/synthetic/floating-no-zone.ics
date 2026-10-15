@@ -1,0 +1,12 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Index//fixture//EN
+X-WR-CALNAME:Floating Times Without Zone
+BEGIN:VEVENT
+UID:floating-2@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+DTSTART:20261020T190000
+DURATION:PT90M
+SUMMARY:Floating talk with a duration
+END:VEVENT
+END:VCALENDAR

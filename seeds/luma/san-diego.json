@@ -1,0 +1,39 @@
+{
+  "city": "San Diego",
+  "country": "US",
+  "geonames_id": 5391811,
+  "source": "luma",
+  "found_via": "luma:discplace-MNBATdzid940kqJ",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-CDoX2WaI5IHD5xs",
+    "cal-HOwk70F1O7tbbQa",
+    "cal-KBcITUbcuCNFI8s",
+    "cal-TOpA5LAFfuDeFpu",
+    "cal-XmhPL0FrRSClpvX",
+    "cal-yniApdHErgw46PA",
+    "cal-zN8UmvoxAfBFY5u",
+    {
+      "id": "cal-0OtjMfvBVQ47Eq5",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-1RytzL3dH7K53hR",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-GDxy0zO9mdvMXsX",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-Oh4miyw9TnvVPx1",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-rCt6WxzFBfUXs5o",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

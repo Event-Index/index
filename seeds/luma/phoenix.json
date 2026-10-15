@@ -1,0 +1,30 @@
+{
+  "city": "Phoenix",
+  "country": "US",
+  "geonames_id": 5308655,
+  "source": "luma",
+  "found_via": "luma:discplace-Vk9M1gTb4AMVXuD",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-6hm37NGWEwaXF90",
+    "cal-8nB8IN4xWZLHphA",
+    "cal-TU3aRYvduez7kw2",
+    "cal-aCInIZqCKTX2PRc",
+    "cal-oJkCsAiDygiwYjK",
+    "cal-uDTaiHRlDdobdni",
+    {
+      "id": "cal-7zi0IxQ33F4Fqxq",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-MMNQlKnjuYeFUCX",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-E5Ztv3mBwkJIBbd",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

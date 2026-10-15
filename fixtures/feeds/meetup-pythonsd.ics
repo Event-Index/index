@@ -1,0 +1,97 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Meetup//Meetup Calendar 1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+NAME:San Diego Python Users Group
+X-WR-CALNAME:San Diego Python Users Group
+BEGIN:VTIMEZONE
+TZID:America/Los_Angeles
+TZURL:http://tzurl.org/zoneinfo-outlook/America/Los_Angeles
+X-LIC-LOCATION:America/Los_Angeles
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0800
+TZOFFSETTO:-0700
+TZNAME:PDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0800
+TZNAME:PST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:event_316721984@meetup.com
+SEQUENCE:1
+DTSTAMP:20261015T180631Z
+DTSTART;TZID=America/Los_Angeles:20261017T100000
+DTEND;TZID=America/Los_Angeles:20261017T120000
+SUMMARY:Online: SD Python Saturday Study Group
+DESCRIPTION:San Diego Python Users Group\nWe are continuing our Study group
+  online for the time being.\nWe are now meeting online in the San Diego Py
+ thon Discord server! Here is the link to join: [https://discord.gg/8GpWuVv
+ dbQ](https://discord.gg/8GpWuVvdbQ)
+URL;VALUE=URI:https://www.meetup.com/pythonsd/events/316721984/
+STATUS:CONFIRMED
+CREATED:20260926T114246Z
+LAST-MODIFIED:20260926T114246Z
+CLASS:PUBLIC
+END:VEVENT
+BEGIN:VEVENT
+UID:event_312775793@meetup.com
+SEQUENCE:1
+DTSTAMP:20261015T180631Z
+DTSTART;TZID=America/Los_Angeles:20261022T190000
+DTEND;TZID=America/Los_Angeles:20261022T210000
+SUMMARY:SDPy Monthly Meetup
+DESCRIPTION:San Diego Python Users Group\nWe will be at Qualcomm Building Q
+ . The event will also be live-streamed to our [YouTube channel](https://ww
+ w.youtube.com/@sandiegopython).\n\n**GETTING INTO THE VENUE**\nGo through 
+ the entryway through the cafe.
+URL;VALUE=URI:https://www.meetup.com/pythonsd/events/312775793/
+STATUS:CONFIRMED
+CREATED:20260107T231535Z
+LAST-MODIFIED:20260107T231535Z
+CLASS:PUBLIC
+END:VEVENT
+BEGIN:VEVENT
+UID:event_316721985@meetup.com
+SEQUENCE:1
+DTSTAMP:20261015T180631Z
+DTSTART;TZID=America/Los_Angeles:20261024T100000
+DTEND;TZID=America/Los_Angeles:20261024T120000
+SUMMARY:Online: SD Python Saturday Study Group
+DESCRIPTION:San Diego Python Users Group\nWe are continuing our Study group
+  online for the time being.\nWe are now meeting online in the San Diego Py
+ thon Discord server! Here is the link to join: [https://discord.gg/8GpWuVv
+ dbQ](https://discord.gg/8GpWuVvdbQ)
+URL;VALUE=URI:https://www.meetup.com/pythonsd/events/316721985/
+STATUS:CONFIRMED
+CREATED:20260926T114247Z
+LAST-MODIFIED:20260926T114247Z
+CLASS:PUBLIC
+END:VEVENT
+BEGIN:VEVENT
+UID:event_nqgrvtyjcqbhb@meetup.com
+SEQUENCE:1
+DTSTAMP:20261015T180631Z
+DTSTART;TZID=America/Los_Angeles:20261205T100000
+DTEND;TZID=America/Los_Angeles:20261205T120000
+SUMMARY:Online: SD Python Saturday Study Group
+DESCRIPTION:San Diego Python Users Group\nWe are continuing our Study group
+  online for the time being.\nWe are now meeting online in the San Diego Py
+ thon Discord server! Here is the link to join: [https://discord.gg/8GpWuVv
+ dbQ](https://discord.gg/8GpWuVvdbQ)
+URL;VALUE=URI:https://www.meetup.com/pythonsd/events/nqgrvtyjcqbhb/
+STATUS:CONFIRMED
+CREATED:20260116T050010Z
+LAST-MODIFIED:20260116T050010Z
+CLASS:PUBLIC
+END:VEVENT
+X-ORIGINAL-URL:https://www.meetup.com/pythonsd/events/ical/
+X-WR-CALNAME:San Diego Python Users Group
+END:VCALENDAR

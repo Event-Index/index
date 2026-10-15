@@ -1,0 +1,46 @@
+{
+  "city": "Dallas",
+  "country": "US",
+  "geonames_id": 4684888,
+  "source": "luma",
+  "found_via": "luma:discplace-Ez9iuaZfs6AZDls",
+  "found_at": "2026-10-15",
+  "calendars": [
+    "cal-M0nLmh6W7EMIfau",
+    "cal-Tm7uHalRdj0E8U8",
+    {
+      "id": "cal-EldgCOclXiwtcpI",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-G1QQOM3YHXI0cMQ",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-LWtifNQBGEODrVV",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-LqxH2CvuzCTjBi2",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-adVcwEjQLVAnzwt",
+      "reviewed": "2026-10-15"
+    },
+    {
+      "id": "cal-lH2X829n4MLTlFs",
+      "reviewed": "2026-10-15"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "cal-KeitBbMkZYhObFe",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-XPZ92DUy6f7GEVg",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

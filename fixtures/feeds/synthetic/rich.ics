@@ -1,0 +1,55 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Event Index//fixture//EN
+NAME:Rich Calendar
+X-WR-CALNAME:Rich Calendar (legacy name)
+DESCRIPTION:A calendar that uses RFC 7986 and RFC 9073 properties.
+URL:https://example.org/calendar
+IMAGE;VALUE=URI;DISPLAY=BADGE;FMTTYPE=image/png:https://example.org/logo.png
+COLOR:teal
+REFRESH-INTERVAL;VALUE=DURATION:PT6H
+SOURCE;VALUE=URI:https://example.org/calendar.ics
+BEGIN:VEVENT
+UID:rich@fixture.eventindex.space
+DTSTAMP:20261015T120000Z
+CREATED:20260901T000000Z
+LAST-MODIFIED:20261001T000000Z
+SEQUENCE:3
+DTSTART;TZID=America/New_York:20261029T183000
+DTEND;TZID=America/New_York:20261029T203000
+SUMMARY:Open data night
+DESCRIPTION:Lightning talks about open data.\nBring a laptop.
+STYLED-DESCRIPTION;FMTTYPE=text/html:<p>Lightning talks about <b>open data</b>.</p>
+LOCATION:Library, Room 2
+URL:https://example.org/events/open-data-night
+IMAGE;VALUE=URI;DISPLAY=FULLSIZE:https://example.org/events/open-data-night.jpg
+CATEGORIES:Open Data,Civic Tech
+CATEGORIES:open data
+CLASS:PUBLIC
+TRANSP:OPAQUE
+CONTACT:Front desk, +1 555 0100
+ORGANIZER;CN="Open Data Club":mailto:redacted@example.invalid
+ATTENDEE;CN="Attendee":mailto:redacted@example.invalid
+X-EXAMPLE-FLAG:kept as given
+BEGIN:VLOCATION
+UID:vloc-1@fixture.eventindex.space
+NAME:Central Library
+LOCATION-TYPE:library
+END:VLOCATION
+BEGIN:PARTICIPANT
+UID:part-1@fixture.eventindex.space
+PARTICIPANT-TYPE:SPEAKER
+CALENDAR-ADDRESS:nostr:npub1gfrzwqlr0puvh83qxpm5djvdpevga9vfs57dj6fcx46g7le3c4uqlhjhjg
+END:PARTICIPANT
+BEGIN:PARTICIPANT
+UID:part-2@fixture.eventindex.space
+PARTICIPANT-TYPE:SPONSOR
+CALENDAR-ADDRESS:mailto:redacted@example.invalid
+END:PARTICIPANT
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+TRIGGER:-PT1H
+END:VALARM
+END:VEVENT
+END:VCALENDAR
