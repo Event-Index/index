@@ -6,7 +6,7 @@ bucket. Nothing in them is specific to a hosting provider.
 
 | Hostname | Serves | Behind nginx |
 |---|---|---|
-| `eventindex.space` | the page, NIP-05 names (`/.well-known/nostr.json`), calendar pages (`/calendar/…`) | static files, the API on `127.0.0.1:8080` |
+| `eventindex.space` | the page, search, calendar pages (`/calendar/…`), NIP-05 names (`/.well-known/nostr.json`) | the API on `127.0.0.1:8080`; a static page while it is down |
 | `api.eventindex.space` | the API (`/api/1.0/…`) | `127.0.0.1:8080` |
 | `relay.eventindex.space` | the relay, `wss://` | strfry on `127.0.0.1:7777` |
 
@@ -28,9 +28,13 @@ bucket. Nothing in them is specific to a hosting provider.
   comments other people send, which `index.db` cannot rebuild), as
   zstd-compressed JSON lines.
 
-The indexer and API units run `indexer/src/main.ts` and `api/src/main.ts`.
-The setup starts each one only when the secrets are in place and its file is
-in the checked-out code.
+The indexer and API units run `indexer/src/main.ts` (the poll service) and
+`api/src/main.ts` (the API and the pages). The setup starts each one only when
+the secrets are in place and its file is in the checked-out code. The API's
+unit cannot see `/etc/eventindex/`: it needs no secret.
+
+`/usr/local/bin/eventindex-admin` runs the maintainer's commands
+(`indexer/src/admin.ts`) as the service user with the services' settings.
 
 ## Layout on the server
 
@@ -45,7 +49,8 @@ in the checked-out code.
 | `/var/lib/eventindex/index.db`, `vault.db` | the databases |
 | `/var/lib/eventindex/exports/` | the two newest relay exports |
 | `/var/lib/strfry/db/` | the relay's LMDB database |
-| `/var/www/eventindex/` | the page |
+| `/var/www/eventindex/offline.html` | the page nginx shows while the API is down |
+| `/usr/local/bin/eventindex-admin` | the maintainer's commands |
 | `/etc/strfry.conf`, `/etc/litestream.yml` | rendered from the code |
 
 `/etc/eventindex/` is mode 700 and every file in it mode 600, owned by
@@ -57,7 +62,9 @@ in the checked-out code.
 `/etc/eventindex/deploy.env` and set at least `ACME_EMAIL`, the bucket
 (`BUCKET_ENDPOINT`, `BUCKET_REGION`, `BUCKET_NAME`, `BUCKET_PREFIX`) and
 `REPO_REF` (a tag or commit for production). `PUBLISH_TO_GENERAL_RELAYS=0`
-keeps the indexer from publishing anywhere but its own relay.
+keeps the indexer from publishing anywhere but its own relay; with it set to
+1, the relays in `GENERAL_RELAYS` and `LIST_RELAYS` get the events
+`config.example.env` describes.
 
 ## Secrets
 
@@ -127,6 +134,16 @@ deleted calendar key leave the backups.
    curl -sI https://eventindex.space | head -1
    curl -s -H 'Accept: application/nostr+json' https://relay.eventindex.space
    litestream databases -config /etc/litestream.yml
+   ```
+
+7. File the seed lists and watch the first polls (the poll service reads 20
+   feeds every 30 seconds):
+
+   ```sh
+   cd /opt/eventindex/app
+   eventindex-admin import-seeds seeds/luma/*.json seeds/meetup/*.json
+   eventindex-admin status
+   journalctl -u eventindex-indexer -f
    ```
 
 Set `ACME_STAGING=1` for a trial run: Let's Encrypt's staging service has no
@@ -214,6 +231,27 @@ It never overwrites an existing database.
 The relay can also move as its LMDB files (`/var/lib/strfry/db/data.mdb`,
 with strfry stopped on both sides) when both servers run the same strfry
 version on the same architecture; the export is the portable form.
+
+## Reviews and removals
+
+Submitted feeds and remove requests wait for a maintainer:
+
+```sh
+eventindex-admin submissions                 # id, time, source, role, name, feed
+eventindex-admin approve-submission 3 --city new-york
+eventindex-admin reject-submission 4
+eventindex-admin removals                    # id, time, whether the token was found in the feed, calendar
+eventindex-admin approve-removal 2
+eventindex-admin reject-removal 5
+eventindex-admin remove meetup-pythonsd --message "asked by email"
+eventindex-admin status
+```
+
+`--city` takes a slug from `seeds/cities.json` and gives the entry that
+city's area. A request is verified once its token appears in the calendar's
+feed; approve unverified ones only on other proof. The poll service carries
+out an approved removal on its next tick (indexer rules § 10); it cannot be
+undone, and the calendar is never indexed again.
 
 ## Logs
 

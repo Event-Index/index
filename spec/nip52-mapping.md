@@ -152,8 +152,10 @@ claiming a calendar is not offered by this index.
 **Kind 10002.** `["r", "wss://relay.eventindex.space"]` with no marker (RSVPs
 and comments sent to the host's inbox reach the index), then
 `["r", <relay>, "write"]` for each general relay the index publishes to
-(`wss://nos.lol`, `wss://relay.primal.net`, `wss://relay.damus.io`). It never
-names a relay that does not hold the calendar's events.
+(`wss://nos.lol`, `wss://relay.primal.net`, `wss://relay.damus.io`), none
+while it publishes only to its own relay. It never names a relay that does
+not hold the calendar's events. The index key's kind 10002 follows the same
+rule.
 
 **Kind 31924.** `d` = `calendar`, `title` = the calendar's name, `content` =
 its description (or empty), and `["a", <address>, "wss://relay.eventindex.space"]`

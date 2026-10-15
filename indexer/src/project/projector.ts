@@ -28,6 +28,11 @@ export interface CohostPlan {
 
 const listingKey = (calendarD: string, d: string) => `${calendarD}\u0000${d}`;
 
+// The other calendars (by d) listing an event this calendar signs.
+export function cohostsIn(plan: CohostPlan, calendarD: string, eventD: string): string[] {
+  return plan.cohostsOf.get(listingKey(calendarD, eventD)) ?? [];
+}
+
 export function expand(feed: NormalizedFeed, now: number, log: string[] = []): Occurrence[] {
   const window = projectionWindow(now);
   return feed.records.flatMap((r) => {
@@ -83,6 +88,8 @@ export interface ProjectorInput {
   hasRsvps: (address: string) => boolean;
   plan: CohostPlan;
   perSecond?: number;
+  // The general relays the index publishes to, for the kind 10002.
+  generalRelays?: string[];
 }
 
 export interface Planned {
@@ -189,7 +196,7 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
     state: 'mirrored',
   });
   candidates.push({ template: profile, kind: 0, d: '', start: now });
-  candidates.push({ template: relayList(), kind: 10002, d: '', start: now });
+  candidates.push({ template: relayList(input.generalRelays), kind: 10002, d: '', start: now });
   candidates.push({ template: calendarList({ name, description: feed.calendar.description, now, items: listed }), kind: 31924, d: 'calendar', start: now });
 
   const due = candidates

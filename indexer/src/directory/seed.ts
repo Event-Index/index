@@ -48,15 +48,20 @@ const FEED_URL: Partial<Record<Source, (id: string) => string>> = {
   meetup: (id) => `https://www.meetup.com/${id}/events/ical/`,
 };
 
+// The feed URL of a seed list's calendar.
+export function seedFeedUrl(source: Source, id: string): string {
+  const build = FEED_URL[source];
+  if (!build) throw new Error(`no seed feeds for source ${source}`);
+  return build(id);
+}
+
 export async function seedEntries(seed: Seed, deps: SeedDeps): Promise<{ entries: Array<EventTemplate & { created_at: number }>; report: SeedOutcome[] }> {
-  const build = FEED_URL[seed.source];
-  if (!build) throw new Error(`no seed feeds for source ${seed.source}`);
   const report: SeedOutcome[] = [];
   const entries = new Map<string, EventTemplate>();
   for (const item of seed.calendars) {
     const id = typeof item === 'string' ? item : item.id;
     const reviewed = typeof item !== 'string' && !!item.reviewed;
-    const url = build(id);
+    const url = seedFeedUrl(seed.source, id);
     const check = checkFeedUrl(url);
     if (!check.ok) {
       report.push({ id, outcome: 'refused', reason: check.reason });

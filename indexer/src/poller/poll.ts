@@ -4,7 +4,7 @@
 import ICAL from 'ical.js';
 import type { VerifiedEvent } from 'nostr-tools/pure';
 import type { DirectoryIdentity } from '../directory/id.ts';
-import { normalizeFeed, FeedParseError } from '../normalize/normalize.ts';
+import { normalizeFeed, FeedParseError, type NormalizedFeed } from '../normalize/normalize.ts';
 import { projectFeed, cohostPlan, expand, type CohostPlan } from '../project/projector.ts';
 import { annotate, naddrFor, type Annotation } from '../project/annotate.ts';
 import { INDEX_RELAY } from '../project/nip52.ts';
@@ -28,13 +28,19 @@ export interface PollDeps {
   publish: (events: VerifiedEvent[]) => Promise<void>;
   // Addresses of the calendar key's events that have RSVPs.
   rsvps: (pubkey: string) => Promise<Set<string>>;
+  // The general relays the index publishes to, if any.
+  generalRelays?: string[];
 }
 
 export type PollReport =
-  | { status: 'published'; published: number; withdrawn: number; quarantine: QuarantineReason | null; log: string[] }
+  | { status: 'published'; published: number; withdrawn: number; quarantine: QuarantineReason | null; log: string[]; feed: NormalizedFeed; plan: CohostPlan; text: string }
   | { status: 'not-modified' }
-  | { status: 'aggregator' }
+  | { status: 'aggregator'; feed: NormalizedFeed; text: string }
   | { status: 'failed'; code: string };
+
+// The co-host plan for this poll: given, built from the fresh feed (with the
+// other calendars the caller knows), or for this calendar alone.
+export type PlanSource = CohostPlan | ((feed: NormalizedFeed) => CohostPlan) | null;
 
 function failed(entry: Entry, deps: PollDeps, code: string, retryAfter: number | null = null): PollReport {
   const now = deps.now();
@@ -51,7 +57,7 @@ function failed(entry: Entry, deps: PollDeps, code: string, retryAfter: number |
   return { status: 'failed', code };
 }
 
-export async function pollCalendar(entry: Entry, plan: CohostPlan | null, deps: PollDeps): Promise<PollReport> {
+export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDeps): Promise<PollReport> {
   const now = deps.now();
   const state = deps.db.pollState(entry.d);
   const fetched = await deps.fetch(entry.feedUrl, { etag: state.etag, lastModified: state.lastModified });
@@ -66,10 +72,13 @@ export async function pollCalendar(entry: Entry, plan: CohostPlan | null, deps: 
       lastSuccessAt: now,
       nextPollAt: nextPollAt({ now, refreshInterval, nextEventStart, failures: 0, retryAfter: null }),
       stale: false,
+      refreshInterval,
+      nextEventStart,
     });
 
   if (fetched.status === 'not-modified') {
-    success(null, null, state);
+    const next = state.nextEventStart !== undefined && state.nextEventStart !== null && state.nextEventStart >= now ? state.nextEventStart : null;
+    success(state.refreshInterval ?? null, next, state);
     return { status: 'not-modified' };
   }
 
@@ -87,12 +96,12 @@ export async function pollCalendar(entry: Entry, plan: CohostPlan | null, deps: 
 
   if (entry.role !== 'calendar') {
     success(feed.calendar.refreshInterval, nextEventStart, validators);
-    return { status: 'aggregator' };
+    return { status: 'aggregator', feed, text: fetched.text };
   }
 
   const pubkey = deps.vault.createKey(entry.d);
   const rsvps = await deps.rsvps(pubkey);
-  const effectivePlan = plan ?? cohostPlan([feed], now);
+  const effectivePlan = typeof plan === 'function' ? plan(feed) : plan ?? cohostPlan([feed], now);
   const result = projectFeed({
     feed,
     calendarPubkey: pubkey,
@@ -102,6 +111,7 @@ export async function pollCalendar(entry: Entry, plan: CohostPlan | null, deps: 
     now,
     hasRsvps: (address) => rsvps.has(address),
     plan: effectivePlan,
+    generalRelays: deps.generalRelays ?? [],
   });
 
   const signed = result.publish.map((planned) => ({ planned, event: deps.vault.sign(entry.d, planned.template) }));
@@ -131,5 +141,14 @@ export async function pollCalendar(entry: Entry, plan: CohostPlan | null, deps: 
   }
 
   success(feed.calendar.refreshInterval, nextEventStart, validators);
-  return { status: 'published', published: signed.length, withdrawn: result.withdrawn.length, quarantine: result.quarantine, log: [...feed.log.map((l) => `${l.code} ${l.uid ?? ''} ${l.detail ?? ''}`.trim()), ...result.log] };
+  return {
+    status: 'published',
+    published: signed.length,
+    withdrawn: result.withdrawn.length,
+    quarantine: result.quarantine,
+    log: [...feed.log.map((l) => `${l.code} ${l.uid ?? ''} ${l.detail ?? ''}`.trim()), ...result.log],
+    feed,
+    plan: effectivePlan,
+    text: fetched.text,
+  };
 }

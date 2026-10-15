@@ -1,0 +1,9 @@
+#!/bin/sh
+# The maintainer's commands (indexer/src/admin.ts), as the service user with
+# the services' settings. Run as root: eventindex-admin status
+set -eu
+set -a
+. ${ETC}/eventindex.env
+set +a
+cd ${APP_DIR}
+exec runuser -u ${SERVICE_USER} -- /usr/local/bin/node --disable-warning=ExperimentalWarning indexer/src/admin.ts "$@"

@@ -5,7 +5,8 @@ Status: draft.
 ## 1. Which entries are polled
 
 - The index polls the directory entries its own key filed (seeded entries and
-  submissions that passed validation, § 4), unless they carry `removed`.
+  submissions that passed validation, § 4, and a maintainer's review), unless
+  they carry `removed` or their `d` is on the do-not-index list (§ 10).
 - A `calendar` entry is polled and projected. An `aggregator` entry is polled
   only to find calendars; its events are never projected, so an event seen only
   through an aggregator, whose host has no calendar in the directory, is not
@@ -131,3 +132,50 @@ and is backed up as such.
 for the index key to sign: each feed is fetched and validated (§ 4), platform
 default calendars are skipped (§ 2), each filed calendar's key is created, and
 `created_at` is spread (§ 2).
+
+The poll service files a seed list's `calendars` as entries directly
+(`indexer/src/admin.ts import-seeds`): each with its city's area, `location`
+`<city name>, <country code>` and `g` the geohash of the city's coordinates at
+precision 4, and its `found_via`. Its `skipped` calendars are not filed, nor
+is any `d` on the do-not-index list. The first poll validates the feed and
+creates the calendar key.
+
+## 10. Submissions and removals
+
+- **Submissions.** A submitted feed that passes § 4 waits in a review queue
+  (at most 1,000). A maintainer files it as an entry or rejects it; a platform
+  default calendar is marked as such for the review. A feed already in the
+  directory or on the do-not-index list is not queued.
+- **Remove requests.** Anyone may ask for a calendar's removal, with an
+  optional message. Each request gets a token (`eventindex-remove-` and 10
+  characters of `a-z2-7`); when a poll finds the token anywhere in the feed,
+  the request is marked verified, as proof that its author controls the
+  calendar. A maintainer approves or rejects every request, verified or not.
+- **Removal.** At its next tick after the approval, the poll service, with the
+  calendar key:
+  - deletes every upcoming projection (kind `5`, [`nip52-mapping.md`](nip52-mapping.md) § 4),
+    with or without RSVPs;
+  - publishes the kind 0 of the removed state ([`nip52-mapping.md`](nip52-mapping.md) § 6)
+    and a kind 31924 listing only its past events;
+  - deletes the calendar key from the vault (§ 8).
+
+  The entry is republished with `["removed", "organizer request"]`, its events
+  leave the API, its `d` goes on the do-not-index list, and the feed is never
+  polled again. Past events stay on relays as they were published.
+
+## 11. The poll service
+
+- One process per data directory, held by a lock file; a second one refuses
+  to start.
+- Every 30 seconds a tick carries out approved removals, polls the entries
+  that are due (at most 20 per tick, the longest due first), publishes the
+  index key's events that changed (its kind 0 and 10002, both list headers and
+  every directory entry with a calendar key, or none for an aggregator), and
+  writes the dump once a day. One feed's failure does not stop the others.
+- Events go to the index's own relay; a publish it refuses fails the poll,
+  which is retried. Publishing to other relays is off unless the operator
+  turns it on: then the calendar keys' kinds 0, 10002, 31924 and 5 and their
+  upcoming events go to the general relays, and the list kinds (39998, 39999)
+  to the general relays and any relays that take only lists, rate-limited and
+  never backfilled.
+- On SIGTERM the service stops after the poll in progress.

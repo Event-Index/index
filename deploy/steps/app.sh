@@ -14,5 +14,3 @@ else
 fi
 as_service git -C "$APP_DIR" log -1 --format='running %h %s'
 (cd "$APP_DIR" && as_service env HOME=/opt/eventindex npm ci --omit=dev --no-audit --no-fund --loglevel=error)
-install -d -m 755 "$SITE_DIR"
-install -m 644 "$APP_DIR/deploy/site/index.html" "$SITE_DIR/index.html"

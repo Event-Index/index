@@ -8,7 +8,7 @@ const deploy = fileURLToPath(new URL('../', import.meta.url));
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const read = (path: string) => readFileSync(`${deploy}${path}`, 'utf8');
 
-const templates = ['templates/eventindex.env', 'templates/nginx-http.conf', 'templates/nginx-tls.conf', 'templates/litestream.yml',
+const templates = ['templates/eventindex.env', 'templates/eventindex-admin', 'templates/nginx-http.conf', 'templates/nginx-tls.conf', 'templates/litestream.yml',
   ...readdirSync(`${deploy}templates/systemd`).map((f) => `templates/systemd/${f}`)];
 const scripts = ['lib.sh', 'setup.sh', 'restore.sh', 'relay-export.sh', 'upgrade.sh', ...readdirSync(`${deploy}steps`).map((f) => `steps/${f}`)];
 
@@ -90,4 +90,27 @@ test('every service runs as the service user, sandboxed', () => {
     assert.match(text, /^ProtectSystem=strict$/m, unit);
     assert.match(text, /^NoNewPrivileges=yes$/m, unit);
   }
+});
+
+test('the API cannot read the secrets, and the indexer has time to finish its poll on stop', () => {
+  const api = read('templates/systemd/eventindex-api.service');
+  assert.match(api, /^InaccessiblePaths=\$\{ETC\}$/m);
+  assert.doesNotMatch(api, /^ReadOnlyPaths=\$\{ETC\}$/m);
+  assert.match(read('templates/systemd/eventindex-indexer.service'), /^TimeoutStopSec=\d+$/m);
+});
+
+test('the main domain is served by the API, with a static page while it is down', () => {
+  const main = read('templates/nginx-tls.conf').split('server {').find((block) => block.includes('server_name ${DOMAIN};'))!;
+  assert.match(main, /location \/ \{[^}]*proxy_pass http:\/\/127\.0\.0\.1:\$\{API_PORT\};[^}]*proxy_set_header X-Real-IP \$remote_addr;[^}]*error_page 502 503 504 \/offline\.html;/s);
+  assert.match(main, /location = \/offline\.html \{\s*internal;\s*\}/);
+  assert.match(read('steps/services.sh'), /site\/offline\.html/);
+  const page = read('site/offline.html');
+  assert.doesNotMatch(page, /<script|<img|https?:\/\/[^"]*\.(js|css)/i);
+});
+
+test('the admin command runs as the service user with the services\' settings', () => {
+  const admin = read('templates/eventindex-admin');
+  assert.match(admin, /^\. \$\{ETC\}\/eventindex\.env$/m);
+  assert.match(admin, /runuser -u \$\{SERVICE_USER\} -- \/usr\/local\/bin\/node .*indexer\/src\/admin\.ts "\$@"$/m);
+  assert.equal(spawnSync('sh', ['-n', `${deploy}templates/eventindex-admin`]).status, 0);
 });

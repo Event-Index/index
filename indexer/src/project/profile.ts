@@ -14,7 +14,7 @@ export const CALENDAR_LIST_MAX = 300;
 export const CALENDAR_LIST_PAST = 30 * 86400;
 
 // Each platform as its owner styles it, and the name of who owns it.
-const PLATFORMS: Partial<Record<Source, { styled: string; owner: string }>> = {
+export const PLATFORMS: Partial<Record<Source, { styled: string; owner: string }>> = {
   luma: { styled: 'Luma', owner: 'Luma' },
   meetup: { styled: 'Meetup®', owner: 'Meetup' },
   mobilizon: { styled: 'Mobilizon', owner: 'Mobilizon' },
@@ -52,9 +52,10 @@ export function calendarProfile(input: ProfileInput): EventTemplate {
 }
 
 // The index relay unmarked, so RSVPs and comments sent to the host's inbox
-// reach the index; the general relays the index publishes to, for reading.
-export function relayList(): EventTemplate {
-  return { kind: 10002, tags: [['r', INDEX_RELAY], ...GENERAL_RELAYS.map((relay) => ['r', relay, 'write'])], content: '' };
+// reach the index; the general relays the index publishes to (none while it
+// publishes only to its own), for reading.
+export function relayList(general: string[] = []): EventTemplate {
+  return { kind: 10002, tags: [['r', INDEX_RELAY], ...general.map((relay) => ['r', relay, 'write'])], content: '' };
 }
 
 export interface ListedEvent {

@@ -12,6 +12,8 @@ EnvironmentFile=${ETC}/eventindex.env
 ExecStart=/usr/local/bin/node --disable-warning=ExperimentalWarning indexer/src/main.ts
 Restart=on-failure
 RestartSec=10
+# SIGTERM stops it after the poll in progress (a feed read takes at most 60 s).
+TimeoutStopSec=120
 MemoryMax=1500M
 ReadWritePaths=${DATA_DIR}
 ReadOnlyPaths=${ETC}

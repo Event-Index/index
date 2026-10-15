@@ -3,6 +3,12 @@
 # in place and their entry points exist in the checked-out code.
 
 log "services"
+# The page nginx shows while the API is down, and the maintainer's commands.
+install -d -m 755 "$SITE_DIR"
+install -m 644 "$DEPLOY_DIR/site/offline.html" "$SITE_DIR/offline.html"
+rm -f "$SITE_DIR/index.html"
+render "$DEPLOY_DIR/templates/eventindex-admin" /usr/local/bin/eventindex-admin "$TEMPLATE_VARS"
+chmod 755 /usr/local/bin/eventindex-admin
 for unit in strfry.service eventindex-indexer.service eventindex-api.service eventindex-relay-export.service eventindex-relay-export.timer; do
   render "$DEPLOY_DIR/templates/systemd/$unit" "/etc/systemd/system/$unit" "$TEMPLATE_VARS"
 done

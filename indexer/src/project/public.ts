@@ -4,6 +4,7 @@
 // a hidden venue's coordinates are coarsened.
 
 import ICAL from 'ical.js';
+import '../ical/design.ts';
 import type { Adapter } from '../adapters/index.ts';
 import { adapterFor } from '../adapters/index.ts';
 import type { EventRecord, NormalizedFeed } from '../normalize/normalize.ts';

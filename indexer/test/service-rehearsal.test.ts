@@ -1,0 +1,139 @@
+// The poll service against a local relay (`nak serve`; skipped without nak).
+// Keys are made for the test and thrown away.
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { createServer, connect } from 'node:net';
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { nsecEncode } from 'nostr-tools/nip19';
+import { SimplePool } from 'nostr-tools/pool';
+import { openIndexDb } from '../src/store/index-db.ts';
+import { openVault } from '../src/store/vault-db.ts';
+import { directoryStore } from '../src/store/directory.ts';
+import { queueStore } from '../src/store/queues.ts';
+import { eventStore } from '../src/store/events.ts';
+import { createIndexer } from '../src/service/indexer.ts';
+import { relayPublisher } from '../src/service/publisher.ts';
+import { loadSettings } from '../src/config.ts';
+import { identify } from '../src/directory/id.ts';
+import { readFixture, feedUrlFor, NOW } from './helpers.ts';
+
+const hasNak = spawnSync('nak', ['--version']).status === 0;
+const skip = !hasNak && 'nak is not installed';
+const repo = new URL('../../', import.meta.url).pathname;
+let relay: ChildProcess | null = null;
+let url = '';
+const pool = new SimplePool();
+
+async function freePort(): Promise<number> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function waitForPort(port: number): Promise<void> {
+  for (let i = 0; i < 100; i += 1) {
+    const open = await new Promise<boolean>((resolve) => {
+      const socket = connect(port, '127.0.0.1', () => { socket.end(); resolve(true); });
+      socket.on('error', () => resolve(false));
+    });
+    if (open) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('relay did not start');
+}
+
+before(async () => {
+  if (!hasNak) return;
+  const port = await freePort();
+  url = `ws://127.0.0.1:${port}`;
+  relay = spawn('nak', ['serve', '--hostname', '127.0.0.1', '--port', String(port), '-qq'], { stdio: 'ignore' });
+  await waitForPort(port);
+});
+
+after(() => {
+  if (url) pool.close([url]);
+  relay?.kill();
+});
+
+test('one tick publishes the directory, the calendar key\'s events and the calendar to the relay', { skip }, async () => {
+  const db = openIndexDb(':memory:');
+  const dir = directoryStore(db);
+  const vault = openVault(':memory:', new Uint8Array(randomBytes(32)));
+  const indexKey = generateSecretKey();
+  const settings = { ...loadSettings({ EVENTINDEX_DATA_DIR: '/nonexistent', EVENTINDEX_RELAY_URL: url }) };
+  const id = identify(feedUrlFor('meetup-pythonsd.ics'));
+  dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null, location: 'San Diego, US', g: '9mud', foundVia: 'maintainer', addedAt: NOW });
+  const publisher = relayPublisher(settings, () => {});
+  const indexer = createIndexer({
+    db, dir, queues: queueStore(db), events: eventStore(db), vault, indexKey, settings, publisher,
+    now: () => NOW,
+    fetch: async (u) => ({ status: 'ok', text: readFixture('meetup-pythonsd.ics'), etag: null, lastModified: null, finalUrl: u }),
+    log: () => {},
+  });
+  await indexer.tick();
+  publisher.close();
+  const indexPubkey = getPublicKey(indexKey);
+  const calendarPubkey = dir.get(id.d)!.pubkey!;
+  const directory = await pool.querySync([url], { kinds: [39998, 39999], authors: [indexPubkey] });
+  assert.deepEqual(directory.map((e) => e.kind).sort(), [39998, 39998, 39999]);
+  const listed = await pool.querySync([url], { kinds: [31923], '#z': [`39998:${indexPubkey}:events`] });
+  assert.equal(listed.length, 4);
+  assert.ok(listed.every((e) => e.pubkey === calendarPubkey));
+  const calendar = await pool.querySync([url], { kinds: [31924], authors: [calendarPubkey] });
+  assert.equal(calendar[0]!.tags.filter((t) => t[0] === 'a').length, 4);
+});
+
+function serviceEnv(dataDir: string): NodeJS.ProcessEnv {
+  const keyFile = join(dataDir, 'index-key.nsec');
+  const secretFile = join(dataDir, 'calendar-key.secret');
+  writeFileSync(keyFile, `${nsecEncode(generateSecretKey())}\n`);
+  writeFileSync(secretFile, `${randomBytes(32).toString('hex')}\n`);
+  return { ...process.env, EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: keyFile, EVENTINDEX_CALENDAR_SECRET_FILE: secretFile, EVENTINDEX_RELAY_URL: url };
+}
+
+test('main.ts --once runs one tick, publishes the index key\'s events, and releases its lock', { skip }, async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'svc-'));
+  try {
+    const run = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: serviceEnv(dataDir), encoding: 'utf8', timeout: 30_000 });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.match(run.stdout, /indexer started as npub1.*general relays off/);
+    assert.match(run.stdout, /stopped/);
+    assert.equal(existsSync(join(dataDir, 'indexer.lock')), false);
+    assert.ok(existsSync(join(dataDir, 'index.db')) && existsSync(join(dataDir, 'vault.db')));
+    const headers = await pool.querySync([url], { kinds: [39998], '#d': ['event-calendars'] });
+    assert.ok(headers.length >= 1);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('main.ts stops cleanly on SIGTERM', { skip }, async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'svc-'));
+  try {
+    const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts'], { cwd: repo, env: serviceEnv(dataDir), stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout!.on('data', (chunk) => { out += chunk; });
+    for (let i = 0; i < 200 && !/indexer started/.test(out); i += 1) await new Promise((r) => setTimeout(r, 50));
+    assert.match(out, /indexer started/);
+    const second = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: { ...serviceEnv(dataDir) }, encoding: 'utf8', timeout: 30_000 });
+    assert.equal(second.status, 1, 'a second indexer on the same data directory refuses to start');
+    assert.match(second.stdout, /held by process/);
+    child.kill('SIGTERM');
+    const code = await new Promise<number | null>((resolve) => child.on('exit', resolve));
+    assert.equal(code, 0);
+    assert.match(out, /SIGTERM: stopping/);
+    assert.equal(existsSync(join(dataDir, 'indexer.lock')), false);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

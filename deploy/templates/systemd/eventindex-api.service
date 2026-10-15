@@ -14,7 +14,9 @@ Restart=on-failure
 RestartSec=5
 MemoryMax=768M
 ReadWritePaths=${DATA_DIR}
-ReadOnlyPaths=${ETC}
+# The API holds no key: systemd reads the environment file before the
+# sandbox starts, and the service cannot see the secrets.
+InaccessiblePaths=${ETC}
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

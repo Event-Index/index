@@ -16,20 +16,23 @@ iCalendar record. It serves each record as:
 The directory itself is a decentralized list on nostr, and its data is in the
 public domain.
 
-Status: early. Implemented and tested against captured feeds: the normalizer,
-the platform adapters (Luma, Meetup, Mobilizon, Google), the projector (NIP-52,
-`.ics`, jCal, JSON-LD and the calendar keys' own events), the indexer rules
-(co-hosts, vanished events, quarantine, schedule, submission checks),
-`index.db`, `vault.db`, and one poll of one calendar end to end (fetch,
-normalize, project, sign, publish, record). Not implemented: the scheduler that
-runs polls, the HTTP API and the directory's publishing.
+Status: early, not yet running in public. Implemented and tested against
+captured feeds and a local relay: the normalizer, the platform adapters (Luma,
+Meetup, Mobilizon, Google), the projector (NIP-52, `.ics`, jCal, JSON-LD and
+the calendar keys' own events), the indexer rules (co-hosts, vanished events,
+quarantine, schedule, submission checks), the poll service
+(`indexer/src/main.ts`), which publishes the directory and carries out
+removals, the maintainer's commands (`indexer/src/admin.ts`), and the HTTP
+service (`api/src/main.ts`): the API, NIP-05 names and the pages of
+eventindex.space. Not implemented: discovery through aggregator feeds,
+claims, and native NIP-52 calendars.
 
 ## Layout
 
 | Path | What it holds |
 |---|---|
-| `indexer/` | the poller, the normalizer, the platform adapters and the projector |
-| `api/` | the HTTP API |
+| `indexer/` | the poll service, the normalizer, the platform adapters, the projector and the maintainer's commands |
+| `api/` | the HTTP service: the API, NIP-05 names and the pages |
 | `relay/` | the configuration of the index's own relay (strfry) |
 | `deploy/` | scripts and runbook for a server: setup, backups, upgrades, restore |
 | `spec/` | the iCalendar profile, the platform adapters, the NIP-52 mapping, the API reference |

@@ -3,6 +3,7 @@
 // blocks its events use. The profile is spec/icalendar-profile.md.
 
 import ICAL from 'ical.js';
+import '../ical/design.ts';
 import { adapterFor, type Adapter, type CalendarSide } from '../adapters/index.ts';
 import { registerZones, vtimezoneFor, canonicalZone, type ZoneReport } from '../ical/zones.ts';
 import { htmlToText, looksLikeHtml, markdownToText } from '../ical/text.ts';
@@ -380,6 +381,16 @@ function calendarMeta(calendar: ICAL.Component, adapter: Adapter, ctx: FeedConte
     refreshInterval,
     timezone: zone ? canonicalZone(zone) : null,
   };
+}
+
+// A stored record back as an EventRecord (its text is the record's own
+// VCALENDAR, VTIMEZONE blocks included).
+export function recordFromText(text: string, uid: string, id: string): EventRecord {
+  const component = parseCalendar(text);
+  registerZones(component);
+  const vevents = component.getAllSubcomponents('vevent');
+  const master = vevents.find((v) => !v.hasProperty('recurrence-id')) ?? null;
+  return { uid, id, component, master, overrides: vevents.filter((v) => v.hasProperty('recurrence-id')) };
 }
 
 export function normalizeFeed(text: string, ctx: FeedContext): NormalizedFeed {

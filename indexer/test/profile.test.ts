@@ -51,10 +51,11 @@ test('a removed calendar\'s kind 0 says so', () => {
   assert.equal(JSON.parse(luma('removed').content).about, 'No longer mirrored by Event Index at its organizer\'s request.');
 });
 
-test('kind 10002 names the index relay unmarked and the general relays for writing', () => {
-  const event = relayList();
+test('kind 10002 names the index relay unmarked and the general relays it publishes to for writing', () => {
+  const event = relayList(GENERAL_RELAYS);
   assert.equal(event.kind, 10002);
   assert.deepEqual(event.tags, [['r', INDEX_RELAY], ...GENERAL_RELAYS.map((r) => ['r', r, 'write'])]);
+  assert.deepEqual(relayList().tags, [['r', INDEX_RELAY]], 'no general relay while publishing to none');
 });
 
 test('kind 31924 lists upcoming and recent events, signed or co-hosted, soonest first', () => {

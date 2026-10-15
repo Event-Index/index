@@ -70,6 +70,9 @@ export interface PollState {
   lastSuccessAt: number | null;
   nextPollAt: number;
   stale: boolean;
+  // From the last successful parse, so a 304 keeps the same schedule.
+  refreshInterval?: number | null;
+  nextEventStart?: number | null;
 }
 
 export const NEW_POLL_STATE: PollState = {
@@ -84,6 +87,8 @@ export interface ProjectionRow {
 }
 
 export interface IndexDb {
+  // The SQLite handle, for the other stores that share the file.
+  raw: Database.Database;
   shouldPublish(pubkey: string, kind: number, d: string, hash: string): boolean;
   markPublished(p: Published): void;
   markWithdrawn(pubkey: string, kind: number, d: string, status: 'cancelled' | 'deleted'): void;
@@ -91,6 +96,8 @@ export interface IndexDb {
   versions(pubkey: string, kind: number, d: string): string[];
   lastCreatedAt(pubkey: string, kind: number, d: string): number | null;
   lastTemplate(pubkey: string, kind: number, d: string): unknown;
+  // The calendar key's projections that are live (not withdrawn).
+  liveProjections(pubkey: string): Array<{ kind: number; d: string; start: number }>;
   loadPresence(calendarD: string): PresenceState;
   savePresence(calendarD: string, state: PresenceState): void;
   pollState(calendarD: string): PollState;
@@ -100,6 +107,7 @@ export interface IndexDb {
   // Stores a record's text and returns when it last changed.
   putRecord(r: { calendarD: string; uid: string; id: string; ics: string; now: number }): number;
   record(id: string): { calendarD: string; uid: string; ics: string; changedAt: number } | null;
+  recordsOf(calendarD: string): Array<{ id: string; uid: string; ics: string; changedAt: number }>;
   close(): void;
 }
 
@@ -107,6 +115,8 @@ export function openIndexDb(path: string): IndexDb {
   const db = new Database(path);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // The poll service and the API share the file.
+  db.pragma('busy_timeout = 5000');
   db.exec(SCHEMA);
 
   const getProjection = db.prepare<[string, number, string], { hash: string; created_at: number; start: number; status: ProjectionRow['status'] }>(
@@ -159,6 +169,7 @@ export function openIndexDb(path: string): IndexDb {
   });
 
   return {
+    raw: db,
     shouldPublish: (pubkey, kind, d, hash) => {
       const row = projection(pubkey, kind, d);
       return !row || row.status !== 'live' || row.hash !== hash;
@@ -168,6 +179,12 @@ export function openIndexDb(path: string): IndexDb {
     projection,
     versions: (pubkey, kind, d) => listVersions.all(pubkey, kind, d).map((r) => r.event_id),
     lastCreatedAt: (pubkey, kind, d) => projection(pubkey, kind, d)?.createdAt ?? null,
+    liveProjections: (pubkey) => db.prepare<[string], { kind: number; d: string; start: number }>(
+      "SELECT kind, d, start FROM projections WHERE pubkey = ? AND status = 'live' ORDER BY start",
+    ).all(pubkey),
+    recordsOf: (calendarD) => db.prepare<[string], { id: string; uid: string; ics: string; changed_at: number }>(
+      'SELECT id, uid, ics, changed_at FROM records WHERE calendar_d = ? ORDER BY uid',
+    ).all(calendarD).map((r) => ({ id: r.id, uid: r.uid, ics: r.ics, changedAt: r.changed_at })),
     lastTemplate: (pubkey, kind, d) => {
       const row = getTemplate.get(pubkey, kind, d);
       return row?.template ? JSON.parse(row.template) : null;

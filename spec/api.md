@@ -1,15 +1,15 @@
 # API reference
 
-Status: draft; not yet served.
+Status: draft.
 
 Base URL: `https://api.eventindex.space/api/1.0`. The version is part of every
 path. Read endpoints need no key and send `Access-Control-Allow-Origin: *`.
 
 ## Identifiers
 
-- **Calendar**: its directory entry's `d` ([`icalendar-profile.md`](icalendar-profile.md) § 5),
-  or in a path, its local name (§ 5.1 there), which is URL-safe. The calendar
-  key is its `guid`.
+- **Calendar**: its directory entry's `d` ([`icalendar-profile.md`](icalendar-profile.md) § 5).
+  In a path, a calendar is named by its local name (§ 5.1 there), which is
+  URL-safe. The calendar key is its `guid`.
 - **Event**: its public id, 32 characters of `a-z2-7`
   ([`icalendar-profile.md`](icalendar-profile.md) § 6). One URL per record or
   occurrence: `/events/byid/<id>`.
@@ -24,8 +24,12 @@ path. Read endpoints need no key and send `Access-Control-Allow-Origin: *`.
 
 Projections follow the source's content policy
 ([`platform-adapters.md`](platform-adapters.md)) and never carry an `ORGANIZER`
-or `ATTENDEE`. An occurrence of a recurring event is served as that one
-instance (its `RECURRENCE-ID` set, its rule removed).
+or `ATTENDEE`. An event whose venue is hidden carries no place in any format.
+An occurrence of a recurring event is served as that one instance (its
+`RECURRENCE-ID` set, its rule removed).
+
+Every response carries `Access-Control-Allow-Origin: *`. Times in parameters
+are unix seconds.
 
 ## Read
 
@@ -33,10 +37,14 @@ instance (its `RECURRENCE-ID` set, its rule removed).
 
 | Request | Returns |
 |---|---|
-| `GET /calendars/byfeedurl?url=<feed URL>` | the entry whose canonical feed URL matches |
+| `GET /calendars/byfeedurl?url=<feed URL>` | the entry whose feed URL, canonicalized, matches |
 | `GET /calendars/byslug/<local name>` | one entry |
-| `GET /calendars/byguid/<npub>` | the entry of a calendar key |
-| `GET /search/calendars/byterm?q=&near=<geohash>&tag=` | matching entries |
+| `GET /calendars/byguid/<npub or hex>` | the entry of a calendar key |
+| `GET /search/calendars/byterm?q=&near=<geohash>&tag=&limit=` | `{"calendars": [...], "count": n}`, removed entries left out |
+
+`q` matches the name, description and area; `near` matches an entry whose area
+geohash and `near` share a prefix (either holds the other); `tag` keeps
+calendars with an event carrying that topic. `limit`: default 50, at most 500.
 
 A calendar response:
 
@@ -51,13 +59,16 @@ A calendar response:
     "url": "https://www.meetup.com/pythonsd/",
     "description": null,
     "image": null,
-    "location": "San Diego, CA",
+    "location": "San Diego, US",
     "g": "9mud",
-    "t": ["python"]
+    "t": []
   },
   "eventindex": {
+    "local_name": "meetup-pythonsd",
     "address": "39999:<index key>:meetup:pythonsd",
     "nostr": { "npub": "npub1…", "nip05": "meetup-pythonsd@eventindex.space", "calendar": "naddr1…" },
+    "page": "https://eventindex.space/calendar/meetup-pythonsd",
+    "ics": "https://api.eventindex.space/api/1.0/ics/calendar/meetup-pythonsd.ics",
     "last_indexed": 1792087200,
     "event_count": 4,
     "stale": false,
@@ -67,35 +78,65 @@ A calendar response:
 }
 ```
 
+`image` is null where the source's policy serves no images. `nostr` is null
+until the calendar's first poll has created its key; `last_indexed` is the
+last successful poll. A removed calendar is still answered by these lookups,
+with `removed: true` and no events.
+
 ### Events
 
 | Request | Returns |
 |---|---|
 | `GET /events/byid/<id>[.ics\|.json]` | one record or occurrence |
-| `GET /events/bycalendar/<local name>?from=&to=` | a calendar's occurrences between two unix times (default: the projection window) |
-| `GET /search/events/byterm?q=&from=&to=&near=<geohash>&radius=<km>&tag=` | matching occurrences |
+| `GET /events/bycalendar/<local name>[.json]?from=&to=&limit=` | a calendar's occurrences that overlap `from`–`to` (default: the projection window), soonest first |
+| `GET /search/events/byterm[.json]?q=&from=&to=&near=<geohash>&radius=<km>&tag=&limit=` | matching occurrences, soonest first |
 
-A list of events is `{"events": [...], "count": n}` where each item is the
-format of the request (jCal by default, JSON-LD with `.json`). Each jCal item
-is accompanied by:
+- `/events/byid/<id>` answers an occurrence by its id, and a record by the id
+  of its master: for a recurring record, the whole series (in JSON-LD an
+  `EventSeries` with its occurrences in the window as `subEvent`); for a past
+  event the feed no longer lists, its last record. Without a suffix it is the
+  record's jCal; the record carries `X-EVENTINDEX-ID`, and where they apply
+  `X-EVENTINDEX-NOSTR` and `X-EVENTINDEX-CANONICAL`.
+- Search: `from` defaults to now and `to` to a year after `from`. `q` matches
+  the title, summary and place; `near` matches an event whose geohash starts
+  with it, and an event without coordinates (a hidden venue, a feed without
+  `GEO`) by its calendar's area; `radius` widens `near` to the geohash cell at
+  least that many kilometres wide; `tag` matches a topic. `limit`: default
+  100 (500 for a calendar), at most 500.
+
+A list of events is `{"events": [...], "count": n}`. With `.json` each item is
+a schema.org `Event`. Otherwise each item is:
 
 ```json
-"eventindex": {
-  "id": "<public id>",
-  "nostr": "naddr1…",
-  "calendar": "<calendar d>",
-  "canonical": "<public id of the signing record, when this one is a co-host's copy>",
-  "cohosts": ["<calendar d>"],
-  "source": "luma"
+{
+  "jcal": ["vcalendar", [...], [...]],
+  "eventindex": {
+    "id": "<public id>",
+    "url": "https://api.eventindex.space/api/1.0/events/byid/<public id>",
+    "start": 1792468800,
+    "end": 1792476000,
+    "nostr": "naddr1…",
+    "calendar": "<calendar d>",
+    "canonical": "<public id of the signing record, when this one is a co-host's copy>",
+    "cohosts": ["<calendar d>"],
+    "source": "meetup",
+    "via": "<the calendar's feed URL>"
+  }
 }
 ```
+
+`nostr` is the address the event is published at: for a co-host's copy, the
+signing calendar's.
 
 ### Feeds
 
 | Request | Returns |
 |---|---|
-| `GET /ics/calendar/<local name>.ics` | a calendar's events as one feed, in the window |
-| `GET /ics/city/<city>.ics` | events of the directory's calendars in a city, built from those calendars (never a copy of an aggregator's feed) |
+| `GET /ics/calendar/<local name>.ics` | a calendar's records with an occurrence in the window, as one feed |
+| `GET /ics/city/<city>.ics` | the records of the directory's calendars in a city, a co-hosted event once (from the calendar that signs it); never a copy of an aggregator's feed |
+
+`<city>` is a slug from `seeds/cities.json`; a calendar is in the city when
+its area is `<city name>, <country code>`.
 
 ### Directory and service
 
@@ -105,20 +146,65 @@ is accompanied by:
 | `GET /stats` | counts of calendars, events and polls |
 | `GET /.well-known/nostr.json?name=<local name>` (on `eventindex.space`) | NIP-05 names of calendar keys and of the index key (`_`) |
 
+`/stats`:
+
+```json
+{
+  "calendars": 103, "aggregators": 0, "removed": 0,
+  "events": { "upcoming": 1870, "indexed": 2310 },
+  "polls": { "ok_last_24h": 103, "failing": 0, "stale": 0 },
+  "dump": { "url": "https://api.eventindex.space/api/1.0/dump/index.db", "generated_at": 1792103973 },
+  "generated_at": 1792103986
+}
+```
+
+NIP-05 answers `{"names": {"<name>": "<hex key>"}, "relays": {"<hex key>":
+["wss://relay.eventindex.space"]}}`; names are matched case-insensitively.
+Without `name` it answers `_`.
+
+Every event response names its source in `eventindex.source` (or the record's
+`X-EVENTINDEX-SOURCE`); responses about one calendar carry
+`Link: <feed URL>; rel="via"`.
+
 ## Write
 
-Write endpoints take an app key, sent as `Authorization: Bearer <key>`, never
-in the URL. Keys are issued per registered app.
+Writes need no key. They are limited per client address (10 submissions and
+5 remove requests an hour), take a JSON object or a form of at most 16 KiB,
+and change nothing until a maintainer has reviewed them.
 
 | Request | Does |
 |---|---|
-| `POST /feeds/add` with `{"url": "<feed URL>"}` | validates the feed ([`indexer-rules.md`](indexer-rules.md) § 4), files a directory entry under the index key, creates the calendar key, runs the first poll; returns the entry's address and the calendar key's npub |
-| `POST /calendars/<local name>/remove-request` | starts removal of a calendar at its organizer's request |
+| `POST /feeds/add` with `{"url": "<feed URL>"}` (or `?url=`) | validates the feed ([`indexer-rules.md`](indexer-rules.md) § 4) and queues it for review |
+| `POST /calendars/<local name>/remove-request` with `{"message": "…"}` (optional, at most 1,000 characters) | records a request to remove the calendar, for review |
 
-Errors are `{"error": "<code>", "message": "<text>"}` with an HTTP status.
-Validation codes: `invalid-url`, `unsupported-feed`, `private-feed-url`,
-`private-address`, `too-large`, `not-icalendar`, `empty`, `dns`, `timeout`,
-`too-many-redirects`, `http-<status>`.
+`/feeds/add` answers `202` with
+`{"status": "queued" | "already-queued", "submission": n, "d", "name", "source", "role", "message"}`.
+Once a maintainer approves it, the entry is filed under the index key and the
+next poll creates its calendar key and publishes its events.
+
+`/remove-request` answers `202` with
+`{"status": "received", "request": n, "d", "token": "eventindex-remove-…", "instructions": "…"}`.
+The token is the organizer's proof: placed in the calendar's description or
+in one of its events, it is found at the next poll and marks the request
+verified. A maintainer approves or rejects each request; an approved removal
+is carried out as [`indexer-rules.md`](indexer-rules.md) § 10 describes.
+
+The pages of `eventindex.space` post the same requests as forms
+(`POST /submit`, `POST /calendar/<local name>/remove`) and answer in HTML.
+
+Errors are `{"error": "<code>", "message": "<text>"}` with an HTTP status:
+
+| Status | Codes |
+|---|---|
+| 400 | `invalid-url`, `unsupported-feed`, `private-feed-url`, `invalid-parameter`, `invalid-body`, `invalid-message`, `too-long` |
+| 404 | `not-found` |
+| 405 | `method-not-allowed` |
+| 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request) |
+| 410 | `removed` |
+| 413 | `too-large` (the request body) |
+| 422 | the feed could not be used: `private-address`, `too-large`, `not-icalendar`, `empty`, `dns`, `timeout`, `too-many-redirects`, `http-<status>` |
+| 429 | `rate-limited` (with `Retry-After`), `too-many-requests` (a calendar with 10 requests waiting) |
+| 503 | `queue-full` (1,000 submissions waiting) |
 
 nostr developers can also add to the index by publishing: a directory entry
 (kind `39999`) under their own key, or NIP-52 events that the index reads by
