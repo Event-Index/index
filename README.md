@@ -31,6 +31,7 @@ runs polls, the HTTP API and the directory's publishing.
 | `indexer/` | the poller, the normalizer, the platform adapters and the projector |
 | `api/` | the HTTP API |
 | `relay/` | the configuration of the index's own relay (strfry) |
+| `deploy/` | scripts and runbook for a server: setup, backups, upgrades, restore |
 | `spec/` | the iCalendar profile, the platform adapters, the NIP-52 mapping, the API reference |
 | `seeds/` | organizer calendar lists by platform and city |
 | `fixtures/` | captured and synthetic feeds the tests run against |
@@ -54,6 +55,8 @@ npm install
 npm test
 npm run typecheck
 ```
+
+To run a server, see [`deploy/README.md`](deploy/README.md).
 
 ## Licenses
 

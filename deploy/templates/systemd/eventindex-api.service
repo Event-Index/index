@@ -1,0 +1,30 @@
+[Unit]
+Description=Event Index API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${APP_DIR}
+EnvironmentFile=${ETC}/eventindex.env
+ExecStart=/usr/local/bin/node --disable-warning=ExperimentalWarning api/src/main.ts
+Restart=on-failure
+RestartSec=5
+MemoryMax=768M
+ReadWritePaths=${DATA_DIR}
+ReadOnlyPaths=${ETC}
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+[Unit]
+Description=Event Index indexer (polls feeds, publishes projections)
+After=network-online.target strfry.service
+Wants=network-online.target strfry.service
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${APP_DIR}
+EnvironmentFile=${ETC}/eventindex.env
+ExecStart=/usr/local/bin/node --disable-warning=ExperimentalWarning indexer/src/main.ts
+Restart=on-failure
+RestartSec=10
+MemoryMax=1500M
+ReadWritePaths=${DATA_DIR}
+ReadOnlyPaths=${ETC}
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+# Continuous backup of index.db and vault.db to the S3-compatible bucket.
+# Litestream expands the two bucket keys from the environment at start; its
+# service reads them from /etc/eventindex/bucket.env.
+
+snapshot:
+  interval: 24h
+  retention: ${BACKUP_RETENTION}
+
+dbs:
+  - path: ${DATA_DIR}/index.db
+    replica:
+      type: s3
+      endpoint: ${BUCKET_ENDPOINT}
+      region: ${BUCKET_REGION}
+      bucket: ${BUCKET_NAME}
+      path: ${BUCKET_PREFIX}/index.db
+      access-key-id: ${BUCKET_ACCESS_KEY_ID}
+      secret-access-key: ${BUCKET_SECRET_ACCESS_KEY}
+
+  - path: ${DATA_DIR}/vault.db
+    replica:
+      type: s3
+      endpoint: ${BUCKET_ENDPOINT}
+      region: ${BUCKET_REGION}
+      bucket: ${BUCKET_NAME}
+      path: ${BUCKET_PREFIX}/vault.db
+      access-key-id: ${BUCKET_ACCESS_KEY_ID}
+      secret-access-key: ${BUCKET_SECRET_ACCESS_KEY}

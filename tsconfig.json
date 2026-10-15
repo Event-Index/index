@@ -15,5 +15,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["indexer/**/*.ts", "api/**/*.ts", "scripts/**/*.ts"]
+  "include": ["indexer/**/*.ts", "api/**/*.ts", "scripts/**/*.ts", "deploy/**/*.ts"]
 }

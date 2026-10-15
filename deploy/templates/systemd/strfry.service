@@ -1,0 +1,27 @@
+[Unit]
+Description=strfry relay for ${RELAY_HOST}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+ExecStart=/usr/local/bin/strfry --config=/etc/strfry.conf relay
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1000000
+ReadWritePaths=/var/lib/strfry
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
