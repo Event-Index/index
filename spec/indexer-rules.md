@@ -278,6 +278,15 @@ creates the calendar key.
   Past that, the calendars filed first stay followed and later ones are not
   added; the service logs, once a day, when the list is within 10% of the cap
   or past it. A removed calendar is unfollowed.
+- **Paused calendar keys.** The operator can pause calendar keys. While they
+  are paused, no calendar key is made: a calendar without one is still polled
+  and its records, events and pages are served, but nothing is projected or
+  signed for it and its directory entry waits for its key. A calendar that
+  has a key publishes to the index's relay only; nothing a calendar key signs
+  goes to the outside relays or is sent to them again. No calendar key is
+  deleted: a removal or a claim withdraws the calendar's events on the
+  index's relay and keeps its key. When the pause ends, keys are made at each
+  calendar's next poll and the outside relays get what they missed.
 - On SIGTERM the service stops after the poll in progress.
 
 ## 12. Calendars published by their organizers

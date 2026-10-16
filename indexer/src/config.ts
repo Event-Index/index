@@ -49,6 +49,10 @@ export interface Settings {
   // Off unless set: the index's relay also takes the events of organizers
   // the index publishes as (kinds 31922, 31923, 31924 and 5).
   hostClaimants: boolean;
+  // Off unless set: no calendar key is made, and nothing a calendar key signs
+  // goes to outside relays (or is sent again to them), until it is turned off.
+  // Calendars are still read and served; keys are never deleted meanwhile.
+  calendarKeysPaused: boolean;
   // Off unless set: read every public NIP-52 event by kind (native/ingest.ts)
   // from these relays, and from these search relays with their include:spam
   // extension, and list each publisher in the directory.
@@ -123,6 +127,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
     hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',
+    calendarKeysPaused: env['EVENTINDEX_CALENDAR_KEYS_PAUSED'] === '1',
     ingestNip52: env['EVENTINDEX_INGEST_NOSTR'] === '1',
     ingestRelays: relays(env['EVENTINDEX_INGEST_RELAYS'], INGEST_RELAYS, 'EVENTINDEX_INGEST_RELAYS'),
     // The search relays unless set.

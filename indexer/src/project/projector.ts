@@ -81,7 +81,8 @@ export interface ProjectorInput {
   feed: NormalizedFeed;
   calendarPubkey: string;
   indexPubkey: string;
-  keyOf: (calendarD: string) => string;
+  // A co-host's key; null for a calendar that has none, which is left out.
+  keyOf: (calendarD: string) => string | null;
   db: IndexDb;
   now: number;
   // Whether an event address has RSVPs (read from the relays).
@@ -152,7 +153,7 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
       yieldedTo.set(coordinate, { uid: o.record.uid, signer });
       continue;
     }
-    const cohosts = (input.plan.cohostsOf.get(key) ?? []).map(input.keyOf);
+    const cohosts = (input.plan.cohostsOf.get(key) ?? []).map(input.keyOf).filter((k): k is string => !!k);
     const result = projectOccurrence(o, { ...context, cohosts });
     if ('skip' in result) {
       log.push(`skip ${o.record.uid}: ${result.skip}`);
@@ -194,7 +195,10 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
   const name = feed.calendar.name ?? feed.context.d;
   const listed: ListedEvent[] = [
     ...projected.map(({ o, template }) => ({ coordinate: `${template.kind}:${pubkey}:${o.d}`, start: o.start })),
-    ...(input.plan.cohosted.get(feed.context.d) ?? []).map((c) => ({ coordinate: `${c.kind}:${input.keyOf(c.signerD)}:${c.d}`, start: c.start })),
+    ...(input.plan.cohosted.get(feed.context.d) ?? []).flatMap((c) => {
+      const signer = input.keyOf(c.signerD);
+      return signer ? [{ coordinate: `${c.kind}:${signer}:${c.d}`, start: c.start }] : [];
+    }),
   ];
   const profile = calendarProfile({
     name,

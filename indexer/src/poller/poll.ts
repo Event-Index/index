@@ -34,8 +34,12 @@ export interface PollDeps {
   // Who signs the calendar's events, asked once its feed has been read; by
   // default its calendar key, created on first use.
   signer?: () => Promise<Signer>;
-  // The key each other calendar signs with, for co-host tags.
-  keyOf?: (calendarD: string) => string;
+  // The key each other calendar signs with, for co-host tags; null for one
+  // that has none.
+  keyOf?: (calendarD: string) => string | null;
+  // No calendar key is made: a calendar without one is read and its records
+  // kept, but nothing is projected or signed for it.
+  keyless?: boolean;
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
   // A calendar published as its organizer: no profile or relay list of
@@ -123,6 +127,35 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     return { status: 'aggregator', feed, text: fetched.text };
   }
 
+  const effectivePlan = typeof plan === 'function' ? plan(feed) : plan ?? cohostPlan([feed], now);
+  const claimed = claimDate(deps.delegated?.claimedAt);
+  // The records, as the API serves them, with what was published of each.
+  const keepRecords = (pubkey: string | null, relay: string) => {
+    for (const record of feed.records) {
+      const notes = new Map<string, Annotation>();
+      if (claimed) for (const vevent of record.component.getAllSubcomponents('vevent')) notes.set(String(vevent.getFirstPropertyValue('x-eventindex-id') ?? ''), { claimed });
+      const single = record.master && !record.master.hasProperty('rrule') && !record.master.hasProperty('rdate');
+      if (single && pubkey) {
+        const kind = (record.master!.getFirstPropertyValue('dtstart') as ICAL.Time).isDate ? 31922 : 31923;
+        const d = nostrD(record.uid);
+        if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { ...notes.get(record.id), nostr: naddrFor(pubkey, kind, d, relay ? [relay] : []) });
+      }
+      const canonical = effectivePlan.canonicalOf.get(record.id);
+      if (canonical) notes.set(record.id, { ...notes.get(record.id), canonical });
+      annotate(record, notes);
+      deps.db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+    }
+  };
+
+  if (deps.keyless && !deps.delegated && !deps.vault.pubkeyFor(entry.d)) {
+    keepRecords(null, '');
+    success(feed.calendar.refreshInterval, nextEventStart, validators);
+    return {
+      status: 'published', published: 0, withdrawn: 0, quarantine: null, log: feed.log.map((l) => `${l.code} ${l.uid ?? ''} ${l.detail ?? ''}`.trim()),
+      feed, plan: effectivePlan, text: fetched.text,
+    };
+  }
+
   let signer: Signer;
   try {
     signer = deps.signer ? await deps.signer() : vaultSigner(deps.vault, entry.d, deps.vault.createKey(entry.d));
@@ -132,7 +165,6 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   const pubkey = signer.pubkey;
   const relay = deps.delegated?.relay ?? INDEX_RELAY;
   const rsvps = await deps.rsvps(pubkey);
-  const effectivePlan = typeof plan === 'function' ? plan(feed) : plan ?? cohostPlan([feed], now);
   const result = projectFeed({
     feed,
     calendarPubkey: pubkey,
@@ -181,21 +213,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     deps.db.savePresence(entry.d, result.presence);
   }
 
-  const claimed = claimDate(deps.delegated?.claimedAt);
-  for (const record of feed.records) {
-    const notes = new Map<string, Annotation>();
-    if (claimed) for (const vevent of record.component.getAllSubcomponents('vevent')) notes.set(String(vevent.getFirstPropertyValue('x-eventindex-id') ?? ''), { claimed });
-    const single = record.master && !record.master.hasProperty('rrule') && !record.master.hasProperty('rdate');
-    if (single) {
-      const kind = (record.master!.getFirstPropertyValue('dtstart') as ICAL.Time).isDate ? 31922 : 31923;
-      const d = nostrD(record.uid);
-      if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { ...notes.get(record.id), nostr: naddrFor(pubkey, kind, d, relay ? [relay] : []) });
-    }
-    const canonical = effectivePlan.canonicalOf.get(record.id);
-    if (canonical) notes.set(record.id, { ...notes.get(record.id), canonical });
-    annotate(record, notes);
-    deps.db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
-  }
+  keepRecords(pubkey, relay);
 
   success(feed.calendar.refreshInterval, nextEventStart, validators);
   // The rest is signed at the next poll, which reads the feed in full even

@@ -229,6 +229,7 @@ export function createIndexer(deps: IndexerDeps) {
     }
   }
   writeAllowlist();
+  if (settings.calendarKeysPaused) deps.log('calendar keys paused: no new calendar keys, and nothing calendar keys sign goes to outside relays');
 
   const discovery = createDiscovery({
     dir,
@@ -322,7 +323,9 @@ export function createIndexer(deps: IndexerDeps) {
       await publisher.publish(signed, 'own');
     }
     if (ownOnly) return;
-    await sendOutside(signed, { indexPubkey, now, outside: settings.publishToGeneralRelays, directory: settings.publishDirectoryOutside });
+    // While calendar keys are paused, what they sign stays on the index's relay.
+    const outside = settings.calendarKeysPaused && !home ? signed.filter((e) => e.pubkey === indexPubkey) : signed;
+    await sendOutside(outside, { indexPubkey, now, outside: settings.publishToGeneralRelays, directory: settings.publishDirectoryOutside });
   }
 
   async function sendOutside(signed: VerifiedEvent[], ctx: Parameters<typeof setsFor>[1]): Promise<void> {
@@ -347,6 +350,12 @@ export function createIndexer(deps: IndexerDeps) {
   };
   const inFlight = new Map<string, string>();
   async function maybeBackfill(now: number): Promise<void> {
+    // Paused calendar keys: nothing is sent again, and every relay is to get
+    // all of it again once the pause is off, so it gets what it missed.
+    if (settings.calendarKeysPaused) {
+      for (const { key } of dir.factsWithPrefix('outside_backfill ')) dir.deleteFact(key);
+      return;
+    }
     if (!settings.publishToGeneralRelays || !publisher.fetchOwn) return;
     for (const [fact, relay] of inFlight) {
       if ((publisher.pendingFor?.(relay) ?? 0) === 0) {
@@ -705,10 +714,10 @@ export function createIndexer(deps: IndexerDeps) {
 
   // The key each calendar signs with, for co-host tags: a mirrored
   // calendar's key (made on first use), or its organizer's.
-  function keyOf(calendarD: string): string {
+  function keyOf(calendarD: string): string | null {
     const entry = dir.get(calendarD);
     if (entry && entry.mode !== 'mirrored' && entry.owner) return entry.owner;
-    return vault.pubkeyFor(calendarD) ?? vault.createKey(calendarD);
+    return vault.pubkeyFor(calendarD) ?? (settings.calendarKeysPaused ? null : vault.createKey(calendarD));
   }
 
   // Where an organizer's events go when the index publishes as them: their
@@ -768,7 +777,9 @@ export function createIndexer(deps: IndexerDeps) {
     const published = await publishAs(key, (t) => vault.sign(entry.d, t), items, now);
     for (const p of deleted) db.markWithdrawn(key, p.kind, p.d, 'deleted');
     for (const p of kept) db.markWithdrawn(key, p.kind, p.d, 'cancelled');
-    vault.forget(entry.d);
+    // While calendar keys are paused no key is deleted: each signs its own
+    // deletions outside first.
+    if (!settings.calendarKeysPaused) vault.forget(entry.d);
     allowed.live.delete(key);
     allowed.removed.add(key);
     writeAllowlist();
@@ -1071,8 +1082,9 @@ export function createIndexer(deps: IndexerDeps) {
       ];
       published = await publishAs(pubkey, (t) => vault.sign(entry.d, t), items, now);
       for (const p of upcoming) db.markWithdrawn(pubkey, p.kind, p.d, 'deleted');
-      // Nothing is signed for the calendar again; its backups age out.
-      vault.forget(entry.d);
+      // Nothing is signed for the calendar again; its backups age out. While
+      // calendar keys are paused the key stays, to sign its deletions outside.
+      if (!settings.calendarKeysPaused) vault.forget(entry.d);
       allowed.live.delete(pubkey);
       allowed.removed.add(pubkey);
       writeAllowlist();
@@ -1148,6 +1160,7 @@ export function createIndexer(deps: IndexerDeps) {
           generalRelays,
           signer: () => openSigner(entry, sessions),
           keyOf,
+          keyless: settings.calendarKeysPaused,
           originalOf: (id) => events.originalAddressOf(id),
           ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
         },
