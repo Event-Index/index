@@ -101,7 +101,7 @@ function cityOf(ref: Reference, cities: City[]): City | null {
   return best?.city ?? null;
 }
 
-// `near` gives the index's events that overlap a span; `areaOf` a calendar's
+// `near` gives the index's events that start in a span; `areaOf` a calendar's
 // area, for an event that carries no coordinates; `ignore` the index's events
 // that do not count, such as the publisher's own, which the index also reads.
 export function coverage(

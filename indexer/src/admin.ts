@@ -285,18 +285,11 @@ async function runCoverage(s: AdminStores, settings: Settings, args: string[], n
     const refs = await upcomingReferences((filter) => pool.querySync([relay], { ...filter, ...extra }, { maxWait: 20_000 }), pubkey, now);
     // The index also reads the publisher's own events: they are not its own copies.
     const own = nativeD(pubkey);
-    let full = 0;
-    const near = (from: number, to: number) => {
-      const rows = s.events.search({ from, to, limit: 500 });
-      if (rows.length === 500) full += 1;
-      return rows;
-    };
-    const report = coverage(refs, readCities(undefined).cities, near, (d) => {
+    const report = coverage(refs, readCities(undefined).cities, (from, to) => s.events.startingBetween(from, to), (d) => {
       const g = s.dir.get(d)?.g;
       return g ? decodeGeohash(g) : null;
     }, { ignore: (row) => row.calendarD === own });
     const lines = formatCoverage(report, { source: npubEncode(pubkey), relay, now });
-    if (full) lines.push(`(${full} spans held 500 events or more, the most one search returns: some matches there may be missed)`);
     for (const line of lines) out(line);
     if (save) {
       const dir = join(settings.dataDir, 'coverage');

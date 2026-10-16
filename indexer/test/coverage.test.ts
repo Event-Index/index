@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { decodeGeohash, encodeGeohash } from '../src/project/geohash.ts';
 import { coverage, formatCoverage, referenceOf, titlesMatch, upcomingReferences, venuesMatch, type Reference } from '../src/service/coverage.ts';
 import type { City } from '../src/service/admin.ts';
-import type { EventRow } from '../src/store/events.ts';
+import { eventStore, type EventRow } from '../src/store/events.ts';
+import { openIndexDb } from '../src/store/index-db.ts';
 import { NOW } from './helpers.ts';
 
 const NYC: City = { name: 'New York', slug: 'new-york', country: 'US', geonames_id: 5128581, latitude: 40.71427, longitude: -74.00597, timezone: 'America/New_York' };
@@ -125,4 +126,14 @@ test('the publisher\'s own events in the index do not count as held', () => {
   assert.equal(coverage([ref()], [NYC], near, () => null).cities[0]!.held, 1);
   const report = coverage([ref()], [NYC], near, () => null, { ignore: (r) => r.calendarD === `nostr:${'ab'.repeat(32)}` });
   assert.equal(report.cities[0]!.held, 0);
+});
+
+test('the events starting in a span are found however many long events overlap it', () => {
+  const index = openIndexDb(':memory:');
+  const events = eventStore(index);
+  const long = Array.from({ length: 600 }, (_, i) => row({ id: `long${i}`, calendarD: 'nostr:long', title: `Course ${i}`, start: START - 30 * 86400, end: START + 30 * 86400 }));
+  events.replaceCalendar('nostr:long', long);
+  events.replaceCalendar('meetup:nycbitcoin', [row(), row({ id: 'later', start: START + 3600 })]);
+  assert.deepEqual(events.startingBetween(START - 900, START + 900).map((r) => r.id), ['e1']);
+  assert.equal(events.search({ from: START - 900, to: START + 900, limit: 500 }).some((r) => r.id === 'e1'), false, 'an overlap search is crowded out');
 });

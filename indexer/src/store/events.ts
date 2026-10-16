@@ -141,6 +141,9 @@ export function eventStore(index: IndexDb) {
     calendarsWithTag: (tag: string) => db.prepare<[string], { d: string }>("SELECT DISTINCT calendar_d AS d FROM events WHERE tags LIKE ? ESCAPE '\\'")
       .all(`%${escape(JSON.stringify(tag.toLowerCase()))}%`).map((r) => r.d),
     count: () => db.prepare<[], { n: number }>('SELECT count(*) AS n FROM events').get()!.n,
+    // Occurrences that start in a span (both ends included), for the coverage report.
+    startingBetween: (from: number, to: number) => db.prepare<[number, number], Record<string, unknown>>('SELECT * FROM events WHERE start >= ? AND start <= ? ORDER BY start, id')
+      .all(from, to).map(of),
     // Occurrences from a time on, for finding copies.
     from: (start: number) => db.prepare<[number], Record<string, unknown>>('SELECT * FROM events WHERE start >= ? ORDER BY start, id').all(start).map(of),
     setCanonical: (id: string, canonical: string | null) => void db.prepare('UPDATE events SET canonical = ? WHERE id = ?').run(canonical, id),
