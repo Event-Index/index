@@ -338,9 +338,9 @@ ${data.cities.map((c) => `<li><a href="/calendars?city=${esc(c.slug)}">${esc(c.n
 <section class="split">
 <div id="add">
 <h2>For organizers</h2>
-<p><strong>Add a calendar.</strong> Paste the address of its public feed. It often ends in <code>.ics</code> or starts with <code>webcal://</code>. A maintainer reviews each one before it is indexed; addresses with a private token are refused.</p>
+<p><strong>Add a calendar.</strong> Paste a link to the calendar, group or event on Luma, Meetup®, Google Calendar or Mobilizon, its feed (<code>.ics</code> or <code>webcal://</code>), or a nostr address (an npub, or NIP-05). A maintainer reviews each feed before it is indexed; addresses with a private token are refused.</p>
 <form class="row" action="/submit" method="post">
-<input type="url" name="url" placeholder="https://…" aria-label="Feed address" required>
+<input type="text" inputmode="url" name="url" placeholder="Paste a link to the calendar, group or event" aria-label="Link to the calendar, group or event" required>
 <button type="submit">Submit for review</button>
 </form>
 <p><strong>Claim a calendar.</strong> Already on nostr? Find your calendar under <a href="/calendars">Calendars</a> and claim it, to publish its events from your own key: yourself, or by the index, as you.</p>
@@ -609,16 +609,22 @@ ${entry ? `<p><a href="/calendar/${esc(entry.localName)}">Back to ${esc(name)}</
 
 export function submitResultPage(outcome: { status: number; body: Record<string, unknown> }): string {
   if (outcome.status === 201) {
+    if (outcome.body['status'] === 'listed') {
+      return layout('Listed · Event Index', `<div class="page-head"><h1>Listed</h1></div>
+<p>${esc(outcome.body['found'])}</p>
+<p>${esc(outcome.body['message'])}</p>
+<p><a href="/calendar/${esc(outcome.body['local_name'])}">See its page</a></p>`);
+    }
     const name = outcome.body['name'] ?? outcome.body['d'];
     return layout('Added · Event Index', `<div class="page-head"><h1>Added</h1></div>
-<p><strong>${esc(name)}</strong> is in the index. Its first events appear within minutes on <a href="/calendar/${esc(outcome.body['local_name'])}">its page</a>.</p>
+${outcome.body['found'] ? `<p>${esc(outcome.body['found'])}</p>\n` : ''}<p><strong>${esc(name)}</strong> is in the index. Its first events appear within minutes on <a href="/calendar/${esc(outcome.body['local_name'])}">its page</a>.</p>
 <p><a href="/">Back to Event Index</a></p>`);
   }
   if (outcome.status === 202) {
     const name = outcome.body['name'] ?? outcome.body['d'];
     const again = outcome.body['status'] === 'already-queued';
     return layout('Submitted · Event Index', `<div class="page-head"><h1>${again ? 'Already waiting for review' : 'Submitted'}</h1></div>
-<p><strong>${esc(name)}</strong> ${again ? 'was submitted before and' : ''} is waiting for review. A maintainer reviews each submission before the calendar is indexed.</p>
+${outcome.body['found'] ? `<p>${esc(outcome.body['found'])}</p>\n` : ''}<p><strong>${esc(name)}</strong> ${again ? 'was submitted before and' : ''} is waiting for review. A maintainer reviews each submission before the calendar is indexed.</p>
 <p><a href="/">Back to Event Index</a></p>`);
   }
   if (outcome.body['error'] === 'already-listed') {

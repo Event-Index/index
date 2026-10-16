@@ -152,8 +152,11 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
   const view: ViewDeps = deps;
   const { dir, events, settings } = deps;
   const log = deps.log ?? (() => {});
-  const writes = { dir, queues: deps.queues, fetch: deps.fetch, limits, domain: settings.domain, log };
-  const claims: ClaimDeps = { ...writes, settings, cities: deps.cities, ...(deps.reader ? { reader: deps.reader } : {}), ...(deps.relayAllowed ? { relayAllowed: deps.relayAllowed } : {}) };
+  const writes = {
+    dir, queues: deps.queues, fetch: deps.fetch, limits, settings, domain: settings.domain, log,
+    ...(deps.reader ? { reader: deps.reader } : {}), ...(deps.relayAllowed ? { relayAllowed: deps.relayAllowed } : {}),
+  };
+  const claims: ClaimDeps = { ...writes, cities: deps.cities };
   const brand = brandFiles();
 
   const notFound = (what = 'Not found.'): never => { throw new HttpError(404, 'not-found', what); };

@@ -10,6 +10,12 @@ import type { FetchResult, Validators } from '../../indexer/src/poller/fetch.ts'
 import type { DirectoryStore, StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { QueueStore } from '../../indexer/src/store/queues.ts';
 import { PLATFORMS } from '../../indexer/src/project/profile.ts';
+import { resolveLink } from '../../indexer/src/directory/resolve.ts';
+import { nativeD } from '../../indexer/src/directory/id.ts';
+import { outsideRelay, readAuthor, type RelayReader } from '../../indexer/src/native/read.ts';
+import { loadAggregators, shortNpub } from '../../indexer/src/native/publishers.ts';
+import { ownershipClash } from '../../indexer/src/store/directory.ts';
+import type { Settings } from '../../indexer/src/config.ts';
 import type { Limits } from './limits.ts';
 
 export interface WriteDeps {
@@ -20,6 +26,10 @@ export interface WriteDeps {
   // The site's address, for the page of a calendar filed at once.
   domain: string;
   log: (line: string) => void;
+  // For a nostr publisher pasted as a link: reading its relays.
+  reader?: RelayReader;
+  settings?: Settings;
+  relayAllowed?: (url: string) => Promise<boolean>;
 }
 
 const DAY = 86400;
@@ -44,13 +54,53 @@ const REASONS: Record<string, string> = {
 
 export { autoApprovable };
 
+// A nostr publisher pasted as a link (an npub, an nprofile, a NIP-05
+// address): listed at once when it has NIP-52 events, as the index would
+// list it on reading them.
+async function listPublisher(deps: WriteDeps, pubkey: string, hints: string[], now: number): Promise<Outcome> {
+  const d = nativeD(pubkey);
+  if (deps.dir.doNotIndex(d)) return fail(409, 'not-indexed', 'This calendar is not indexed, at its organizer\'s request.');
+  const listed = deps.dir.get(d);
+  if (listed) return fail(409, 'already-listed', 'This calendar is already in the directory.', { d, local_name: listed.localName });
+  const clash = ownershipClash(deps.dir.byOwner(pubkey), d, 'own');
+  if (clash) return fail(409, 'already-listed', 'This key\'s calendar is already in the directory.', { d: clash.d, local_name: clash.localName });
+  if (!deps.reader || !deps.settings) return fail(503, 'not-available', 'The index cannot read relays at the moment.');
+  const allowed = deps.relayAllowed ?? ((relay: string) => outsideRelay(relay));
+  const extra: string[] = [];
+  for (const relay of hints) if (await allowed(relay)) extra.push(relay);
+  const usual = [...new Set([deps.settings.relayUrl, ...deps.settings.generalRelays, ...deps.settings.profileRelays, ...extra])];
+  const read = await readAuthor(deps.reader, pubkey, usual, deps.relayAllowed ? { relayAllowed: deps.relayAllowed } : {});
+  if (!read.ok) return fail(422, 'no-relay-answered', 'No relay answered for this key. Try again later.');
+  if (read.events.length === 0) return fail(422, 'no-events', 'No calendar events (NIP-52) were found from this key on its relays.');
+  const name = read.profile?.name ?? read.calendars[0]?.tags.find((t) => t[0] === 'title')?.[1] ?? shortNpub(pubkey);
+  deps.dir.add({
+    d, role: loadAggregators().has(pubkey) ? 'aggregator' : 'calendar', source: 'nostr', feedUrl: '', pageUrl: read.profile?.website ?? null, name,
+    description: read.profile?.about ?? null, image: read.profile?.picture ?? null, location: null, g: null,
+    foundVia: 'submission', addedAt: now, mode: 'own', owner: pubkey,
+  });
+  deps.log(`listed nostr publisher ${d}`);
+  const count = read.events.length;
+  return {
+    status: 201,
+    body: {
+      status: 'listed', d, local_name: deps.dir.get(d)!.localName, name, source: 'nostr', role: 'calendar', events: count,
+      found: `Found the nostr calendar "${name}", with ${count} event${count === 1 ? '' : 's'}.`,
+      message: 'Listed. The index reads its events from its relays and signs nothing for it. Its organizer can manage it by signing in with its key.',
+    },
+  };
+}
+
 export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Promise<Outcome> {
-  if (typeof url !== 'string' || url.trim() === '') return fail(400, 'invalid-url', 'Give the feed address as "url".');
-  const check = checkFeedUrl(url);
+  if (typeof url !== 'string' || url.trim() === '') return fail(400, 'invalid-url', 'Paste a link to the calendar, group or event as "url".');
+  const resolved = await resolveLink(url, deps.fetch);
+  if (resolved.kind === 'refused') return fail(400, resolved.code, resolved.message);
+  if (resolved.kind === 'nostr') return listPublisher(deps, resolved.pubkey, resolved.relays, now);
+  url = resolved.url;
+  const check = checkFeedUrl(url as string);
   if (!check.ok) return fail(400, check.reason, REASONS[check.reason] ?? 'That address cannot be indexed.');
   let identity;
   try {
-    identity = identify(url);
+    identity = identify(url as string);
   } catch (error) {
     if (error instanceof FeedUrlError) return fail(400, error.code, REASONS[error.code] ?? error.message);
     throw error;
@@ -72,6 +122,7 @@ export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Pr
     platformDefault: feed.calendar.platformDefault, at: now,
   }, deps.limits.queueCap);
   if (queued.status === 'queue-full') return fail(503, 'queue-full', 'The review queue is full. Please try again in a few days.');
+  const found = feed.calendar.name ? `Found the ${resolved.what} "${feed.calendar.name}".` : `Found a ${resolved.what}.`;
   if (queued.status === 'queued' && autoApprovable(identity, feed) && deps.queues.autoApproved(now - DAY).length < deps.limits.autoApprovalsPerDay) {
     deps.dir.add({
       d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
@@ -91,6 +142,7 @@ export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Pr
         source: identity.source,
         role: identity.role,
         page: `https://${deps.domain}/calendar/${localName}`,
+        found,
         message: 'Added to the index. Its first events appear within minutes.',
       },
     };
@@ -104,6 +156,7 @@ export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Pr
       name: feed.calendar.name,
       source: identity.source,
       role: identity.role,
+      found,
       message: 'A maintainer reviews each submission before the calendar is indexed.',
     },
   };

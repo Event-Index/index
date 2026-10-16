@@ -250,8 +250,9 @@ export function createIndexer(deps: IndexerDeps) {
       if (!known || addedAt < known.addedAt) byKey.set(pubkey, { d, pubkey, addedAt });
     };
     for (const entry of dir.list()) {
-      // Publishers the index lists from what they post are not followed.
-      if (entry.foundVia === 'ingest') continue;
+      // Publishers listed from what they post, or from a pasted link, are not
+      // followed; one whose organizer proved the key is.
+      if (fromPosts(entry)) continue;
       const key = currentKey(entry);
       if (key && entry.role === 'calendar') add(entry.d, key, entry.addedAt);
       const former = formerKeyOf(entry, now);
@@ -678,7 +679,14 @@ export function createIndexer(deps: IndexerDeps) {
   // Whether a directory entry may go to the list and search relays: one the
   // index listed from what publishers post waits for the operator.
   function nostrEntriesGoOutside(d: string): boolean {
-    return settings.publishNostrEntriesOutside || dir.get(d)?.foundVia !== 'ingest';
+    const entry = dir.get(d);
+    return settings.publishNostrEntriesOutside || !entry || !fromPosts(entry);
+  }
+
+  // A publisher listed without its organizer proving the key: found by
+  // reading relays, or from a link someone pasted.
+  function fromPosts(entry: StoredEntry): boolean {
+    return entry.source === 'nostr' && entry.foundVia !== 'owner';
   }
 
   // The key each calendar signs with, for co-host tags: a mirrored

@@ -207,3 +207,21 @@ test('a mirrored feed\'s event yields to the organizer\'s own on nostr: the copy
   const projection = h.sent.filter((s) => s.event.pubkey === key && s.event.kind === 31923 && s.event.tags.find((t) => t[0] === 'd')![1] === mirrored.d).at(-1)!.event;
   assert.deepEqual(projection.tags.find((t) => t[0] === 'q'), ['q', `31923:${org.pubkey}:sdpy-oct`, '']);
 });
+
+test('a publisher listed from a pasted link is treated as one the index found: not followed, kept home; one proven by its key is followed', async () => {
+  const h = harness();
+  const pasted = publisher();
+  const proven = publisher();
+  for (const [p, via] of [[pasted, 'submission'], [proven, 'owner']] as const) {
+    h.dir.add({ d: nativeD(p.pubkey), role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: via, description: null, image: null,
+      location: null, g: null, foundVia: via, addedAt: NOW, mode: 'own', owner: p.pubkey });
+    h.held[SEARCH]!.push(p.event('e', `Event of ${via}`));
+  }
+  await h.indexer.tick();
+  const follows = h.sent.filter((s) => s.event.kind === 3).at(-1)!.event;
+  assert.ok(!follows.tags.some((t) => t[1] === pasted.pubkey));
+  assert.ok(follows.tags.some((t) => t[1] === proven.pubkey));
+  const outside = (pubkey: string) => h.sent.filter((s) => s.event.kind === 39999 && s.event.tags[0]![1] === nativeD(pubkey) && s.audience !== 'own').length;
+  assert.equal(outside(pasted.pubkey), 0);
+  assert.ok(outside(proven.pubkey) > 0);
+});
