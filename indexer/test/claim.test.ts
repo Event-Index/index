@@ -61,7 +61,7 @@ function fakeSigners(holds: Map<string, Uint8Array>) {
   return { signers, asked, state };
 }
 
-function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?: Map<string, Uint8Array>; strictRelays?: boolean; host?: boolean } = {}) {
+function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?: Map<string, Uint8Array>; strictRelays?: boolean; host?: boolean; batch?: number } = {}) {
   // Feed texts by URL, in place of the fixture.
   const texts: Record<string, string> = {};
   const dataDir = mkdtempSync(join(tmpdir(), 'claim-'));
@@ -107,6 +107,7 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
     },
     ...(options.strictRelays ? {} : { relayAllowed: async () => true }),
     signers: fake.signers,
+    ...(options.batch ? { signBatch: options.batch } : {}),
     log: () => {},
   });
   const id = identify(feedUrlFor('meetup-pythonsd.ics'));
@@ -371,5 +372,22 @@ test('when the operator has the relay host claimants, an organizer the index pub
   h.queues.ownerRequest({ d: D, pubkey: organizer, kind: 'disconnect', signer: null, at: NOW + 70 });
   await h.tickAt(NOW + 120);
   assert.deepEqual(h.allowlist().hosted, [], 'no longer once they publish themselves');
+  h.close();
+});
+
+test('a poll signs at most a batch as the organizer, publishes it, and comes back soon for the rest', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), batch: 2 });
+  await h.tickAt(NOW);
+  h.approve(h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test`), at: NOW }));
+  const before = h.sent.length;
+  await h.tickAt(NOW + 60);
+  assert.equal(h.by(organizer, before).length, 2, 'the first batch goes out');
+  assert.ok(h.db.pollState(D).nextPollAt <= NOW + 60 + 60, 'and the poll comes back within a minute');
+  await h.tickAt(h.db.pollState(D).nextPollAt);
+  await h.tickAt(h.db.pollState(D).nextPollAt);
+  assert.deepEqual(h.by(organizer, before).map((s) => s.event.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'then the rest, each once');
   h.close();
 });

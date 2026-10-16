@@ -87,6 +87,8 @@ export interface IndexerDeps {
   relayAllowed?: (url: string) => Promise<boolean>;
   // Connects to organizers' remote signers (NIP-46).
   signers?: RemoteSigners;
+  // The most events signed through a remote signer in one poll.
+  signBatch?: number;
   maxPollsPerTick?: number;
   // Aborted on shutdown: the tick stops between polls.
   signal?: AbortSignal;
@@ -101,6 +103,8 @@ export interface TickReport {
 
 const DAY = 86400;
 const REMOVED = 'organizer request';
+// The most events signed through an organizer's remote signer in one poll.
+const SIGN_BATCH = 100;
 // Kinds re-sent from the index's relay when outside publishing starts, and
 // the directory's, re-sent when it goes outside.
 const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924];
@@ -857,7 +861,7 @@ export function createIndexer(deps: IndexerDeps) {
           generalRelays,
           signer: () => openSigner(entry, sessions),
           keyOf,
-          ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt } } : {}),
+          ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
         },
       );
     } finally {

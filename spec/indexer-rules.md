@@ -331,7 +331,11 @@ mirrors, so that its events are published from their own key.
     other kind, and checks that every event it gets back is the one it asked
     for, signed by the organizer. A claim whose signer does not answer, signs
     as another key, or names no relay the index will connect to (§ 12's rule)
-    fails, and the calendar stays as it was.
+    fails, and the calendar stays as it was. Each request to the signer may
+    take 30 seconds; a poll signs at most 100 events through it, within two
+    minutes, and the rest a minute later, at the next poll. While the signer
+    does not answer, the calendar's polls fail and back off (§ 3), and nothing
+    is signed for it.
 - **The calendar key retires**, either way, before anything is signed as the
   organizer: its upcoming events are withdrawn (republished as cancelled where
   they have RSVPs, else deleted; [`nip52-mapping.md`](nip52-mapping.md) § 4).

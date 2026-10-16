@@ -39,8 +39,20 @@ export interface PollDeps {
   // A calendar published as its organizer: no profile or relay list of
   // theirs is written, its calendar's d is the entry's d, and its events
   // name the relay they are on.
-  delegated?: { relay: string; claimedAt?: number | null };
+  delegated?: {
+    relay: string;
+    claimedAt?: number | null;
+    // A remote signer answers slowly: at most this many events are signed in
+    // one poll, within the time budget; the rest wait for the next poll.
+    batch?: number;
+    budgetMs?: number;
+  };
 }
+
+// How long one poll may spend signing through a remote signer.
+export const SIGN_BUDGET_MS = 120_000;
+// How soon a poll that left events unsigned comes back.
+export const RESUME_AFTER = 60;
 
 export type PollReport =
   | { status: 'published'; published: number; withdrawn: number; quarantine: QuarantineReason | null; log: string[]; feed: NormalizedFeed; plan: CohostPlan; text: string }
@@ -132,11 +144,22 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     ...(deps.delegated ? { delegated: { relay, calendarD: entry.d } } : {}),
   });
 
-  // Everything is signed before anything is sent, so a signer that stops
-  // answering half-way publishes nothing.
+  // Everything in a batch is signed before anything is sent, so a signer
+  // that stops answering half-way publishes nothing. Through a remote signer
+  // a poll signs one batch, within a time budget; the rest is signed at the
+  // next poll, which comes back soon.
+  const limit = deps.delegated?.batch ?? Infinity;
+  const until = deps.delegated ? Date.now() + (deps.delegated.budgetMs ?? SIGN_BUDGET_MS) : Infinity;
   const signed: Array<{ planned: (typeof result.publish)[number]; event: VerifiedEvent }> = [];
+  let unfinished = false;
   try {
-    for (const planned of result.publish) signed.push({ planned, event: await signer.sign(planned.template) });
+    for (const planned of result.publish) {
+      if (signed.length >= limit || Date.now() > until) {
+        unfinished = true;
+        break;
+      }
+      signed.push({ planned, event: await signer.sign(planned.template) });
+    }
   } catch {
     return failed(entry, deps, 'signer');
   }
@@ -148,8 +171,12 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   for (const { planned, event } of signed) {
     if (planned.template.kind !== 5) deps.db.markPublished({ ...planned.record, eventId: event.id });
   }
-  for (const w of result.withdrawn) if (w.status === 'deleted') deps.db.markWithdrawn(pubkey, w.kind, w.d, 'deleted');
-  deps.db.savePresence(entry.d, result.presence);
+  // An unfinished poll keeps the presence state as it was, so its
+  // withdrawals are decided again, and sent, at the next poll.
+  if (!unfinished) {
+    for (const w of result.withdrawn) if (w.status === 'deleted') deps.db.markWithdrawn(pubkey, w.kind, w.d, 'deleted');
+    deps.db.savePresence(entry.d, result.presence);
+  }
 
   const claimed = claimDate(deps.delegated?.claimedAt);
   for (const record of feed.records) {
@@ -168,6 +195,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   }
 
   success(feed.calendar.refreshInterval, nextEventStart, validators);
+  if (unfinished) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), nextPollAt: now + RESUME_AFTER });
   return {
     status: 'published',
     published: signed.length,
