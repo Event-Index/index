@@ -6,6 +6,30 @@
       "name": "Club Orange",
       "url": "https://cluborange.org",
       "note": "Publishes bitcoin meetups from many organizers under one key."
+    },
+    {
+      "pubkey": "523c77b32808e0decd1ff1029bc809f0c8b771d0a5bb5739ba58f26c4b3d7bfc",
+      "name": "(no profile)",
+      "url": null,
+      "note": "Republishes events from many German church and adult-education organizers' sites under one key."
+    },
+    {
+      "pubkey": "8287095e089895b07c67df99cfdf8ff3e281332d5b28f9db619a0e82b6e21a0c",
+      "name": "Deutscher Bildungsserver Test-Mirror",
+      "url": "https://www.bildungsserver.de/veranstaltungen.html",
+      "note": "Says it is an unofficial test mirror of the education events listed on bildungsserver.de."
+    },
+    {
+      "pubkey": "0a45c70742a7e7264fcf392e2d4e32da257c2ecc492e1cbe63a3eec173fd7e80",
+      "name": "OER World Map Test-User",
+      "url": "https://oerworldmap.org",
+      "note": "Says it is an unofficial test mirror of the events listed on oerworldmap.org."
+    },
+    {
+      "pubkey": "6df6069be087791dbe66904f50e93e4cb85d319ab24b39e592b3a62ee5ff981e",
+      "name": "New Orleans Events",
+      "url": null,
+      "note": "A bot that reposts New Orleans venues' live music and other events."
     }
   ]
 }

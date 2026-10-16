@@ -15,6 +15,8 @@ import { createIndexer, type Audience } from '../src/service/indexer.ts';
 import { loadSettings } from '../src/config.ts';
 import { identify, nativeD } from '../src/directory/id.ts';
 import { readFixture, feedUrlFor, NOW } from './helpers.ts';
+import { readFileSync } from 'node:fs';
+import { loadAggregators } from '../src/native/publishers.ts';
 
 const SEARCH = 'wss://search.test';
 const GENERAL = 'wss://general.test';
@@ -274,4 +276,13 @@ test('the exact count of nostr publishers\' entries going outside is logged befo
   h.clock.now += 60;
   await h.indexer.tick();
   assert.equal(h.logs.filter((l) => l.startsWith('directory: sending')).length, 1, 'only when there are some to send');
+});
+
+test('the aggregators list names each key once, as hex, with what it publishes', () => {
+  const list = JSON.parse(readFileSync(new URL('../../seeds/nostr-aggregators.json', import.meta.url), 'utf8')) as { aggregators: Array<{ pubkey: string; name: string; note: string }> };
+  for (const a of list.aggregators) {
+    assert.match(a.pubkey, /^[0-9a-f]{64}$/);
+    assert.ok(a.name && a.note, a.pubkey);
+  }
+  assert.equal(loadAggregators().size, list.aggregators.length, 'no key twice');
 });
