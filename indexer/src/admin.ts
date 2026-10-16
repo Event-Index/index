@@ -4,6 +4,9 @@
 //   node indexer/src/admin.ts status
 //   node indexer/src/admin.ts import-seeds seeds/luma/new-york.json ... [--cities seeds/cities.json]
 //     (a seed list, or seeds/communities.json)
+//   node indexer/src/admin.ts import-aggregators [--cities seeds/cities.json] [--only <slug>,...]
+//   node indexer/src/admin.ts discoveries [--hours <n>]
+//   node indexer/src/admin.ts coverage [--pubkey <hex or npub>] [--relay <wss://…>] [--save]
 //   node indexer/src/admin.ts submissions
 //   node indexer/src/admin.ts approve-submission <id> [--city <slug>]
 //   node indexer/src/admin.ts reject-submission <id>
@@ -19,21 +22,29 @@
 //
 // Settings come from the environment, as for the services.
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadSettings } from './config.ts';
+import { SimplePool } from 'nostr-tools/pool';
+import { decode, npubEncode } from 'nostr-tools/nip19';
+import { loadSettings, type Settings } from './config.ts';
 import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, importCommunities, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
+import { discoveredStore, type Found } from './store/discovered.ts';
+import { coverage, formatCoverage, upcomingReferences } from './service/coverage.ts';
+import { decodeGeohash } from './project/geohash.ts';
 
 const USAGE = `usage: admin.ts <command>
   status
   import-seeds <seed.json>... [--cities <cities.json>]
+  import-aggregators [--cities <cities.json>] [--only <slug>,...]
+  discoveries [--hours <n>]
+  coverage [--pubkey <hex or npub>] [--relay <wss://…>] [--save]
   submissions
   approve-submission <id> [--city <slug>]
   reject-submission <id>
@@ -98,6 +109,44 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
       for (const name of r.native) out(`native publisher, not filed: ${name}`);
       out(`filed ${r.filed.length}, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
+      return;
+    }
+    case 'import-aggregators': {
+      const cities = readCities(option(args, '--cities'));
+      const only = option(args, '--only')?.split(',').map((x) => x.trim()).filter(Boolean);
+      const r = importAggregators(s, cities, now, only);
+      for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
+      out(`filed ${r.filed.length} aggregator${r.filed.length === 1 ? '' : 's'}, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
+      return;
+    }
+    case 'discoveries': {
+      // What discovery found in the last hours: what it filed, skipped,
+      // refused and still has to check, by page. A skip shows what the page
+      // showed of the calendar, for review.
+      const hours = Number(option(args, '--hours') ?? 24);
+      if (!(hours > 0)) throw new UsageError('--hours needs a positive number');
+      const found = discoveredStore(s.db).since(now - Math.round(hours * 3600));
+      const label: Record<Found['status'], string> = { filed: 'filed', skipped: 'skipped', refused: 'refused', candidate: 'waiting' };
+      const counts = (list: Found[]) => {
+        const n = (status: Found['status']) => list.filter((f) => f.status === status).length;
+        return `filed ${n('filed')}, skipped ${n('skipped')}, refused ${n('refused')}, waiting ${n('candidate')}`;
+      };
+      for (const place of [...new Set(found.map((f) => f.place))]) {
+        const list = found.filter((f) => f.place === place);
+        const entry = s.dir.get(place);
+        out(`${entry?.location?.replace(/, [A-Z]{2}$/, '') ?? place} (${place}): ${counts(list)}`);
+        for (const f of list) {
+          const extra = f.status === 'filed' || f.status === 'candidate' ? [] : [f.reason ?? '-'];
+          if (f.status === 'skipped' && f.detail) {
+            if (f.detail.event) extra.push(f.detail.event);
+            if (f.detail.hosts?.length) extra.push(`hosts: ${f.detail.hosts.join(', ')}`);
+            if (f.detail.url) extra.push(f.detail.url);
+          }
+          out(`  ${label[f.status].padEnd(8)} ${[f.d, f.name ?? '-', ...extra].join('  ')}`);
+        }
+      }
+      const skipped = found.filter((f) => f.status === 'skipped');
+      out(`in all: ${counts(found).replace(/skipped (\d+)/, `skipped $1 (${skipped.filter((f) => f.reason === 'platform-default-calendar').length} platform default, ${skipped.filter((f) => f.reason === 'not-public').length} not public)`)}`);
       return;
     }
     case 'submissions':
@@ -172,13 +221,60 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
   }
 }
 
-function main(): number {
+function hexKey(value: string): string {
+  if (/^[0-9a-f]{64}$/.test(value)) return value;
+  try {
+    const decoded = decode(value);
+    if (decoded.type === 'npub') return decoded.data;
+  } catch {
+    // reported below
+  }
+  throw new UsageError(`not a public key: ${value}`);
+}
+
+// Compares a publisher's upcoming events with the index's (service/coverage.ts),
+// read-only. With --save the report is also kept under the data directory.
+async function runCoverage(s: AdminStores, settings: Settings, args: string[], now: number): Promise<void> {
+  const save = args.includes('--save');
+  if (save) args.splice(args.indexOf('--save'), 1);
+  const given = option(args, '--pubkey');
+  const pubkey = given ? hexKey(given) : settings.coveragePubkey;
+  const relay = option(args, '--relay') ?? settings.coverageRelay ?? settings.searchRelays[0];
+  if (!pubkey) throw new UsageError('coverage needs a publisher: --pubkey, or EVENTINDEX_COVERAGE_PUBKEY');
+  if (!relay) throw new UsageError('coverage needs a relay: --relay, or EVENTINDEX_COVERAGE_RELAY or EVENTINDEX_SEARCH_RELAYS');
+  const pool = new SimplePool();
+  // A search relay leaves out what it counts as spam unless asked (NIP-50).
+  const extra = settings.searchRelays.includes(relay) ? { search: 'include:spam' } : {};
+  try {
+    const refs = await upcomingReferences((filter) => pool.querySync([relay], { ...filter, ...extra }, { maxWait: 20_000 }), pubkey, now);
+    const report = coverage(refs, readCities(undefined).cities, (from, to) => s.events.search({ from, to, limit: 500 }), (d) => {
+      const g = s.dir.get(d)?.g;
+      return g ? decodeGeohash(g) : null;
+    });
+    const lines = formatCoverage(report, { source: npubEncode(pubkey), relay, now });
+    for (const line of lines) out(line);
+    if (save) {
+      const dir = join(settings.dataDir, 'coverage');
+      mkdirSync(dir, { recursive: true });
+      const file = join(dir, `${new Date(now * 1000).toISOString().slice(0, 10)}.txt`);
+      writeFileSync(file, `${lines.join('\n')}\n`);
+      out(`saved to ${file}`);
+    }
+  } finally {
+    pool.close([relay]);
+  }
+}
+
+async function main(): Promise<number> {
   const [command, ...args] = process.argv.slice(2);
   const settings = loadSettings(process.env);
   mkdirSync(settings.dataDir, { recursive: true });
   const db = openIndexDb(settings.indexDb);
   try {
-    run({ db, dir: directoryStore(db), queues: queueStore(db), events: eventStore(db) }, command, args, Math.floor(Date.now() / 1000));
+    const stores = { db, dir: directoryStore(db), queues: queueStore(db), events: eventStore(db) };
+    const now = Math.floor(Date.now() / 1000);
+    if (command === 'coverage') await runCoverage(stores, settings, args, now);
+    else run(stores, command, args, now);
     return 0;
   } catch (error) {
     if (error instanceof UsageError) {
@@ -192,4 +288,6 @@ function main(): number {
   }
 }
 
-process.exitCode = main();
+main().then((code) => {
+  process.exitCode = code;
+});

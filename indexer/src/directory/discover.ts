@@ -43,6 +43,69 @@ export function lumaCalendarsFromPage(html: string): DiscoveredCalendar[] {
   return [...found.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
+export interface PageCalendar {
+  id: string;
+  name: string;
+  slug: string | null;
+  // An account's own calendar (Luma's "Personal"): a platform default.
+  personal: boolean;
+  // Luma's access level; only `public` calendars are taken.
+  access: string;
+}
+
+export interface PageEvent {
+  calendar: PageCalendar;
+  name: string | null;
+  url: string | null;
+  start: string | null;
+  hosts: string[];
+}
+
+export interface CityPage {
+  place: { id: string; slug: string; name: string } | null;
+  events: PageEvent[];
+}
+
+const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
+
+// What a Luma city page shows, from its own data: its place, and each event
+// with the calendar it belongs to and its hosts.
+export function lumaCityPage(html: string): CityPage {
+  const match = /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/.exec(html);
+  if (!match) return { place: null, events: [] };
+  let data: { props?: { pageProps?: { initialData?: { data?: { place?: Record<string, unknown>; events?: unknown } } } } };
+  try {
+    data = JSON.parse(match[1]!);
+  } catch {
+    return { place: null, events: [] };
+  }
+  const page = data.props?.pageProps?.initialData?.data;
+  const p = page?.place;
+  const place = p && text(p['api_id'])?.startsWith('discplace-') ? { id: text(p['api_id'])!, slug: text(p['slug']) ?? '', name: text(p['name']) ?? '' } : null;
+  const events: PageEvent[] = [];
+  for (const item of Array.isArray(page?.events) ? page.events as Array<Record<string, unknown>> : []) {
+    const c = (item['calendar'] ?? {}) as Record<string, unknown>;
+    const e = (item['event'] ?? {}) as Record<string, unknown>;
+    const id = text(c['api_id']);
+    if (!id || !/^cal-[A-Za-z0-9]+$/.test(id)) continue;
+    const path = text(e['url']);
+    events.push({
+      calendar: {
+        id,
+        name: text(c['name']) ?? '',
+        slug: text(c['slug']),
+        personal: c['is_personal'] === true || typeof c['personal_user_api_id'] === 'string',
+        access: text(c['access_level']) ?? 'public',
+      },
+      name: text(e['name']),
+      url: path ? `https://luma.com/${path}` : null,
+      start: text(e['start_at']) ?? text(item['start_at']),
+      hosts: (Array.isArray(item['hosts']) ? item['hosts'] as Array<Record<string, unknown>> : []).map((h) => text(h['name'])).filter((n): n is string => !!n),
+    });
+  }
+  return { place, events };
+}
+
 export interface Skipped {
   id: string;
   reason: 'platform-default-calendar';

@@ -2,7 +2,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { harness, type Harness } from './harness.ts';
-import { readFixture } from '../../indexer/test/helpers.ts';
+import { readFixture, NOW } from '../../indexer/test/helpers.ts';
+import { identify } from '../../indexer/src/directory/id.ts';
 
 let h: Harness;
 before(async () => { h = await harness(); });
@@ -94,6 +95,20 @@ test('the calendars page lists every calendar, by city or by search', async () =
   assert.equal((html.match(/<a href="\/calendar\//g) ?? []).length, 2);
   assert.match(html, /<a href="\/calendars\?city=new-york" aria-current="page">/);
   assert.match(html, /\d+ upcoming events?/);
+});
+
+test('a city page filed as an aggregator is not listed among the calendars, by search either', async () => {
+  const id = identify('https://api.luma.com/ics/get?entity=discover&id=discplace-Izx1rQVSh8njYpP');
+  h.dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: 'https://luma.com/nyc', name: 'What is happening in New York',
+    description: null, image: null, location: 'New York, US', g: 'dr5r', foundVia: 'luma:discover', addedAt: NOW });
+  try {
+    for (const path of ['/calendars', '/calendars?city=new-york', '/calendars?q=happening', '/search?q=New+York']) {
+      const html = await (await h.get(path)).text();
+      assert.doesNotMatch(html, /happening in New York/, path);
+    }
+  } finally {
+    h.db.raw.prepare('DELETE FROM directory WHERE d = ?').run(id.d);
+  }
 });
 
 test('directory search as a page', async () => {

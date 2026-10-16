@@ -3,10 +3,9 @@
 // index (autoApprovable) is filed at once and polled at the poll service's
 // next tick; any other waits for review. Nothing is published here.
 
-import { checkFeedUrl, validateFeed } from '../../indexer/src/directory/validate.ts';
-import { identify, FeedUrlError, type DirectoryIdentity } from '../../indexer/src/directory/id.ts';
-import { normalizeFeed, type NormalizedFeed } from '../../indexer/src/normalize/normalize.ts';
-import type { Source } from '../../indexer/src/types.ts';
+import { autoApprovable, checkFeedUrl, validateFeed } from '../../indexer/src/directory/validate.ts';
+import { identify, FeedUrlError } from '../../indexer/src/directory/id.ts';
+import { normalizeFeed } from '../../indexer/src/normalize/normalize.ts';
 import type { FetchResult, Validators } from '../../indexer/src/poller/fetch.ts';
 import type { DirectoryStore, StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { QueueStore } from '../../indexer/src/store/queues.ts';
@@ -23,17 +22,7 @@ export interface WriteDeps {
   log: (line: string) => void;
 }
 
-// The platforms whose calendars the index files without review.
-const KNOWN_PLATFORMS = new Set<Source>(['luma', 'meetup', 'google', 'mobilizon']);
 const DAY = 86400;
-
-// Safe to file without review: an organizer's own calendar on a known
-// platform (a Luma calendar, a Meetup group, a public Google calendar, a
-// Mobilizon group), named by its organizer rather than a platform default,
-// with at least one event. The URL checks have already passed.
-export function autoApprovable(identity: DirectoryIdentity, feed: NormalizedFeed): boolean {
-  return KNOWN_PLATFORMS.has(identity.source) && identity.role === 'calendar' && !feed.calendar.platformDefault && feed.records.length > 0;
-}
 
 export interface Outcome {
   status: number;
@@ -52,6 +41,8 @@ const REASONS: Record<string, string> = {
   'not-icalendar': 'The address does not serve an iCalendar feed.',
   empty: 'The feed has no events and no calendar name.',
 };
+
+export { autoApprovable };
 
 export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Promise<Outcome> {
   if (typeof url !== 'string' || url.trim() === '') return fail(400, 'invalid-url', 'Give the feed address as "url".');

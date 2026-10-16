@@ -9,7 +9,8 @@ Seed lists are directory data, dedicated to the public domain under CC0 1.0
 `cities.json` lists the cities the seed lists cover (US cities with more than
 1,000,000 residents; then, marked `"wave": 2`, US cities with a Luma Discover
 page), each with its GeoNames id, coordinates, IANA time zone, Luma Discover
-page (when it has one) and seed files.
+page when it has one (`luma_discover`, the place's `luma:discplace-…` id, and
+`luma_slug`, the page's address at `https://luma.com/<slug>`) and seed files.
 
 One JSON file per platform and city, `seeds/<source>/<city-slug>.json`:
 
@@ -45,7 +46,9 @@ One JSON file per platform and city, `seeds/<source>/<city-slug>.json`:
   - `btcmap:<area id>`: a BTC Map community (btcmap.org) named for the city or
     within 50 km of it, by its `contact:luma` or `contact:meetup` link;
   - `maintainer`: added by a maintainer;
-  - `submission`: submitted through the index and approved.
+  - `submission`: submitted through the index and approved;
+  - `luma:discover`: on an aggregator, the list of Luma Discover places
+    (`https://luma.com/discover`).
 
 City identifiers are GeoNames ids (geonames.org, CC BY 4.0).
 
@@ -86,3 +89,13 @@ CALENDAR_KEY_SECRET=<64 hex digits> node scripts/seed-entries.ts seeds/luma/new-
 
 `eventindex-admin import-seeds seeds/communities.json` files the ones with a
 feed, like a seed list.
+
+## The aggregators
+
+`eventindex-admin import-aggregators [--only <slug>,...]` files the Luma
+Discover page of each city in `cities.json` that has one (or of the cities
+named, by their slug or the page's) as an `aggregator` entry: no key, its
+events never projected. The poll service reads each page every six hours and
+files the named public calendars of its events, found via the page's `d`
+(`../spec/indexer-rules.md` § 2); `eventindex-admin discoveries [--hours <n>]`
+lists what it filed, skipped and refused.

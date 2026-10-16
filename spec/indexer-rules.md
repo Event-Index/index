@@ -22,6 +22,29 @@ Status: draft.
   calendar (Luma: `is_personal`, or the name `Personal`) is skipped and the
   skip is logged with its reason. Such a calendar enters the directory only
   when its owner submits or claims it.
+- **Continuous discovery.** Each Luma city page is filed as an `aggregator`
+  entry (its Discover feed, `…?entity=discover&id=discplace-…`, and the page
+  `https://luma.com/<slug>`, under the city's area). Every 6 hours the poll
+  service reads each page once, no more than one page per tick, and takes the
+  calendar of every event it shows. A page that cannot be read is tried again
+  an hour later; a page that shows another place than its entry's is not
+  used.
+  - A calendar already in the directory or on the do-not-index list is left
+    alone. A platform default (`is_personal`, an account's own calendar, or
+    the name `Personal`) or a calendar that is not `public` is skipped, and
+    each skip is recorded once, with what the page showed of it (its event and
+    hosts) for a maintainer's review; skips are never published or dumped.
+  - Any other calendar is checked like a submission (§ 4) and filed when it
+    passes, with no review: a calendar of a known platform, named by its
+    organizer, with at least one event (§ 10). It takes the page's area and
+    `found_via` the page's `d`, and is polled at the next tick (§ 10, "Poll on
+    approval"). A feed with no events is tried again when the page shows it a
+    day or more later; one whose feed turns out to be a platform default is
+    skipped.
+  - Caps: one run of one page takes at most 25 new calendars (the rest wait
+    for its next run); discovery files at most 300 calendars a day, and none
+    once the index holds as many calendars as its follow list may name
+    (§ 11). A tick checks at most 5 feeds.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
 - Filing many entries at once spreads their `created_at` so that no second
   holds more than 1,000 events.
@@ -212,6 +235,9 @@ creates the calendar key.
   leaves it off until the operator resumes it. Pauses are kept in
   `index.db`. Other refusals are logged. The index key's kind 0 and 10002 go
   to the profile and general relays even while outside publishing is off.
-- The index key's kind 3 follows every calendar key the index holds (`p` with
-  the index relay as hint); a removed calendar is unfollowed.
+- The index key's kind 3 follows the calendar keys the index holds (`p` with
+  the index relay as hint), at most 1,900 of them: relays keep a list of at
+  most 2,000 tags. Past that, the calendars filed first stay followed and
+  later ones are not added; the service logs, once a day, when the list is
+  within 10% of the cap or past it. A removed calendar is unfollowed.
 - On SIGTERM the service stops after the poll in progress.

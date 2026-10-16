@@ -27,6 +27,9 @@ export interface City {
   longitude: number;
   // The city's IANA zone, for showing times of events that carry none.
   timezone?: string;
+  // Its Luma Discover page, an aggregator: the place's id and the page's slug.
+  luma_discover?: string;
+  luma_slug?: string;
 }
 
 export interface Cities {
@@ -103,6 +106,31 @@ export function importCommunities(s: AdminStores, list: Communities, cities: Cit
     const added = s.dir.add({
       d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
       name: null, description: null, image: null, ...area(city), foundVia: c.found_via, addedAt: now,
+    });
+    (added ? report.filed : report.existing).push(identity.d);
+  }
+  return report;
+}
+
+// Files each city's Luma Discover page as an aggregator, with the page that
+// discovery reads (service/discovery.ts) and the city's area. `only` names
+// cities by slug or by the page's slug.
+export function importAggregators(s: AdminStores, cities: Cities, now: number, only?: string[]) {
+  const report = { filed: [] as string[], existing: [] as string[], blocked: [] as string[] };
+  for (const name of only ?? []) {
+    if (!cities.cities.some((c) => c.luma_discover && (c.slug === name || c.luma_slug === name))) throw new Error(`no city or Luma page ${name} in cities.json`);
+  }
+  for (const city of cities.cities) {
+    if (!city.luma_discover || (only && !only.includes(city.slug) && !only.includes(city.luma_slug ?? ''))) continue;
+    if (!city.luma_slug) throw new Error(`${city.slug}: a Luma Discover page needs its luma_slug`);
+    const identity = identify(`https://api.luma.com/ics/get?entity=discover&id=${city.luma_discover.replace(/^luma:/, '')}`);
+    if (s.dir.doNotIndex(identity.d)) {
+      report.blocked.push(identity.d);
+      continue;
+    }
+    const added = s.dir.add({
+      d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: `https://luma.com/${city.luma_slug}`,
+      name: null, description: null, image: null, ...area(city), foundVia: 'luma:discover', addedAt: now,
     });
     (added ? report.filed : report.existing).push(identity.d);
   }

@@ -33,3 +33,23 @@ export function encodeGeohash(lat: number, lon: number, precision: number): stri
   }
   return hash;
 }
+
+// The centre of a geohash's cell, as [latitude, longitude]; null for a
+// string that is not a geohash.
+export function decodeGeohash(hash: string): [number, number] | null {
+  if (!hash || !/^[0-9b-hjkmnp-z]+$/.test(hash)) return null;
+  const lat = [-90, 90];
+  const lon = [-180, 180];
+  let even = true;
+  for (const char of hash) {
+    const value = BASE32.indexOf(char);
+    for (let bit = 4; bit >= 0; bit -= 1) {
+      const range = even ? lon : lat;
+      const mid = (range[0]! + range[1]!) / 2;
+      if ((value >> bit) & 1) range[0] = mid;
+      else range[1] = mid;
+      even = !even;
+    }
+  }
+  return [(lat[0]! + lat[1]!) / 2, (lon[0]! + lon[1]!) / 2];
+}

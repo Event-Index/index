@@ -1,0 +1,25 @@
+[Unit]
+Description=Event Index coverage report (another publisher's upcoming events, read-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${APP_DIR}
+EnvironmentFile=${ETC}/eventindex.env
+ExecStart=/usr/local/bin/node --disable-warning=ExperimentalWarning indexer/src/admin.ts coverage --save
+TimeoutStartSec=15min
+ReadWritePaths=${DATA_DIR}
+ReadOnlyPaths=${ETC}
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes

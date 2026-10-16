@@ -3,7 +3,9 @@
 
 import { BlockList, isIP } from 'node:net';
 import type ICAL from 'ical.js';
-import { parseCalendar } from '../normalize/normalize.ts';
+import { parseCalendar, type NormalizedFeed } from '../normalize/normalize.ts';
+import type { DirectoryIdentity } from './id.ts';
+import type { Source } from '../types.ts';
 
 export const MAX_FEED_BYTES = 5 * 1024 * 1024;
 
@@ -113,4 +115,15 @@ export function validateFeed(text: string): Check {
   const named = ['name', 'x-wr-calname'].some((p) => String(component.getFirstPropertyValue(p) ?? '').trim());
   if (component.getAllSubcomponents('vevent').length === 0 && !named) return { ok: false, reason: 'empty' };
   return { ok: true };
+}
+
+// The platforms whose calendars the index files without review.
+const KNOWN_PLATFORMS = new Set<Source>(['luma', 'meetup', 'google', 'mobilizon']);
+
+// Safe to file without review: an organizer's own calendar on a known
+// platform (a Luma calendar, a Meetup group, a public Google calendar, a
+// Mobilizon group), named by its organizer rather than a platform default,
+// with at least one event. The URL checks have already passed.
+export function autoApprovable(identity: DirectoryIdentity, feed: NormalizedFeed): boolean {
+  return KNOWN_PLATFORMS.has(identity.source) && identity.role === 'calendar' && !feed.calendar.platformDefault && feed.records.length > 0;
 }

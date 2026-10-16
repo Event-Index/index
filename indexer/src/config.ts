@@ -3,6 +3,7 @@
 
 import { join } from 'node:path';
 import { GENERAL_RELAYS } from './project/profile.ts';
+import { FOLLOW_CAP } from './service/follows.ts';
 
 export interface Settings {
   dataDir: string;
@@ -35,6 +36,16 @@ export interface Settings {
   searchRelays: string[];
   // Relays that keep profiles and relay lists.
   profileRelays: string[];
+  // Discovery's caps (service/discovery.ts): new calendars a page's run may
+  // take, and calendars it files in a day.
+  discoveryPerRun: number;
+  discoveryPerDay: number;
+  // The most calendar keys the index key follows (service/follows.ts).
+  followCap: number;
+  // The publisher whose upcoming events the coverage report compares with
+  // the index's (hex), and the relay it reads them from; none unless set.
+  coveragePubkey: string | null;
+  coverageRelay: string | null;
 }
 
 export const PROFILE_RELAYS = ['wss://purplepag.es'];
@@ -46,6 +57,18 @@ function relays(value: string | undefined, fallback: string[], name: string): st
   const list = value.split(',').map((r) => r.trim()).filter(Boolean);
   for (const r of list) if (!/^wss?:\/\//.test(r)) throw new Error(`${name}: not a relay URL: ${r}`);
   return list;
+}
+
+function count(value: string | undefined, fallback: number, name: string): number {
+  if (value === undefined || value.trim() === '') return fallback;
+  if (!/^\d+$/.test(value.trim())) throw new Error(`${name}: not a whole number: ${value}`);
+  return Number(value.trim());
+}
+
+function pubkey(value: string | undefined, name: string): string | null {
+  if (!value?.trim()) return null;
+  if (!/^[0-9a-f]{64}$/.test(value.trim())) throw new Error(`${name}: not a hex public key: ${value}`);
+  return value.trim();
 }
 
 function header(value: string | undefined): string | null {
@@ -79,5 +102,10 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     directoryHeader: header(env['EVENTINDEX_DIRECTORY_HEADER']),
     searchRelays: relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS'),
     profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
+    discoveryPerRun: count(env['EVENTINDEX_DISCOVERY_PER_RUN'], 25, 'EVENTINDEX_DISCOVERY_PER_RUN'),
+    discoveryPerDay: count(env['EVENTINDEX_DISCOVERY_PER_DAY'], 300, 'EVENTINDEX_DISCOVERY_PER_DAY'),
+    followCap: count(env['EVENTINDEX_FOLLOW_CAP'], FOLLOW_CAP, 'EVENTINDEX_FOLLOW_CAP'),
+    coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
+    coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
   };
 }

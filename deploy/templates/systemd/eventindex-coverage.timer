@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily coverage report
+
+[Timer]
+OnCalendar=*-*-* 13:00:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

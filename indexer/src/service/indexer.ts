@@ -26,6 +26,9 @@ import type { QueueStore } from '../store/queues.ts';
 import type { EventRow, EventStore } from '../store/events.ts';
 import type { Filter } from 'nostr-tools/filter';
 import { setsFor, type RelaySet } from './routing.ts';
+import { createDiscovery } from './discovery.ts';
+import { discoveredStore } from '../store/discovered.ts';
+import { followed, FOLLOW_NEAR } from './follows.ts';
 
 // Where an event goes: the index's own relay (always), or a set of outside
 // relays (service/routing.ts).
@@ -79,6 +82,8 @@ const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924];
 const DIRECTORY_KINDS = [39999];
 // Bumped when what the backfill sends changes, so it runs again.
 const BACKFILL_VERSION = '1';
+// Feeds discovery checks in one tick.
+const DISCOVERY_CHECKS_PER_TICK = 5;
 
 function identityOf(entry: StoredEntry): DirectoryIdentity {
   return { d: entry.d, role: entry.role, source: entry.source, feedUrl: entry.feedUrl, pageUrl: entry.pageUrl };
@@ -157,6 +162,30 @@ export function createIndexer(deps: IndexerDeps) {
     }
   }
   writeAllowlist();
+
+  const discovery = createDiscovery({
+    dir,
+    found: discoveredStore(db),
+    fetch: deps.fetch,
+    log: deps.log,
+    settings: { perRun: settings.discoveryPerRun, perDay: settings.discoveryPerDay, followCap: settings.followCap, checksPerStep: DISCOVERY_CHECKS_PER_TICK },
+  });
+
+  // The calendar keys the index key follows: the earliest filed, up to the
+  // cap. Nearing or passing the cap is logged once a day.
+  let followNoticeAt = -Infinity;
+  function follows(now: number): string[] {
+    const entryOf = new Map(dir.list().filter((e) => e.pubkey).map((e) => [e.pubkey!, e]));
+    const keys = [...allowed.live].map((pk) => ({ d: entryOf.get(pk)?.d ?? pk, pubkey: pk, addedAt: entryOf.get(pk)?.addedAt ?? Number.MAX_SAFE_INTEGER }));
+    const cap = settings.followCap;
+    if (keys.length >= cap * FOLLOW_NEAR && now - followNoticeAt >= DAY) {
+      followNoticeAt = now;
+      deps.log(keys.length > cap
+        ? `follow list: ${keys.length} calendar keys, the cap is ${cap}; the ${cap} filed first are followed`
+        : `follow list: ${keys.length} calendar keys, ${cap - keys.length} short of the cap of ${cap}`);
+    }
+    return followed(keys, cap);
+  }
 
   // The co-host plan needs every calendar's events; until a calendar polls,
   // its stored records stand in for its feed.
@@ -318,7 +347,7 @@ export function createIndexer(deps: IndexerDeps) {
       },
       { template: { kind: 10002, tags: [['r', settings.publicRelay], ...[...generalRelays, ...listRelays].map((r) => ['r', r, 'write'])], content: '' }, d: '', start: now },
       // Follows every calendar key it holds.
-      { template: { kind: 3, tags: [...allowed.live].sort().map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
+      { template: { kind: 3, tags: follows(now).map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
       { template: eventsHeader(), d: 'events', start: now },
     ];
     for (const entry of dir.list({ includeRemoved: true })) {
@@ -476,6 +505,14 @@ export function createIndexer(deps: IndexerDeps) {
         } catch (error) {
           report.failed.push(e.d);
           deps.log(`poll ${e.d}: ${(error as Error).stack ?? error}`);
+        }
+      }
+
+      if (!deps.signal?.aborted) {
+        try {
+          await discovery.step(now);
+        } catch (error) {
+          deps.log(`discovery: ${(error as Error).stack ?? error}`);
         }
       }
 

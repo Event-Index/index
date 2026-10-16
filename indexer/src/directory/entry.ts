@@ -48,7 +48,7 @@ export function directoryEntry(input: EntryInput): EventTemplate {
     ['source', identity.source],
     ['location', input.location],
     ['g', input.geohash],
-    ['luma-id', identity.source === 'luma' ? platformId : null],
+    ['luma-id', identity.source === 'luma' && identity.role === 'calendar' ? platformId : null],
     ['meetup-group', identity.source === 'meetup' ? platformId : null],
     ['calendar', input.nativeCalendar],
     ['t', input.city],

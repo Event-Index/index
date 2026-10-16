@@ -155,7 +155,7 @@ kind 0 is `name` `Event Index`, `about`, `picture`
 `https://eventindex.space/brand/mark-tile-512.png` (the mark on its tile,
 [`../brand/`](../brand/README.md)), `website` `https://eventindex.space`,
 `nip05` `_@eventindex.space`. Its kind 10002 follows the rule below, and its
-kind 3 lists every calendar key the index holds
+kind 3 lists the calendar keys the index holds, up to a cap
 ([`indexer-rules.md`](indexer-rules.md) § 11).
 
 **Kind 10002.** `["r", "wss://relay.eventindex.space"]` with no marker (RSVPs

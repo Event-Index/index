@@ -8,8 +8,10 @@ import { openIndexDb } from '../src/store/index-db.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, importCommunities, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
+import { discoveredStore } from '../src/store/discovered.ts';
+import { identify } from '../src/directory/id.ts';
 import type { Seed } from '../src/directory/seed.ts';
 import { NOW } from './helpers.ts';
 
@@ -243,6 +245,64 @@ test('the admin command imports a communities list like a seed list', () => {
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /^native publisher, not filed: Fork & Coin$/m);
     assert.match(run.stdout, /filed 6, already listed 0, on the do-not-index list 0/);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('every city with a Luma Discover page names the page by its slug', () => {
+  const withPage = cities.cities.filter((c) => c.luma_discover);
+  assert.ok(withPage.length >= 16);
+  for (const c of withPage) {
+    assert.match(c.luma_discover!, /^luma:discplace-[A-Za-z0-9]+$/, c.slug);
+    assert.match(c.luma_slug ?? '', /^[a-z0-9_-]+$/, c.slug);
+  }
+  assert.equal(new Set(withPage.map((c) => c.luma_slug)).size, withPage.length);
+});
+
+test('importing the aggregators files each Luma city page once, with its page and area, and no key', () => {
+  const s = stores();
+  const withPage = cities.cities.filter((c) => c.luma_discover);
+  const report = importAggregators(s, cities, NOW);
+  assert.equal(report.filed.length, withPage.length);
+  const nyc = s.dir.get('luma:discplace-Izx1rQVSh8njYpP')!;
+  assert.equal(nyc.role, 'aggregator');
+  assert.equal(nyc.pageUrl, 'https://luma.com/nyc');
+  assert.equal(nyc.feedUrl, 'https://api.luma.com/ics/get?entity=discover&id=discplace-Izx1rQVSh8njYpP');
+  assert.equal(nyc.location, 'New York, US');
+  assert.equal(nyc.pubkey, null);
+  assert.equal(nyc.foundVia, 'luma:discover');
+  assert.equal(importAggregators(s, cities, NOW + 60).existing.length, withPage.length);
+  assert.deepEqual(importAggregators(stores(), cities, NOW, ['nyc', 'austin']).filed.sort(),
+    ['luma:discplace-Izx1rQVSh8njYpP', identify(`https://api.luma.com/ics/get?entity=discover&id=${cities.cities.find((c) => c.slug === 'austin')!.luma_discover!.slice(5)}`).d].sort());
+  assert.throws(() => importAggregators(stores(), cities, NOW, ['nowhere']), /no city or Luma page nowhere/);
+});
+
+test('the admin command files the aggregators and lists what discovery did, skips with what the page showed', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const run = (...args: string[]) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', ...args], { cwd: repo, env: { ...process.env, EVENTINDEX_DATA_DIR: dataDir }, encoding: 'utf8' });
+    const filed = run('import-aggregators', '--only', 'nyc');
+    assert.equal(filed.status, 0, filed.stderr);
+    assert.match(filed.stdout, /^filed 1 aggregator, already listed 0, on the do-not-index list 0$/m);
+
+    const now = Math.floor(Date.now() / 1000);
+    const db = openIndexDb(join(dataDir, 'index.db'));
+    const found = discoveredStore(db);
+    const place = 'luma:discplace-Izx1rQVSh8njYpP';
+    found.record({ d: 'luma:cal-Named0000000001', place, name: 'Design Meetup', status: 'filed', at: now - 60 });
+    found.record({ d: 'luma:cal-Personal000001', place, name: 'Personal', status: 'skipped', reason: 'platform-default-calendar',
+      detail: { event: 'Print exchange', url: 'https://luma.com/ev0', hosts: ['A Host', 'B Host'] }, at: now - 60 });
+    found.record({ d: 'luma:cal-Waiting0000001', place, name: 'Waiting', status: 'candidate', at: now - 60 });
+    found.record({ d: 'luma:cal-Old00000000001', place, name: 'Old', status: 'filed', at: now - 3 * 86400 });
+    db.close();
+    const listed = run('discoveries', '--hours', '24');
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.match(listed.stdout, /^New York \(luma:discplace-Izx1rQVSh8njYpP\): filed 1, skipped 1, refused 0, waiting 1$/m);
+    assert.match(listed.stdout, /^ {2}filed\s+luma:cal-Named0000000001\s+Design Meetup$/m);
+    assert.match(listed.stdout, /^ {2}skipped\s+luma:cal-Personal000001\s+Personal\s+platform-default-calendar\s+Print exchange\s+hosts: A Host, B Host\s+https:\/\/luma.com\/ev0$/m);
+    assert.doesNotMatch(listed.stdout, /cal-Old/);
+    assert.match(listed.stdout, /^in all: filed 1, skipped 1 \(1 platform default, 0 not public\), refused 0, waiting 1$/m);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

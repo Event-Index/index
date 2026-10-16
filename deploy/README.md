@@ -21,7 +21,8 @@ bucket. Nothing in them is specific to a hosting provider.
   renewed by `certbot.timer`, nginx reloaded after each renewal), including the
   WebSocket proxy for the relay.
 - **systemd units**: `strfry`, `eventindex-indexer`, `eventindex-api`,
-  `litestream`, and `eventindex-relay-export.timer` (nightly).
+  `litestream`, `eventindex-relay-export.timer` (nightly), and, while
+  `COVERAGE_PUBKEY` is set, `eventindex-coverage.timer` (daily).
 - **Litestream** (`LITESTREAM_VERSION`, release package checked against its
   pinned SHA-256): continuous backup of `index.db` and `vault.db`.
 - **Nightly relay export**: every event on the relay (including RSVPs and
@@ -248,6 +249,17 @@ eventindex-admin reject-removal 5
 eventindex-admin remove meetup-pythonsd --message "asked by email"
 eventindex-admin status
 ```
+
+## Discovery and coverage
+
+```sh
+eventindex-admin import-aggregators --only nyc,la   # files those cities' Luma pages; without --only, every one in cities.json
+eventindex-admin discoveries --hours 24             # what discovery filed, skipped (with what the page showed) and refused
+eventindex-admin coverage                           # COVERAGE_PUBKEY's upcoming events against the index's, by city
+```
+
+The daily report is kept in `/var/lib/eventindex/coverage/<date>.txt`
+(log: `journalctl -u eventindex-coverage`).
 
 Outside relays that rate-limit or ban the index are paused for a day, then
 tried again at half pace; a second refusal leaves them off:

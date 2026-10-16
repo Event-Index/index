@@ -10,6 +10,7 @@
       "longitude": -74.00597,
       "timezone": "America/New_York",
       "luma_discover": "luma:discplace-Izx1rQVSh8njYpP",
+      "luma_slug": "nyc",
       "seeds": [
         "luma/new-york.json"
       ]
@@ -23,6 +24,7 @@
       "longitude": -118.24368,
       "timezone": "America/Los_Angeles",
       "luma_discover": "luma:discplace-OgfEAh5KgfMzise",
+      "luma_slug": "la",
       "seeds": [
         "luma/los-angeles.json",
         "meetup/los-angeles.json"
@@ -37,6 +39,7 @@
       "longitude": -87.65005,
       "timezone": "America/Chicago",
       "luma_discover": "luma:discplace-NdGm35qFD0vaXNF",
+      "luma_slug": "chicago",
       "seeds": [
         "luma/chicago.json"
       ]
@@ -50,6 +53,7 @@
       "longitude": -95.36327,
       "timezone": "America/Chicago",
       "luma_discover": "luma:discplace-aQeJaEtqg3shHZ1",
+      "luma_slug": "houston",
       "seeds": [
         "luma/houston.json"
       ]
@@ -63,6 +67,7 @@
       "longitude": -112.07404,
       "timezone": "America/Phoenix",
       "luma_discover": "luma:discplace-Vk9M1gTb4AMVXuD",
+      "luma_slug": "phoenix",
       "seeds": [
         "luma/phoenix.json"
       ]
@@ -76,6 +81,7 @@
       "longitude": -75.16362,
       "timezone": "America/New_York",
       "luma_discover": "luma:discplace-VGLZZfVwOKRD1Yd",
+      "luma_slug": "philadelphia",
       "seeds": [
         "luma/philadelphia.json"
       ]
@@ -102,6 +108,7 @@
       "longitude": -117.16472,
       "timezone": "America/Los_Angeles",
       "luma_discover": "luma:discplace-MNBATdzid940kqJ",
+      "luma_slug": "sd",
       "seeds": [
         "luma/san-diego.json",
         "meetup/san-diego.json"
@@ -116,6 +123,7 @@
       "longitude": -96.80667,
       "timezone": "America/Chicago",
       "luma_discover": "luma:discplace-Ez9iuaZfs6AZDls",
+      "luma_slug": "dallas",
       "seeds": [
         "luma/dallas.json",
         "meetup/dallas.json"
@@ -152,6 +160,7 @@
       "longitude": -122.41942,
       "timezone": "America/Los_Angeles",
       "luma_discover": "luma:discplace-BDj7GNbGlsF7Cka",
+      "luma_slug": "sf",
       "seeds": [
         "luma/san-francisco.json",
         "meetup/san-francisco.json"
@@ -167,6 +176,7 @@
       "longitude": -97.74306,
       "timezone": "America/Chicago",
       "luma_discover": "luma:discplace-0tPy8KGz3xMycnt",
+      "luma_slug": "austin",
       "seeds": [
         "luma/austin.json",
         "meetup/austin.json"
@@ -182,6 +192,7 @@
       "longitude": -80.19366,
       "timezone": "America/New_York",
       "luma_discover": "luma:discplace-fSrrRYurTwydAGK",
+      "luma_slug": "miami",
       "seeds": [
         "luma/miami.json",
         "meetup/miami.json"
@@ -197,6 +208,7 @@
       "longitude": -71.05977,
       "timezone": "America/New_York",
       "luma_discover": "luma:discplace-VWeZ1zUvnawYHMj",
+      "luma_slug": "boston",
       "seeds": [
         "luma/boston.json"
       ],
@@ -211,6 +223,7 @@
       "longitude": -122.33207,
       "timezone": "America/Los_Angeles",
       "luma_discover": "luma:discplace-FQ4E58PeBMHGTKK",
+      "luma_slug": "seattle",
       "seeds": [
         "luma/seattle.json"
       ],
@@ -225,6 +238,7 @@
       "longitude": -77.03637,
       "timezone": "America/New_York",
       "luma_discover": "luma:discplace-AANPgOymN6bqFn8",
+      "luma_slug": "dc",
       "seeds": [
         "luma/washington-dc.json",
         "meetup/washington-dc.json"
@@ -240,6 +254,7 @@
       "longitude": -84.38798,
       "timezone": "America/New_York",
       "luma_discover": "luma:discplace-C6hWuH5suHJIUqC",
+      "luma_slug": "atlanta",
       "seeds": [
         "luma/atlanta.json",
         "meetup/atlanta.json"
@@ -255,6 +270,7 @@
       "longitude": -104.9847,
       "timezone": "America/Denver",
       "luma_discover": "luma:discplace-I94ZmQKKyVnCQKv",
+      "luma_slug": "denver",
       "seeds": [
         "luma/denver.json",
         "meetup/denver.json"

@@ -9,7 +9,8 @@ install -m 644 "$DEPLOY_DIR/site/offline.html" "$SITE_DIR/offline.html"
 rm -f "$SITE_DIR/index.html"
 render "$DEPLOY_DIR/templates/eventindex-admin" /usr/local/bin/eventindex-admin "$TEMPLATE_VARS"
 chmod 755 /usr/local/bin/eventindex-admin
-for unit in strfry.service eventindex-indexer.service eventindex-api.service eventindex-relay-export.service eventindex-relay-export.timer; do
+for unit in strfry.service eventindex-indexer.service eventindex-api.service eventindex-relay-export.service eventindex-relay-export.timer \
+  eventindex-coverage.service eventindex-coverage.timer; do
   render "$DEPLOY_DIR/templates/systemd/$unit" "/etc/systemd/system/$unit" "$TEMPLATE_VARS"
 done
 systemctl daemon-reload
@@ -45,3 +46,10 @@ for name in indexer api; do
     systemctl restart "$unit"
   fi
 done
+
+# The daily coverage report runs only while a publisher to compare with is set.
+if [ -n "${COVERAGE_PUBKEY:-}" ] && [ "${SECRETS_MISSING:-1}" = 0 ]; then
+  systemctl enable --now eventindex-coverage.timer
+else
+  systemctl disable --now eventindex-coverage.timer >/dev/null 2>&1 || true
+fi

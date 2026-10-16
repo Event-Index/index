@@ -341,7 +341,8 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       const entries = dir.list();
       const cities = cityCounts(entries, deps.cities);
       const city = cities.find((c) => c.slug === url.searchParams.get('city')) ?? null;
-      let found = q ? calendarSearch(new URLSearchParams({ q, limit: '500' })) : entries.filter((e) => e.role === 'calendar');
+      // An aggregator only leads to calendars: it is not one to list.
+      let found = (q ? calendarSearch(new URLSearchParams({ q, limit: '500' })) : entries).filter((e) => e.role === 'calendar');
       if (city) found = found.filter((e) => cityCounts([e], deps.cities)[0]?.slug === city.slug);
       const counts = events.upcomingByCalendar(now);
       const items = found.map((entry) => ({ entry, upcoming: counts.get(entry.d) ?? 0 }))
