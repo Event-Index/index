@@ -11,6 +11,10 @@ Status: draft.
   only to find calendars; its events are never projected, so an event seen only
   through an aggregator, whose host has no calendar in the directory, is not
   projected.
+- A calendar its organizer publishes from their own key (a native calendar,
+  or one claimed to publish itself; [`directory.md`](directory.md)) is not
+  polled: its organizer's events are read instead, on the same schedule
+  (§ 12).
 
 ## 2. Discovery and seeding
 
@@ -143,6 +147,17 @@ and is backed up as such.
   the calendar-key secret (info `event-index/calendar-key/v1`), with a random
   24-byte nonce and the entry's `d` as associated data, so a ciphertext copied
   to another row does not decrypt.
+- `vault.db` also keeps, for a calendar the index publishes as its organizer,
+  the connection to their remote signer (§ 13): the index's own client key
+  for it and the signer's key, relays and secret, encrypted the same way under
+  a key of its own (info `event-index/signer-connection/v1`), with the entry's
+  `d` and the organizer's key as associated data. It is deleted when the
+  organizer disconnects the signer, or the calendar is removed.
+- Organizers seal what they hand the index for the poll service alone (a
+  signer's address) with NIP-44 to the **intake key**, a key derived from the
+  calendar-key secret (info `event-index/intake/v1`) whose public key the poll
+  service writes to `index.db`; the HTTP service seals, and only the poll
+  service can open it.
 - A key leaves the vault only as a signature, or, when a claim hands it to its
   organizer, as NIP-49 `ncryptsec` under the organizer's password. After a
   hand-over or a removal the key is deleted, and backups of `vault.db` are kept
@@ -193,15 +208,20 @@ creates the calendar key.
   leave the API, its `d` goes on the do-not-index list, and the feed is never
   polled again. Past events stay on relays as they were published.
 
+  A calendar its organizer publishes (§§ 12, 13) has no calendar key left to
+  sign with: its removal retires the entry and forgets any signer connection,
+  and its organizer's events stay theirs.
+
 ## 11. The poll service
 
 - One process per data directory, held by a lock file; a second one refuses
   to start.
-- Every 30 seconds a tick carries out approved removals, polls the entries
-  that are due (at most 20 per tick, the longest due first), publishes the
-  index key's events that changed (its kind 0, 3 and 10002, the events list
-  header, and every directory entry with a calendar key, or none for an
-  aggregator; [`directory.md`](directory.md)), and
+- Every 30 seconds a tick carries out approved removals, then approved claims
+  and organizers' own requests (§ 13), polls the entries that are due (at most
+  20 per tick, the longest due first; a calendar its organizer publishes is
+  read instead, § 12), publishes the index key's events that changed (its
+  kind 0, 3 and 10002, the events list header, and every directory entry with
+  a key, or none for an aggregator; [`directory.md`](directory.md)), and
   writes the dump once a day. One feed's failure does not stop the others.
 - Events go to the index's own relay; a publish it refuses fails the poll,
   which is retried. The relay accepts only the keys in the allowlist the
@@ -235,9 +255,107 @@ creates the calendar key.
   leaves it off until the operator resumes it. Pauses are kept in
   `index.db`. Other refusals are logged. The index key's kind 0 and 10002 go
   to the profile and general relays even while outside publishing is off.
-- The index key's kind 3 follows the calendar keys the index holds (`p` with
-  the index relay as hint), at most 1,900 of them: relays keep a list of at
+- The index key's kind 3 follows every key a listed entry names in `p` (`p`
+  with the index relay as hint): the calendar keys it holds, organizers'
+  own keys, and a claimed calendar's old key while events it signed are
+  still to come. It names at most 1,900 of them: relays keep a list of at
   most 2,000 tags. Past that, the calendars filed first stay followed and
   later ones are not added; the service logs, once a day, when the list is
   within 10% of the cap or past it. A removed calendar is unfollowed.
 - On SIGTERM the service stops after the poll in progress.
+
+## 12. Calendars published by their organizers
+
+A native calendar, or one whose organizer claimed it to publish it themselves
+(§ 13), is read by its organizer's key. The index signs nothing for it but
+its directory entry.
+
+- **Where.** The organizer's relay list (their newest kind 10002) is read
+  from the index's usual relays: its own relay, the general relays and the
+  profile relays. Their events are then read from their write relays (those
+  marked `write` or unmarked, at most 4) and the usual relays. A relay the
+  organizer names is used only when it is `wss` on a host that resolves only
+  to public addresses (§ 4's ranges), so an organizer cannot point the index
+  at its own network.
+- **What.** Their kinds 0, 5, 31922, 31923 and 31924, at most 5,000. Only
+  events with the organizer's valid signature count; the newest version of
+  each address wins (later `created_at`, then the lower id). An event the
+  organizer deleted (a kind 5 naming its id, or its address with a
+  `created_at` no earlier than the event's) is left out.
+- **The records.** Each 31922 and 31923 becomes a record by
+  [`nip52-mapping.md`](nip52-mapping.md) § 8, and the records replace the
+  calendar's events in the API at each read. A read no relay answers is a
+  failed poll (§ 3's backoff, § 3's staleness); what was read before stays.
+- **The entry.** A native calendar's name, description, image and page come
+  from the organizer's profile (`display_name`, else `name`; `about`;
+  `picture`; `website`) and their newest kind 31924 (its `title` when the
+  profile has no name; its content as the description). A claimed calendar
+  keeps its name and description from its feed. The entry's `calendar` names
+  the organizer's newest kind 31924, when they have one.
+- **Filing.** An organizer files a native calendar by their key: a request
+  signed with it ([`api.md`](api.md), "Requests signed with your key"). The
+  index reads their relays at once and queues the calendar for a
+  maintainer's review only if it finds at least one 31922 or 31923 from them.
+  Its `d` is `nostr:<their hex key>`
+  ([`icalendar-profile.md`](icalendar-profile.md) § 5), and no calendar key is
+  made for it.
+
+## 13. Claims
+
+An organizer who already publishes on nostr can claim a calendar the index
+mirrors, so that its events are published from their own key.
+
+- **Proof of the key.** The claim is a request signed with the organizer's
+  key (NIP-98, [`api.md`](api.md)), so their key is proven when they make it.
+- **Proof of the calendar**, either of:
+  - a **token** (`eventindex-claim-` and 10 characters of `a-z2-7`) given with
+    the claim, which the organizer places in the calendar's description or in
+    one of its events; the claim is verified when a poll finds it in the feed;
+  - **NIP-05** at the calendar's own domain naming the organizer's key: the
+    feed's host for a feed on the organizer's own site, or the host of the
+    calendar's page, never a platform's (Luma, Meetup, Google, nor the
+    instance of a Mobilizon or Gancio group). A leading `www.` is ignored.
+- **Review.** A maintainer approves a claim only once it is verified, and may
+  reject any. The poll service carries out an approved claim at its next
+  tick.
+- **Modes.** The organizer chooses one when they claim:
+  - **`own`, "I publish myself".** The index stops polling the feed and reads
+    the organizer's events instead (§ 12).
+  - **`delegated`, "publish for me, as me".** The organizer gives the address
+    of a remote signer (NIP-46, `bunker://<signer key>?relay=…&secret=…`),
+    sealed to the intake key (§ 8). The index connects with a client key of
+    its own, asks for permission to sign kinds 31922, 31923, 31924 and 5 only,
+    and checks that the signer signs as the claimant. It then keeps polling
+    the feed and signs the calendar's events with the organizer's key
+    ([`nip52-mapping.md`](nip52-mapping.md) § 7). It asks the signer for no
+    other kind, and checks that every event it gets back is the one it asked
+    for, signed by the organizer. A claim whose signer does not answer, signs
+    as another key, or names no relay the index will connect to (§ 12's rule)
+    fails, and the calendar stays as it was.
+- **The calendar key retires**, either way, before anything is signed as the
+  organizer: its upcoming events are withdrawn (republished as cancelled where
+  they have RSVPs, else deleted; [`nip52-mapping.md`](nip52-mapping.md) § 4).
+  A cancelled copy names the organizer's own copy of the event with
+  `["q", "<kind>:<organizer>:<d>", "<relay>"]`: in `delegated` mode the same
+  `d` under the organizer's key; in `own` mode the organizer's event with the
+  same page (`r`), or the same `start` and title. Its kind 0 and 31924 say
+  where the calendar now publishes ([`nip52-mapping.md`](nip52-mapping.md) § 6),
+  and the key is deleted from the vault. On the index's relay the old key
+  keeps kinds 0 and 5 ([`relay.md`](relay.md)).
+- **After.** The entry names the organizer's key first and the old key second
+  while events it signed are to come ([`directory.md`](directory.md)). In
+  `own` mode, the old records the organizer's own events replace carry
+  `X-EVENTINDEX-CANONICAL` with the replacement's URL, and every record of a
+  claimed calendar carries `X-EVENTINDEX-CLAIMED`
+  ([`icalendar-profile.md`](icalendar-profile.md) § 3.5).
+- **The organizer's own requests.** Once a calendar is theirs, its organizer
+  can disconnect the signer (the index forgets the connection and reads their
+  events from then on, as in `own` mode) or connect one (the index publishes
+  the feed as them again, for a calendar that has a feed). These are signed
+  with their key and need no review.
+- **Hosting.** While the operator has the index's relay host claimants
+  (`RELAY_HOSTS_CLAIMANTS`, off by default; [`relay.md`](relay.md)), the
+  events the index signs as an organizer also go to its relay and name it as
+  their relay hint. Otherwise they go to the organizer's write relays, or to
+  the general relays when the organizer names none.
+

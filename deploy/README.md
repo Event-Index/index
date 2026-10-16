@@ -233,22 +233,34 @@ The relay can also move as its LMDB files (`/var/lib/strfry/db/data.mdb`,
 with strfry stopped on both sides) when both servers run the same strfry
 version on the same architecture; the export is the portable form.
 
-## Reviews and removals
+## Reviews, removals and claims
 
-Submitted feeds and remove requests wait for a maintainer:
+Submitted feeds (and calendars filed by their organizers' nostr keys), remove
+requests and claims wait for a maintainer:
 
 ```sh
 eventindex-admin approvals                   # submissions the index approved itself
 eventindex-admin undo-approval 7             # removes that calendar and keeps it out
-eventindex-admin submissions                 # id, time, source, role, name, feed
+eventindex-admin submissions                 # id, time, source, role, name, city, feed (or the key)
 eventindex-admin approve-submission 3 --city new-york
 eventindex-admin reject-submission 4
 eventindex-admin removals                    # id, time, whether the token was found in the feed, calendar
 eventindex-admin approve-removal 2
 eventindex-admin reject-removal 5
 eventindex-admin remove meetup-pythonsd --message "asked by email"
+eventindex-admin claims                      # id, time, proof (token or NIP-05), mode, calendar, the claimant's key
+eventindex-admin approve-claim 7             # only once the claim is verified
+eventindex-admin reject-claim 8
 eventindex-admin status
 ```
+
+A claim hands a calendar to its organizer's own key
+([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 13): the poll
+service withdraws the calendar key's upcoming events, says where the calendar
+now publishes, and deletes the key from `vault.db`. It cannot be undone from
+here; the organizer can still have the calendar removed. Whether the index's
+relay also takes the events of organizers it publishes as is
+`RELAY_HOSTS_CLAIMANTS` in `deploy.env` (off).
 
 ## Discovery and coverage
 

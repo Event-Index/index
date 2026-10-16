@@ -17,6 +17,7 @@ JSON-LD, NIP-52):
 | `luma` | no: the summary only | no |
 | `meetup` | no: the summary only | no |
 | `mobilizon`, `gancio`, `google`, `ics` | yes | yes |
+| `nostr` (events an organizer publishes on nostr themselves) | yes | yes |
 
 Where the full description is not served, public projections carry the summary
 ([`nip52-mapping.md`](nip52-mapping.md) § 3) in its place and drop
@@ -25,6 +26,10 @@ Where the full description is not served, public projections carry the summary
 `ATTACH` (an `image/*` `FMTTYPE`, or with none, an image file name) are
 dropped, and the calendar key's profile carries no picture. The record keeps
 everything.
+
+A calendar's policy is its source's. A calendar claimed by its organizer keeps
+its platform's policy for what comes from its feed; what it publishes from
+its own key is `nostr`.
 
 ## Luma (`luma`)
 

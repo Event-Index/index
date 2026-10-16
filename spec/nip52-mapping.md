@@ -140,14 +140,14 @@ calendar's name, [`icalendar-profile.md`](icalendar-profile.md) § 4), `about`,
 
 | State | `about` |
 |---|---|
-| Mirrored, from a platform | `Events of <name>, mirrored from <platform> by Event Index, which is not affiliated with <owner>. Organizer? You can have this calendar removed: https://eventindex.space/calendar/<local name>.` |
-| Mirrored, from any other feed | `Events of <name>, mirrored from its calendar feed by Event Index. Organizer? You can have this calendar removed: https://eventindex.space/calendar/<local name>.` |
+| Mirrored, from a platform | `Events of <name>, mirrored from <platform> by Event Index, which is not affiliated with <owner>. Organizer? You can claim this calendar or have it removed: https://eventindex.space/calendar/<local name>.` |
+| Mirrored, from any other feed | `Events of <name>, mirrored from its calendar feed by Event Index. Organizer? You can claim this calendar or have it removed: https://eventindex.space/calendar/<local name>.` |
 | Removed | `No longer mirrored by Event Index at its organizer's request.` |
+| Claimed (its organizer publishes it from their own key, [`indexer-rules.md`](indexer-rules.md) § 13) | `This calendar now publishes as <organizer's npub>.` |
 
 `<platform>` is the platform as its owner styles it, and `<owner>` who owns
 it: `Luma` / `Luma`, `Meetup®` / `Meetup`, `Mobilizon` / `Mobilizon`, `Gancio` /
-`Gancio`, `Google Calendar` / `Google`. The sentence offers removal only;
-claiming a calendar is not offered by this index.
+`Gancio`, `Google Calendar` / `Google`.
 
 A calendar key's `picture` is only ever its calendar's own image; one with no
 image has no `picture`. The Event Index mark is the index key's alone: its
@@ -170,7 +170,64 @@ rule.
 its description (or empty), and `["a", <address>, "wss://relay.eventindex.space"]`
 for every event the calendar signs or co-hosts that starts no earlier than 30
 days before the poll, soonest first, at most 300 (which keeps the event under
-65,536 bytes). Republished when it changes, like any projection.
+65,536 bytes). Republished when it changes, like any projection. A claimed
+calendar key's last 31924 lists only the events it still has (past ones, and
+upcoming ones kept as cancelled), and its `content` is the claimed sentence
+followed by a NIP-21 link to where the calendar now is:
+`This calendar now publishes as <npub>. nostr:<naddr of the organizer's 31924>`,
+or `nostr:<npub>` when they have none.
 
 Calendar keys are random, one per `calendar` entry the index adopts, never
 derived and never created for an aggregator or a native NIP-52 calendar.
+
+## 7. Calendars published as their organizers
+
+When its organizer has the index publish a calendar as them
+([`indexer-rules.md`](indexer-rules.md) § 13, `delegated`), the projection is
+the one above, signed with the organizer's key through their remote signer,
+with these differences:
+
+- The host `p` is the organizer's key, and every relay hint (on `p`, and on
+  the 31924's `a` tags) is the relay their events are on: the index's relay
+  while it hosts claimants, else the organizer's first write relay, else the
+  first general relay.
+- No kind 0 or 10002 is written: the organizer's profile and relay list are
+  their own.
+- The calendar's kind 31924 has the directory entry's `d` (for example
+  `meetup:pythonsd`), so each calendar an organizer has the index publish is
+  a calendar of its own, and it does not touch a 31924 the organizer keeps.
+  The entry's `calendar` names it.
+- The `d` of each event is the same as under the calendar key, so a reader
+  finds the organizer's copy of an old event at the same `d` under their key;
+  the old key's cancelled copies name it with `q` ([`indexer-rules.md`](indexer-rules.md) § 13).
+- Only kinds 31922, 31923, 31924 and 5 are signed as the organizer.
+
+## 8. From NIP-52 to the record
+
+A calendar its organizer publishes on nostr (a native calendar, or one
+claimed to publish itself) is read by its organizer's key
+([`indexer-rules.md`](indexer-rules.md) § 12), and each of their kind 31922 and
+31923 events becomes a record ([`icalendar-profile.md`](icalendar-profile.md) § 3),
+the reverse of § 2:
+
+| NIP-52 | iCalendar | Rule |
+|---|---|---|
+| the address `<kind>:<pubkey>:<d>` | `UID` | Required: an event with no `d` tag is left out. |
+| `title`, else the deprecated `name` | `SUMMARY` | Required: an event with neither is left out. A `Cancelled: ` prefix is removed and the event marked cancelled. |
+| `start` | `DTSTART` | 31923: unix seconds, written in `start_tzid`'s zone when it names an IANA zone, else in UTC. 31922: `YYYY-MM-DD` as a date. An event whose `start` cannot be read is left out. |
+| `end` | `DTEND` | When after the start; 31923 in `end_tzid`'s zone, else `start_tzid`'s; 31922 as a date (exclusive in both). |
+| `content`, else `summary` | `DESCRIPTION` | As written. |
+| `["status", "cancelled"]`, or the title prefix | `STATUS:CANCELLED` | |
+| `location` | `LOCATION`, then `VLOCATION` `NAME` | The first distinct value is `LOCATION`; each other is a `VLOCATION`. |
+| `g` | `GEO` | The centre of the geohash's cell, to 6 decimals. |
+| the first `http(s)` `r` | `URL` | |
+| `image` (`http(s)`) | `IMAGE` | |
+| `t` | `CATEGORIES` | Lowercased, each once. |
+| `created_at` | `LAST-MODIFIED` | |
+
+Each record also carries `X-EVENTINDEX-SOURCE:nostr` and
+`X-EVENTINDEX-NOSTR` with the event's `naddr` (with the relay it was read from
+as hint), and the record is then normalized like a feed's. Other tags are not
+read. The content policy for `nostr` is the open one: full description and
+images ([`platform-adapters.md`](platform-adapters.md)).
+

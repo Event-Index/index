@@ -39,7 +39,7 @@ are unix seconds.
 |---|---|
 | `GET /calendars/byfeedurl?url=<feed URL>` | the entry whose feed URL, canonicalized, matches |
 | `GET /calendars/byslug/<local name>` | one entry |
-| `GET /calendars/byguid/<npub or hex>` | the entry of a calendar key |
+| `GET /calendars/byguid/<npub or hex>` | the entry of a calendar key, or of an organizer's own key |
 | `GET /search/calendars/byterm?q=&near=<geohash>&tag=&limit=` | `{"calendars": [...], "count": n}`, removed entries left out |
 
 `q` matches the name, description and area; `near` matches an entry whose area
@@ -67,21 +67,31 @@ A calendar response:
     "local_name": "meetup-pythonsd",
     "address": "39999:<index key>:meetup:pythonsd",
     "nostr": { "npub": "npub1…", "nip05": "meetup-pythonsd@eventindex.space", "calendar": "naddr1…" },
+    "publishing": "mirrored",
     "page": "https://eventindex.space/calendar/meetup-pythonsd",
     "ics": "https://api.eventindex.space/api/1.0/ics/calendar/meetup-pythonsd.ics",
     "last_indexed": 1792087200,
     "event_count": 4,
     "stale": false,
     "claimed": false,
+    "claimed_at": null,
     "removed": false
   }
 }
 ```
 
-`image` is null where the source's policy serves no images. `nostr` is null
-until the calendar's first poll has created its key; `last_indexed` is the
-last successful poll. A removed calendar is still answered by these lookups,
-with `removed: true` and no events.
+`image` is null where the source's policy serves no images. `nostr` is the
+key the calendar's events are signed with now; it is null until the
+calendar's first poll has created its key. `publishing` says who signs them
+([`directory.md`](directory.md)): `mirrored` (a calendar key the index
+holds), `organizer` (the organizer, from their own key; the index reads their
+events, `source` is `nostr` and `feed` null), or `delegated` (the index, as
+the organizer, through their signer). For an organizer's key, `nostr.nip05`
+is null (the index names no key it does not hold) and `nostr.calendar` is the
+31924 the entry names, if any. `claimed` and `claimed_at` say whether and
+when its organizer claimed it. `last_indexed` is the last successful poll or
+read. A removed calendar is still answered by these lookups, with
+`removed: true` and no events.
 
 ### Events
 
@@ -96,7 +106,7 @@ with `removed: true` and no events.
   `EventSeries` with its occurrences in the window as `subEvent`); for a past
   event the feed no longer lists, its last record. Without a suffix it is the
   record's jCal; the record carries `X-EVENTINDEX-ID`, and where they apply
-  `X-EVENTINDEX-NOSTR` and `X-EVENTINDEX-CANONICAL`.
+  `X-EVENTINDEX-NOSTR`, `X-EVENTINDEX-CANONICAL` and `X-EVENTINDEX-CLAIMED`.
 - Search: `from` defaults to now and `to` to a year after `from`. `q` matches
   the title, summary and place; `near` matches an event whose geohash starts
   with it, and an event without coordinates (a hidden venue, a feed without
@@ -126,7 +136,7 @@ a schema.org `Event`. Otherwise each item is:
 ```
 
 `nostr` is the address the event is published at: for a co-host's copy, the
-signing calendar's.
+signing calendar's; for a calendar its organizer publishes, their event's.
 
 ### Feeds
 
@@ -196,23 +206,58 @@ is carried out as [`indexer-rules.md`](indexer-rules.md) § 10 describes.
 The pages of `eventindex.space` post the same requests as forms
 (`POST /submit`, `POST /calendar/<local name>/remove`) and answer in HTML.
 
+### Requests signed with your key
+
+Organizers already on nostr act with their own key. Each of these requests
+carries `Authorization: Nostr <base64 of a NIP-98 event>`: a kind `27235`
+event signed by the organizer's key, with `["u", "<the request's URL>"]`
+(the API's address, or the same path on `https://eventindex.space`),
+`["method", "POST"]` and `["payload", "<hex SHA-256 of the body>"]`, made
+within 60 seconds of the request. Each proof is used once. They are limited to
+20 an hour per client address, take a JSON object of at most 16 KiB, and the
+pages of `eventindex.space` make them through a browser extension (NIP-07).
+
+| Request | Does |
+|---|---|
+| `POST /calendars/native` with `{"city": "<city slug>"}` (optional) | files the calendar the key publishes on nostr: the index reads its relays and queues it for review if it finds NIP-52 events from it ([`indexer-rules.md`](indexer-rules.md) § 12) |
+| `POST /calendars/<local name>/claim` with `{"mode": "own"}` or `{"mode": "delegated", "bunker": "bunker://…"}` | claims a mirrored calendar for the key ([`indexer-rules.md`](indexer-rules.md) § 13): `own` to publish it yourself, `delegated` to have the index publish it as you through the remote signer (NIP-46) at that address |
+| `POST /calendars/<local name>/claim/<claim>/nip05` with `{"nip05": "<name>@<domain>"}` | verifies the key's claim by NIP-05 at the calendar's own domain |
+| `POST /calendars/<local name>/signer` with `{"action": "disconnect"}` or `{"action": "connect", "bunker": "bunker://…"}` | for the calendar's organizer: stops or starts the index publishing it as them, without review |
+
+`/calendars/native` answers `202` with
+`{"status": "queued" | "already-queued", "submission": n, "d": "nostr:<hex key>", "name", "events": n, "message"}`.
+
+`/claim` answers `202` with
+`{"status": "received", "claim": n, "d", "mode", "token": "eventindex-claim-…", "nip05_domains": [...], "instructions": "…"}`.
+The token, placed in the calendar's description or in one of its events, is
+found at the next poll and verifies the claim; so does NIP-05 at one of
+`nip05_domains`, the calendar's own domains (none for a calendar on a
+platform's domain). A signer's address is sealed for the poll service as soon
+as it arrives; the HTTP service keeps it only sealed. A maintainer approves a
+verified claim, and the poll service carries it out at its next tick.
+
+`/nip05` answers `200` with `{"status": "verified", "claim": n, "by": "nip05"}`.
+`/signer` answers `202` with `{"status": "received", "request": n, "message"}`.
+
 Errors are `{"error": "<code>", "message": "<text>"}` with an HTTP status:
 
 | Status | Codes |
 |---|---|
-| 400 | `invalid-url`, `unsupported-feed`, `private-feed-url`, `invalid-parameter`, `invalid-body`, `invalid-message`, `too-long` |
+| 400 | `invalid-url`, `unsupported-feed`, `private-feed-url`, `invalid-parameter`, `invalid-body`, `invalid-message`, `too-long`, `invalid-mode`, `invalid-signer`, `invalid-action` |
+| 401 | `unauthorized`, with `reason`: `missing`, `malformed`, `bad-signature`, `wrong-kind`, `expired`, `wrong-url`, `wrong-method`, `wrong-payload`, `used` |
+| 403 | `not-yours` (a claim made by another key), `not-owner` (a calendar its organizer does not publish, or another key's) |
 | 404 | `not-found` |
 | 405 | `method-not-allowed` |
-| 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request) |
+| 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request), `already-claimed`, `already-owner` (the key already publishes a listed calendar), `not-a-calendar`, `not-pending`, `not-delegated`, `no-feed` |
 | 410 | `removed` |
 | 413 | `too-large` (the request body) |
-| 422 | the feed could not be used: `private-address`, `too-large`, `not-icalendar`, `empty`, `dns`, `timeout`, `too-many-redirects`, `http-<status>` |
-| 429 | `rate-limited` (with `Retry-After`), `too-many-requests` (a calendar with 10 requests waiting) |
-| 503 | `queue-full` (1,000 submissions waiting) |
+| 422 | the feed could not be used: `private-address`, `too-large`, `not-icalendar`, `empty`, `dns`, `timeout`, `too-many-redirects`, `http-<status>`; a key with nothing to file: `no-relay-answered`, `no-events`; NIP-05: `nip05-invalid`, `nip05-domain` (with `nip05_domains`), `nip05-unreachable`, `nip05-mismatch` |
+| 429 | `rate-limited` (with `Retry-After`), `too-many-requests` (a calendar with 10 requests or claims waiting) |
+| 503 | `queue-full` (1,000 submissions waiting), `not-ready` (the poll service has not started), `not-available` (the index cannot read relays) |
 
 nostr developers can also add to the index by publishing: a directory entry
 (kind `39999`) under their own key, or NIP-52 events that the index reads by
-kind.
+kind once their calendar is filed by its key.
 
 ## Attribution and data terms
 
@@ -235,5 +280,6 @@ kind.
   endorsed by, any platform it reads.
 - An event whose venue its organizer shows only to registered guests carries
   no place in any response; `near` matches it by its calendar's area.
-- An organizer can have their calendar removed from the index
+- An organizer can claim their calendar, to publish it from their own nostr
+  key, or have it removed from the index
   (`https://eventindex.space/calendar/<local name>`).

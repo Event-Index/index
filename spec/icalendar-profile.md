@@ -112,9 +112,9 @@ On every VEVENT of a record:
 | `X-EVENTINDEX-SOURCE` | the entry's source (`luma`, `meetup`, `mobilizon`, `gancio`, `google`, `ics`, `nostr`) |
 | `X-EVENTINDEX-ID` | the public event id (§ 6) of the event, or of the occurrence an override stands for |
 | `X-EVENTINDEX-VENUE` | `hidden` when the source shows the venue only to registered guests ([`platform-adapters.md`](platform-adapters.md)). Such an event keeps no `LOCATION` or `GEO`, and no projection carries a place for it. |
-| `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL |
-| `X-EVENTINDEX-NOSTR` | the `naddr` of the event's NIP-52 projection, once published |
-| `X-EVENTINDEX-CLAIMED` | the date the calendar was claimed by its organizer |
+| `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL; on an old record of a calendar claimed to publish itself, the URL of the organizer's record that replaces it |
+| `X-EVENTINDEX-NOSTR` | the `naddr` of the event's NIP-52 projection, once published; on a record read from its organizer's own key, the `naddr` of their event |
+| `X-EVENTINDEX-CLAIMED` | the date (`YYYY-MM-DD`) the calendar was claimed by its organizer, on its records since |
 
 ## 4. Calendar metadata
 
@@ -146,7 +146,7 @@ field that may change.
 | Meetup group | `https://www.meetup.com/<urlname>/events/ical/` | `meetup:<urlname>`, lowercased | `https://www.meetup.com/<urlname>/` |
 | Mobilizon group | `https://<host>/@<group>/feed/ics` | `mobilizon:<host>/@<group>` | `https://<host>/@<group>` |
 | Public Google calendar | `https://calendar.google.com/calendar/ical/<id>/public/<file>.ics` | `google:<id>` (percent-decoded) | `https://calendar.google.com/calendar/embed?src=<id>` |
-| Native NIP-52 calendar | (none) | `nostr:31924:<pubkey>:<d>` | (the calendar's own) |
+| Native NIP-52 calendar | (none) | `nostr:<pubkey>`: its organizer's key, lowercase hex | its organizer's `website` |
 | Anything else | any `http(s)` or `webcal` URL | `ics:` + lowercase hex SHA-256 of the canonical URL | `URL` from the feed |
 
 **Canonical feed URL**: `webcal`/`webcals` becomes `https`; scheme and host
@@ -159,11 +159,14 @@ A Luma feed of any other `entity` is refused.
 
 ### 5.1 Local names
 
-Each calendar key has a NIP-05 local name, served at
-`https://eventindex.space/.well-known/nostr.json` and used in its calendar page
-`https://eventindex.space/calendar/<local name>`. It is derived from the `d`:
+Each directory entry has a local name, used in its calendar page
+`https://eventindex.space/calendar/<local name>` and, for a calendar key the
+index holds, as its NIP-05 name, served at
+`https://eventindex.space/.well-known/nostr.json`. The index names no key it
+does not hold (an organizer's own). It is derived from the `d`:
 
-1. An `ics:` entry: `ics-` and the first 16 hex digits of its hash.
+1. An `ics:` entry: `ics-` and the first 16 hex digits of its hash; a
+   `nostr:` entry: `nostr-` and the first 16 hex digits of its key.
 2. Otherwise: drop a Google `@group.calendar.google.com` or
    `@group.v.calendar.google.com` suffix; remove diacritics; lowercase; replace
    every run of characters other than `a-z` and `0-9` with one `-`; trim `-`.

@@ -13,20 +13,28 @@ iCalendar record. It serves each record as:
 - **NIP-52 calendar events** (kinds 31922 and 31923) on nostr relays, signed by
   one key per calendar, so each event shows its own organizer as host.
 
+The bridge runs both ways. An organizer who already publishes NIP-52 events
+from their own key can list their calendar by that key: the index reads
+their events and serves them as `.ics`, jCal and JSON-LD, and signs nothing
+for it. An organizer whose calendar the index mirrors can claim it, to
+publish its events from their own key: themselves, or by the index, as them,
+through a remote signer they connect (NIP-46).
+
 The directory itself is a decentralized list on nostr: a maintainer signs its
 header, and the index key, as its curator, signs one entry per calendar
 ([`spec/directory.md`](spec/directory.md)). Its data is in the public domain.
 
-Status: early, not yet running in public. Implemented and tested against
-captured feeds and a local relay: the normalizer, the platform adapters (Luma,
-Meetup, Mobilizon, Google), the projector (NIP-52, `.ics`, jCal, JSON-LD and
-the calendar keys' own events), the indexer rules (co-hosts, vanished events,
-quarantine, schedule, submission checks), the poll service
-(`indexer/src/main.ts`), which publishes the directory and carries out
-removals, the maintainer's commands (`indexer/src/admin.ts`), and the HTTP
-service (`api/src/main.ts`): the API, NIP-05 names and the pages of
-eventindex.space. Not implemented: discovery through aggregator feeds,
-claims, and native NIP-52 calendars.
+Status: early. Implemented and tested against captured feeds and local
+relays: the normalizer, the platform adapters (Luma, Meetup, Mobilizon,
+Google), the projector (NIP-52, `.ics`, jCal, JSON-LD and the calendar keys'
+own events), the indexer rules (co-hosts, vanished events, quarantine,
+schedule, submission checks), calendars read from their organizers' own
+keys, claims with an organizer's own key (publishing themselves, or through
+their signer), the poll service (`indexer/src/main.ts`), which publishes the
+directory and carries out removals and claims, the maintainer's commands
+(`indexer/src/admin.ts`), and the HTTP service (`api/src/main.ts`): the API,
+NIP-05 names and the pages of eventindex.space. Not implemented: discovery
+through aggregator feeds, and handing a calendar key to its organizer.
 
 ## Layout
 

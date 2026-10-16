@@ -10,7 +10,10 @@ accepts:
 - from the Event Index key: kinds 0, 3, 5, 10002, 31922, 31923, 31924, 39998
   and 39999;
 - from each calendar key the index holds: kinds 0, 5, 10002, 31922, 31923 and
-  31924; from a removed calendar's key, kinds 0 and 5 only;
+  31924; from a removed or claimed calendar's old key, kinds 0 and 5 only;
+- only while the operator has the relay host claimants
+  (`RELAY_HOSTS_CLAIMANTS=1`, off by default): from an organizer the index
+  publishes as, kinds 5, 31922, 31923 and 31924;
 - from anyone: an RSVP (kind 31925) whose `a` names an event of one of those
   keys, a comment (kind 1111) whose root `A` names one, and a deletion (kind 5)
   of the author's own events stored here.

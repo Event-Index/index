@@ -10,7 +10,8 @@ is refused with an `OK` message beginning `blocked: `.
 |---|---|
 | the Event Index key | 0, 3, 5, 10002, 31922, 31923, 31924, 39998, 39999 |
 | a calendar key the index holds | 0, 5, 10002, 31922, 31923, 31924 |
-| a removed calendar's key | 0, 5 |
+| a removed or claimed calendar's old key | 0, 5 |
+| an organizer the index publishes as, only while the operator has the relay host them (`RELAY_HOSTS_CLAIMANTS`, off by default) | 5, 31922, 31923, 31924 |
 
 From anyone:
 
@@ -24,9 +25,12 @@ From anyone:
   is refused.
 
 A calendar key is accepted from before its first event: the indexer adds it
-to the relay's allowlist before publishing. A removed calendar's key keeps
-kinds 0 and 5, so its removal ([`indexer-rules.md`](indexer-rules.md) § 10) and
-any later deletion can be published.
+to the relay's allowlist before publishing. A removed or claimed calendar's
+old key keeps kinds 0 and 5, so its removal ([`indexer-rules.md`](indexer-rules.md) § 10),
+its claim (§ 13 there) and any later deletion can be published. An
+organizer's own key is never given kinds 0 or 10002: their profile and relay
+list are theirs. While the relay does not host an organizer, the events the
+index signs as them go to their own relays only.
 
 Events the operator loads (`strfry import`, `sync`, `stream`) are not
 filtered. The relay's NIP-11 `description` states this scope.
