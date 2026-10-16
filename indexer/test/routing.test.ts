@@ -11,9 +11,10 @@ const event = (pubkey: string, kind: number, tags: string[][] = []) => ({ pubkey
 const timed = (start: number) => event(CAL, 31923, [['d', 'x'], ['start', String(start)]]);
 const dated = (date: string) => event(CAL, 31922, [['d', 'y'], ['start', date]]);
 
-test('the directory goes to the search and list relays, once publishing it outside is on', () => {
-  for (const kind of [39998, 39999]) assert.deepEqual(setsFor(event(INDEX, kind), on), ['search', 'lists']);
-  for (const kind of [39998, 39999]) assert.deepEqual(setsFor(event(INDEX, kind), { ...on, directory: false }), [], 'held on the index\'s relay');
+test('the directory\'s entries go to the search and list relays, once publishing them outside is on', () => {
+  assert.deepEqual(setsFor(event(INDEX, 39999), on), ['search', 'lists']);
+  assert.deepEqual(setsFor(event(INDEX, 39999), { ...on, directory: false }), [], 'held on the index\'s relay');
+  assert.deepEqual(setsFor(event(INDEX, 39998), on), [], 'a list header the index key signs stays on its relay');
   assert.deepEqual(setsFor(event(CAL, 31924), { ...on, directory: false }), ['search', 'general'], 'the hold is for the directory only');
 });
 

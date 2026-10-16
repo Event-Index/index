@@ -5,7 +5,8 @@
 
 import { identify } from './id.ts';
 import { checkFeedUrl, validateFeed } from './validate.ts';
-import { directoryEntry } from './entry.ts';
+import { directoryEntry, citySlug } from './entry.ts';
+import { localName } from './id.ts';
 import { normalizeFeed } from '../normalize/normalize.ts';
 import { spreadCreatedAt, MAX_PER_SECOND } from '../rules/limits.ts';
 import type { EventTemplate } from '../project/nip52.ts';
@@ -31,6 +32,8 @@ export interface Seed {
 export interface SeedDeps {
   fetch: (url: string) => Promise<FetchResult>;
   indexPubkey: string;
+  // The list header's coordinate (default: one under the index key).
+  header?: string;
   now: number;
   // The calendar key of an entry (created on first use).
   keyFor: (d: string) => string;
@@ -87,9 +90,11 @@ export async function seedEntries(seed: Seed, deps: SeedDeps): Promise<{ entries
     entries.set(identity.d, directoryEntry({
       identity,
       calendar: feed.calendar,
-      indexPubkey: deps.indexPubkey,
+      header: deps.header ?? `39998:${deps.indexPubkey}:event-calendars`,
       pubkey: identity.role === 'calendar' ? deps.keyFor(identity.d) : null,
+      localName: localName(identity.d),
       location: `${seed.city}, ${seed.country}`,
+      city: citySlug(seed.city),
     }));
     report.push({ id, outcome: 'filed' });
   }

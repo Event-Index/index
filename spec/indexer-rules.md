@@ -169,8 +169,9 @@ creates the calendar key.
   to start.
 - Every 30 seconds a tick carries out approved removals, polls the entries
   that are due (at most 20 per tick, the longest due first), publishes the
-  index key's events that changed (its kind 0, 3 and 10002, both list headers and
-  every directory entry with a calendar key, or none for an aggregator), and
+  index key's events that changed (its kind 0, 3 and 10002, the events list
+  header, and every directory entry with a calendar key, or none for an
+  aggregator; [`directory.md`](directory.md)), and
   writes the dump once a day. One feed's failure does not stop the others.
 - Events go to the index's own relay; a publish it refuses fails the poll,
   which is retried. The relay accepts only the keys in the allowlist the
@@ -184,7 +185,7 @@ creates the calendar key.
 
   | Kind | Search relays | List relays | Profile relays | General relays |
   |---|---|---|---|---|
-  | 39998, 39999 (the directory)¹ | yes | yes | | |
+  | 39999 (the directory's entries)¹ | yes | yes | | |
   | 0, 10002 (any key) | yes | | yes | yes |
   | 3 (the index key's follow list) | yes | | yes | yes |
   | 31924 | yes | | | yes |
@@ -192,7 +193,8 @@ creates the calendar key.
   | 5 | yes | | | yes |
 
   ¹ Only once publishing the directory outside is turned on of its own;
-  until then the directory stays on the index's relay.
+  until then the entries stay on the index's relay. A list header the index
+  key signs (the events header) stays on its relay.
 
   Each relay gets, once, what the index's relay holds of the kinds its set
   takes (deletions excepted; the directory's kinds once the directory goes

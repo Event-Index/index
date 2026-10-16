@@ -13,8 +13,9 @@ iCalendar record. It serves each record as:
 - **NIP-52 calendar events** (kinds 31922 and 31923) on nostr relays, signed by
   one key per calendar, so each event shows its own organizer as host.
 
-The directory itself is a decentralized list on nostr, and its data is in the
-public domain.
+The directory itself is a decentralized list on nostr: a maintainer signs its
+header, and the index key, as its curator, signs one entry per calendar
+([`spec/directory.md`](spec/directory.md)). Its data is in the public domain.
 
 Status: early, not yet running in public. Implemented and tested against
 captured feeds and a local relay: the normalizer, the platform adapters (Luma,

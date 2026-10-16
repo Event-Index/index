@@ -7,7 +7,7 @@ import { dirname } from 'node:path';
 import { finalizeEvent, getPublicKey, type VerifiedEvent } from 'nostr-tools/pure';
 import type { Settings } from '../config.ts';
 import type { DirectoryIdentity } from '../directory/id.ts';
-import { directoryEntry, eventCalendarsHeader, eventsHeader } from '../directory/entry.ts';
+import { directoryEntry, eventsHeader, citySlug } from '../directory/entry.ts';
 import { adapterFor } from '../adapters/index.ts';
 import { recordFromText, type CalendarMeta, type NormalizedFeed } from '../normalize/normalize.ts';
 import { pollCalendar } from '../poller/poll.ts';
@@ -76,7 +76,7 @@ const REMOVED = 'organizer request';
 // Kinds re-sent from the index's relay when outside publishing starts, and
 // the directory's, re-sent when it goes outside.
 const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924];
-const DIRECTORY_KINDS = [39998, 39999];
+const DIRECTORY_KINDS = [39999];
 // Bumped when what the backfill sends changes, so it runs again.
 const BACKFILL_VERSION = '1';
 
@@ -133,8 +133,11 @@ export function createIndexer(deps: IndexerDeps) {
   const indexPubkey = getPublicKey(deps.indexKey);
   dir.setFact('index_pubkey', indexPubkey);
   const feeds = new Map<string, NormalizedFeed>();
-  // A relay list names only relays that hold the events.
+  // A relay list names only relays that hold the events: the general relays
+  // while outside publishing is on, and for the curator, the list relays once
+  // the directory goes outside.
   const generalRelays = settings.publishToGeneralRelays ? settings.generalRelays : [];
+  const listRelays = settings.publishToGeneralRelays && settings.publishDirectoryOutside ? settings.listRelays : [];
 
   // The keys the relay accepts events from: the index key, every calendar
   // key (named before its first events go out), and removed calendars' keys,
@@ -263,18 +266,36 @@ export function createIndexer(deps: IndexerDeps) {
     sign: (t: EventTemplate & { created_at: number }) => VerifiedEvent,
     items: Array<{ template: EventTemplate; d: string; start: number; always?: boolean }>,
     now: number,
+    perSecond?: number,
   ): Promise<number> {
     const due = items
       .map((i) => ({ ...i, hash: projectionHash(i.template) }))
       .filter((i) => i.always || db.shouldPublish(pubkey, i.template.kind, i.d, i.hash));
     if (due.length === 0) return 0;
-    const times = spreadCreatedAt(due.map((i) => ({ key: `${i.template.kind}:${i.d}`, last: i.always ? null : db.lastCreatedAt(pubkey, i.template.kind, i.d) })), now);
+    const times = spreadCreatedAt(due.map((i) => ({ key: `${i.template.kind}:${i.d}`, last: i.always ? null : db.lastCreatedAt(pubkey, i.template.kind, i.d) })), now, perSecond);
     const signed = due.map((i) => ({ i, event: sign({ ...i.template, created_at: times.get(`${i.template.kind}:${i.d}`)! }) }));
     await send(signed.map((s) => s.event), now);
     for (const { i, event } of signed) {
       if (!i.always) db.markPublished({ pubkey, kind: i.template.kind, d: i.d, hash: i.hash, eventId: event.id, createdAt: event.created_at, start: i.start, template: i.template });
     }
     return signed.length;
+  }
+
+  // The calendars list's header is a maintainer's: the index key is its
+  // curator and signs only the entries. A header it published itself before
+  // is deleted, on its own relay, where alone it went.
+  const header = settings.directoryHeader ?? `39998:${indexPubkey}:event-calendars`;
+  async function retireOwnHeader(): Promise<void> {
+    if (header === `39998:${indexPubkey}:event-calendars`) return;
+    const own = db.projection(indexPubkey, 39998, 'event-calendars');
+    if (!own || own.status !== 'live') return;
+    const deletion = finalizeEvent({
+      ...deletionFor({ versions: db.versions(indexPubkey, 39998, 'event-calendars'), coordinate: `39998:${indexPubkey}:event-calendars`, kind: 39998 }),
+      created_at: Math.max(deps.now(), own.createdAt + 1),
+    }, deps.indexKey);
+    await publisher.publish([deletion], 'own');
+    db.markWithdrawn(indexPubkey, 39998, 'event-calendars', 'deleted');
+    deps.log('retired the index key\'s own event-calendars header');
   }
 
   async function publishDirectory(now: number): Promise<number> {
@@ -295,10 +316,9 @@ export function createIndexer(deps: IndexerDeps) {
         d: '',
         start: now,
       },
-      { template: { kind: 10002, tags: [['r', settings.publicRelay], ...generalRelays.map((r) => ['r', r, 'write'])], content: '' }, d: '', start: now },
+      { template: { kind: 10002, tags: [['r', settings.publicRelay], ...[...generalRelays, ...listRelays].map((r) => ['r', r, 'write'])], content: '' }, d: '', start: now },
       // Follows every calendar key it holds.
       { template: { kind: 3, tags: [...allowed.live].sort().map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
-      { template: eventCalendarsHeader(), d: 'event-calendars', start: now },
       { template: eventsHeader(), d: 'events', start: now },
     ];
     for (const entry of dir.list({ includeRemoved: true })) {
@@ -307,17 +327,21 @@ export function createIndexer(deps: IndexerDeps) {
         template: directoryEntry({
           identity: identityOf(entry),
           calendar: metaOf(entry, dir.calendarMeta(entry.d)),
-          indexPubkey,
+          header,
           pubkey: entry.pubkey,
+          localName: entry.localName,
           location: entry.location,
           geohash: entry.g,
+          city: citySlug(entry.location),
           removed: entry.removed ?? undefined,
         }),
         d: entry.d,
         start: now,
       });
     }
-    return publishAs(indexPubkey, (t) => finalizeEvent(t, deps.indexKey), items, now);
+    await retireOwnHeader();
+    // One second each, so a list relay reads them in order.
+    return publishAs(indexPubkey, (t) => finalizeEvent(t, deps.indexKey), items, now, 1);
   }
 
   // Returns how many events it published.

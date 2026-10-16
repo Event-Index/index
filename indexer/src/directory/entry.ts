@@ -1,6 +1,7 @@
 // The directory on nostr: one kind 39999 entry per calendar or aggregator,
-// on the Event Calendars list, and the two list headers the index key
-// publishes. The wire format is the Event Index protocol draft's §§ 2 and 3.
+// signed by the index key as the curator of a list whose header (kind
+// 39998) a maintainer signs; the entry's `z` names that header. The events
+// header below is still the index key's own.
 
 import { adapterFor } from '../adapters/index.ts';
 import type { CalendarMeta } from '../normalize/normalize.ts';
@@ -10,71 +11,53 @@ import type { DirectoryIdentity } from './id.ts';
 export interface EntryInput {
   identity: DirectoryIdentity;
   calendar: CalendarMeta;
-  indexPubkey: string;
+  // The list header's coordinate, 39998:<pubkey>:<d>.
+  header: string;
   // The calendar key; null for an aggregator.
   pubkey: string | null;
+  // Its local name on the index (page and NIP-05 name).
+  localName: string;
   location?: string | null;
   geohash?: string | null;
-  topics?: string[];
+  // The city's slug, a topic.
+  city?: string | null;
+  // A native kind 31924 the entry stands for.
+  nativeCalendar?: string | null;
   removed?: string;
 }
 
-export function directoryEntry(input: EntryInput): EventTemplate {
-  const { identity, calendar } = input;
-  const tags: Tag[] = [
-    ['d', identity.d],
-    ['z', `39998:${input.indexPubkey}:event-calendars`],
-    ['name', calendar.name ?? identity.d],
-    ['role', identity.role],
-  ];
-  if (identity.role === 'calendar' && input.pubkey) tags.push(['p', input.pubkey]);
-  tags.push(['feed', identity.feedUrl]);
-  const page = calendar.url ?? identity.pageUrl;
-  if (page) tags.push(['url', page]);
-  tags.push(['source', identity.source]);
-  if (input.location) tags.push(['location', input.location]);
-  if (input.geohash) tags.push(['g', input.geohash]);
-  for (const topic of input.topics ?? []) tags.push(['t', topic]);
-  if (calendar.description) tags.push(['description', calendar.description]);
-  if (calendar.image && adapterFor(identity.source).policy.images) tags.push(['image', calendar.image]);
-  if (input.removed) tags.push(['removed', input.removed]);
-  return { kind: 39999, tags, content: '' };
+// The slug of the city an area names ("San Diego, US" -> san-diego).
+export function citySlug(location: string | null | undefined): string | null {
+  const city = location?.split(',')[0]?.trim();
+  return city ? city.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null : null;
 }
 
-export function eventCalendarsHeader(): EventTemplate {
-  return {
-    kind: 39998,
-    content: '',
-    tags: [
-      ['d', 'event-calendars'],
-      ['names', 'Event Calendar', 'Event Calendars'],
-      ['description', 'Public event calendars. A calendar\'s events are mirrored to nostr as NIP-52 events signed by a key of its own.'],
-      ['required', 'name', 'The calendar\'s name as its organizer gives it (RFC 7986 NAME, else X-WR-CALNAME unless it is a platform default such as Luma\'s Personal, else the organizer\'s name)'],
-      ['required', 'role', 'calendar | aggregator. A calendar\'s events are signed by its own key. An aggregator only leads to calendars.'],
-      ['recommended', 'p', 'The calendar\'s own nostr key (held by the index until claimed). Absent on aggregators.'],
-      ['recommended', 'feed', 'iCalendar feed URL the entry is indexed from'],
-      ['recommended', 'url', 'The calendar\'s page on its platform (RFC 7986 URL)'],
-      ['recommended', 'source', 'luma | meetup | mobilizon | gancio | google | ics | nostr'],
-      ['allowed', 'organizer', 'Organizer\'s name when the feed states one'],
-      ['allowed', 'location', 'City or region, as text'],
-      ['allowed', 'g', 'Geohash of the calendar\'s usual area'],
-      ['allowed', 'calendar', 'A native kind-31924 calendar this entry stands for'],
-      ['allowed', 't', 'Topic tags'],
-      ['allowed', 'description', 'RFC 7986 DESCRIPTION'],
-      ['allowed', 'image', 'RFC 7986 IMAGE'],
-      ['field-type', 'feed', 'url'],
-      ['field-type', 'url', 'url'],
-      ['field-type', 'image', 'url'],
-      ['field-type', 'calendar', 'address'],
-      ['display', 'title', 'name'],
-      ['display', 'summary', 'organizer'],
-      ['display', 'image', 'image'],
-      ['display', 'link', 'url'],
-      ['display', 'location', 'g'],
-      ['display', 'fact', 'role', 'Type'],
-      ['display', 'fact', 'location', 'Area'],
-    ],
-  };
+// The tags in the header's order, without empty values.
+export function directoryEntry(input: EntryInput): EventTemplate {
+  const { identity, calendar } = input;
+  const policy = adapterFor(identity.source).policy;
+  const platformId = identity.d.slice(identity.d.indexOf(':') + 1);
+  const tags: Array<[string, string | null | undefined]> = [
+    ['d', identity.d],
+    ['z', input.header],
+    ['name', calendar.name ?? identity.d],
+    ['role', identity.role],
+    ['p', identity.role === 'calendar' ? input.pubkey : null],
+    ['index-name', input.localName],
+    ['feed', identity.feedUrl],
+    ['source', identity.source],
+    ['location', input.location],
+    ['g', input.geohash],
+    ['luma-id', identity.source === 'luma' ? platformId : null],
+    ['meetup-group', identity.source === 'meetup' ? platformId : null],
+    ['calendar', input.nativeCalendar],
+    ['t', input.city],
+    ['t', identity.source],
+    ['description', policy.fullDescription ? calendar.description : null],
+    ['image', policy.images ? calendar.image : null],
+    ['removed', input.removed],
+  ];
+  return { kind: 39999, tags: tags.filter((t): t is [string, string] => typeof t[1] === 'string' && t[1].trim() !== '') as Tag[], content: '' };
 }
 
 export function eventsHeader(): EventTemplate {

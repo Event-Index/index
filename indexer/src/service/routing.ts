@@ -49,7 +49,9 @@ export function setsFor(event: Routable, ctx: RouteContext): RelaySet[] {
   const index = event.pubkey === ctx.indexPubkey;
   if (!ctx.outside) return index && (kind === 0 || kind === 10002) ? ['profiles', 'general'] : [];
   switch (kind) {
+    // A list header the index key signs (the events header) stays home.
     case 39998:
+      return [];
     case 39999:
       return ctx.directory ? ['search', 'lists'] : [];
     case 0:

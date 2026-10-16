@@ -26,8 +26,11 @@ export interface Settings {
   generalRelays: string[];
   // Relays that take only list kinds; they get the directory and headers.
   listRelays: string[];
-  // Off unless set: the directory (kinds 39998, 39999) goes outside too.
+  // Off unless set: the directory's entries (kind 39999) go outside too.
   publishDirectoryOutside: boolean;
+  // The coordinate of the list header the entries belong to (39998:<key>:<d>),
+  // signed by a maintainer; null for one under the index key.
+  directoryHeader: string | null;
   // Relays that index events for search.
   searchRelays: string[];
   // Relays that keep profiles and relay lists.
@@ -43,6 +46,12 @@ function relays(value: string | undefined, fallback: string[], name: string): st
   const list = value.split(',').map((r) => r.trim()).filter(Boolean);
   for (const r of list) if (!/^wss?:\/\//.test(r)) throw new Error(`${name}: not a relay URL: ${r}`);
   return list;
+}
+
+function header(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  if (!/^39998:[0-9a-f]{64}:.+$/.test(value.trim())) throw new Error(`EVENTINDEX_DIRECTORY_HEADER: not a list header coordinate: ${value}`);
+  return value.trim();
 }
 
 export function loadSettings(env: Record<string, string | undefined>): Settings {
@@ -67,6 +76,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     generalRelays: relays(env['EVENTINDEX_GENERAL_RELAYS'], GENERAL_RELAYS, 'EVENTINDEX_GENERAL_RELAYS'),
     listRelays: relays(env['EVENTINDEX_LIST_RELAYS'], [], 'EVENTINDEX_LIST_RELAYS'),
     publishDirectoryOutside: env['EVENTINDEX_PUBLISH_DIRECTORY_OUTSIDE'] === '1',
+    directoryHeader: header(env['EVENTINDEX_DIRECTORY_HEADER']),
     searchRelays: relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS'),
     profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
   };

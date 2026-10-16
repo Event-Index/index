@@ -85,7 +85,7 @@ test('one tick publishes the directory, the calendar key\'s events and the calen
   const indexPubkey = getPublicKey(indexKey);
   const calendarPubkey = dir.get(id.d)!.pubkey!;
   const directory = await pool.querySync([url], { kinds: [39998, 39999], authors: [indexPubkey] });
-  assert.deepEqual(directory.map((e) => e.kind).sort(), [39998, 39998, 39999]);
+  assert.deepEqual(directory.map((e) => e.kind).sort(), [39998, 39999], 'the events header and the entry');
   const listed = await pool.querySync([url], { kinds: [31923], '#z': [`39998:${indexPubkey}:events`] });
   assert.equal(listed.length, 4);
   assert.ok(listed.every((e) => e.pubkey === calendarPubkey));
@@ -110,7 +110,7 @@ test('main.ts --once runs one tick, publishes the index key\'s events, and relea
     assert.match(run.stdout, /stopped/);
     assert.equal(existsSync(join(dataDir, 'indexer.lock')), false);
     assert.ok(existsSync(join(dataDir, 'index.db')) && existsSync(join(dataDir, 'vault.db')));
-    const headers = await pool.querySync([url], { kinds: [39998], '#d': ['event-calendars'] });
+    const headers = await pool.querySync([url], { kinds: [39998], '#d': ['events'] });
     assert.ok(headers.length >= 1);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });

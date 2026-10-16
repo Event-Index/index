@@ -32,6 +32,10 @@ test('settings come from the environment the deploy unit sets, with safe default
   const none = loadSettings({ EVENTINDEX_PROFILE_RELAYS: 'none', EVENTINDEX_SEARCH_RELAYS: 'wss://search.example' });
   assert.deepEqual(none.profileRelays, []);
   assert.deepEqual(none.searchRelays, ['wss://search.example']);
+  assert.equal(s.directoryHeader, null);
+  const header = `39998:${'ab'.repeat(32)}:event-calendars`;
+  assert.equal(loadSettings({ EVENTINDEX_DIRECTORY_HEADER: header }).directoryHeader, header);
+  assert.throws(() => loadSettings({ EVENTINDEX_DIRECTORY_HEADER: '39999:nope:x' }), /not a list header coordinate/);
 });
 
 test('settings refuse a relay URL that is not ws or wss', () => {

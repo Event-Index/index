@@ -1,45 +1,76 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeFeed } from '../src/normalize/normalize.ts';
-import { directoryEntry, eventCalendarsHeader, eventsHeader } from '../src/directory/entry.ts';
+import { directoryEntry, eventsHeader } from '../src/directory/entry.ts';
 import { identify } from '../src/directory/id.ts';
 import { readFixture, feedUrlFor } from './helpers.ts';
 
-const INDEX = 'e1'.repeat(32);
+const HEADER = `39998:${'ab'.repeat(32)}:event-calendars`;
 const CAL = 'c1'.repeat(32);
 
-function entryFor(fixture: string, extra: { pubkey?: string | null; removed?: string } = {}) {
+function entryFor(fixture: string, extra: { pubkey?: string | null; removed?: string; location?: string | null; geohash?: string | null; city?: string | null } = {}) {
   const id = identify(feedUrlFor(fixture));
   const feed = normalizeFeed(readFixture(fixture), id);
-  return directoryEntry({ identity: id, calendar: feed.calendar, indexPubkey: INDEX, pubkey: extra.pubkey === undefined ? CAL : extra.pubkey, removed: extra.removed });
+  return directoryEntry({
+    identity: id, calendar: feed.calendar, header: HEADER, pubkey: extra.pubkey === undefined ? CAL : extra.pubkey,
+    localName: id.d.toLowerCase().replace(/[^a-z0-9]+/g, '-'), location: extra.location === undefined ? 'San Diego, US' : extra.location,
+    geohash: extra.geohash === undefined ? '9mud' : extra.geohash, city: extra.city === undefined ? 'san-diego' : extra.city, removed: extra.removed,
+  });
 }
 
-test('a calendar entry names its key, feed, page and source', () => {
+test('a Meetup calendar\'s entry, in the header\'s order', () => {
   const entry = entryFor('meetup-pythonsd.ics');
   assert.equal(entry.kind, 39999);
   assert.deepEqual(entry.tags, [
     ['d', 'meetup:pythonsd'],
-    ['z', `39998:${INDEX}:event-calendars`],
+    ['z', HEADER],
     ['name', 'San Diego Python Users Group'],
     ['role', 'calendar'],
     ['p', CAL],
+    ['index-name', 'meetup-pythonsd'],
     ['feed', 'https://www.meetup.com/pythonsd/events/ical/'],
-    ['url', 'https://www.meetup.com/pythonsd/'],
     ['source', 'meetup'],
+    ['location', 'San Diego, US'],
+    ['g', '9mud'],
+    ['meetup-group', 'pythonsd'],
+    ['t', 'san-diego'],
+    ['t', 'meetup'],
   ]);
   assert.equal(entry.content, '');
 });
 
-test('an aggregator entry has no key', () => {
-  const entry = entryFor('luma-city-nyc.ics', { pubkey: null });
-  assert.deepEqual(entry.tags.find((t) => t[0] === 'role'), ['role', 'aggregator']);
-  assert.equal(entry.tags.find((t) => t[0] === 'p'), undefined);
+test('a Luma calendar\'s entry names its Luma id, and never its description or image', () => {
+  const entry = entryFor('luma-calendar-craftnook.ics', { location: 'New York, US', geohash: 'dr5r', city: 'new-york' });
+  assert.deepEqual(entry.tags.slice(5), [
+    ['index-name', 'luma-cal-bvurd9eazndgbwy'],
+    ['feed', 'https://api.luma.com/ics/get?entity=calendar&id=cal-BvuRd9eaZnDGBwy'],
+    ['source', 'luma'],
+    ['location', 'New York, US'],
+    ['g', 'dr5r'],
+    ['luma-id', 'cal-BvuRd9eaZnDGBwy'],
+    ['t', 'new-york'],
+    ['t', 'luma'],
+  ]);
 });
 
-test('an entry carries the calendar description and, where the source allows images, its image', () => {
+test('an open source\'s entry carries the calendar\'s description and image, last', () => {
   const rich = entryFor('synthetic/rich.ics');
-  assert.deepEqual(rich.tags.find((t) => t[0] === 'description'), ['description', 'A calendar that uses RFC 7986 and RFC 9073 properties.']);
-  assert.deepEqual(rich.tags.find((t) => t[0] === 'image'), ['image', 'https://example.org/logo.png']);
+  assert.deepEqual(rich.tags.slice(-4), [
+    ['t', 'san-diego'],
+    ['t', 'ics'],
+    ['description', 'A calendar that uses RFC 7986 and RFC 9073 properties.'],
+    ['image', 'https://example.org/logo.png'],
+  ]);
+  assert.ok(!rich.tags.some((t) => t[0] === 'luma-id' || t[0] === 'meetup-group'));
+});
+
+test('an entry has no url and no empty values, and an aggregator has no key', () => {
+  const entry = entryFor('luma-city-nyc.ics', { pubkey: null, location: null, geohash: null, city: null });
+  assert.deepEqual(entry.tags.find((t) => t[0] === 'role'), ['role', 'aggregator']);
+  assert.equal(entry.tags.find((t) => t[0] === 'p'), undefined);
+  assert.ok(!entry.tags.some((t) => t[0] === 'url'));
+  assert.ok(entry.tags.every((t) => t.length >= 2 && t.slice(1).every((v) => v !== '')));
+  assert.deepEqual(entry.tags.filter((t) => t[0] === 't'), [['t', 'luma']]);
 });
 
 test('a retired entry is republished with removed and its reason', () => {
@@ -47,11 +78,7 @@ test('a retired entry is republished with removed and its reason', () => {
   assert.deepEqual(entry.tags.at(-1), ['removed', 'organizer request']);
 });
 
-test('the two headers are list headers under the index key', () => {
-  const calendars = eventCalendarsHeader();
-  assert.equal(calendars.kind, 39998);
-  assert.deepEqual(calendars.tags[0], ['d', 'event-calendars']);
-  assert.ok(calendars.tags.some((t) => t[0] === 'required' && t[1] === 'role'));
+test('the events header stays a list header under the index key', () => {
   const events = eventsHeader();
   assert.deepEqual(events.tags[0], ['d', 'events']);
   assert.deepEqual(events.tags.filter((t) => t[0] === 'item-kind').map((t) => t[1]), ['31923', '31922']);
