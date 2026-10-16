@@ -27,7 +27,9 @@ function entryFor(fixture: string, extra: Partial<Entry> = {}): Entry {
 
 function harness(options: { fixtures: string[]; texts?: Record<string, string>; failing?: string[]; publishGeneral?: boolean; rsvps?: Set<string>; dataDir?: string;
   onPublish?: (list: VerifiedEvent[], audience: Audience) => void; db?: ReturnType<typeof openIndexDb>; vault?: ReturnType<typeof openVault>; indexKey?: Uint8Array;
-  fetchOwn?: Publisher['fetchOwn']; pendingFor?: (relay: string) => number; publishDirectory?: boolean; generalRelays?: string; header?: string }) {
+  fetchOwn?: Publisher['fetchOwn']; pendingFor?: (relay: string) => number; publishDirectory?: boolean; generalRelays?: string; header?: string; maxPollsPerTick?: number;
+  // Feeds the fake fetch answers for, beyond the filed fixtures.
+  extraFeeds?: string[] }) {
   const db = options.db ?? openIndexDb(':memory:');
   const dir = directoryStore(db);
   const queues = queueStore(db);
@@ -37,7 +39,7 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
   const sent: Array<{ audience: Audience; event: VerifiedEvent; relays?: string[] }> = [];
   const fetched: string[] = [];
   const clock = { now: NOW };
-  const urls = new Map(options.fixtures.map((f) => [identify(feedUrlFor(f)).feedUrl, f]));
+  const urls = new Map([...options.fixtures, ...(options.extraFeeds ?? [])].map((f) => [identify(feedUrlFor(f)).feedUrl, f]));
   const settings = {
     ...loadSettings({ EVENTINDEX_DATA_DIR: options.dataDir ?? '/nonexistent', EVENTINDEX_SEARCH_RELAYS: 'wss://search.test', EVENTINDEX_LIST_RELAYS: 'wss://lists.test',
       ...(options.generalRelays ? { EVENTINDEX_GENERAL_RELAYS: options.generalRelays } : {}) }),
@@ -65,6 +67,7 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
       close: () => {},
     },
     log: () => {},
+    ...(options.maxPollsPerTick ? { maxPollsPerTick: options.maxPollsPerTick } : {}),
   });
   for (const fixture of options.fixtures) if (!dir.get(entryFor(fixture).d)) dir.add(entryFor(fixture));
   return { db, dir, queues, events, vault, indexKey, indexPubkey: getPublicKey(indexKey), sent, fetched, clock, indexer };
@@ -397,4 +400,17 @@ test('the curator\'s relay list names the list relays once the directory goes ou
   const list = out.sent.find((s) => s.audience === 'own' && s.event.kind === 10002)!.event;
   assert.deepEqual(list.tags[0], ['r', 'wss://relay.eventindex.space']);
   assert.ok(list.tags.some((t) => t[0] === 'r' && t[1] === 'wss://lists.test' && t[2] === 'write'));
+});
+
+test('a calendar just approved is polled and published at the next tick, before every other due calendar', async () => {
+  const h = harness({ fixtures: ['meetup-pythonsd.ics', 'luma-calendar-craftnook.ics', 'mobilizon-lyontechhub.ics'], maxPollsPerTick: 1, extraFeeds: ['google-python-events.ics'] });
+  for (let i = 0; i < 3; i += 1) await h.indexer.tick();
+  // A day later every calendar is due again, and one more has just been approved.
+  h.clock.now = NOW + 86400;
+  h.dir.add(entryFor('google-python-events.ics', { addedAt: h.clock.now, foundVia: 'submission' }));
+  const before = h.sent.length;
+  const report = await h.indexer.tick();
+  assert.deepEqual(report.polled, [identify(feedUrlFor('google-python-events.ics')).d]);
+  const calendar = h.dir.get(identify(feedUrlFor('google-python-events.ics')).d)!.pubkey!;
+  assert.ok(h.sent.slice(before).some((s) => s.audience === 'own' && s.event.pubkey === calendar && (s.event.kind === 31922 || s.event.kind === 31923)), 'its events went out');
 });

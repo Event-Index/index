@@ -79,7 +79,7 @@ export function approveSubmission(s: AdminStores, id: number, options: { city?: 
     d: submission.d, role: submission.role, source: submission.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
     name: submission.name, description: null, image: null, ...place, foundVia: 'submission', addedAt: now,
   });
-  s.queues.resolveSubmission(id, 'approved', now);
+  s.queues.resolveSubmission(id, 'approved', now, 'maintainer');
   return { d: submission.d };
 }
 
@@ -104,6 +104,16 @@ export function approveRemoval(s: AdminStores, id: number, now: number): void {
 export function rejectRemoval(s: AdminStores, id: number, now: number): void {
   pendingRemoval(s, id);
   s.queues.resolveRemoval(id, 'rejected', now);
+}
+
+// Takes back an approval the index made itself: the calendar is removed as
+// at its organizer's request (indexer rules § 10), which keeps it out.
+export function undoApproval(s: AdminStores, id: number, now: number): { id: number } {
+  const submission = s.queues.submission(id);
+  if (!submission || submission.status !== 'approved' || submission.approvedBy !== 'auto') throw new Error(`submission ${id} is not an approval by the index`);
+  const removal = removeCalendar(s, submission.d, 'auto-approval undone', now);
+  s.queues.resolveSubmission(id, 'undone', now);
+  return removal;
 }
 
 // A removal the maintainer starts (an organizer who wrote in), approved at once.

@@ -169,18 +169,22 @@ Every event response names its source in `eventindex.source` (or the record's
 ## Write
 
 Writes need no key. They are limited per client address (10 submissions and
-5 remove requests an hour), take a JSON object or a form of at most 16 KiB,
-and change nothing until a maintainer has reviewed them.
+5 remove requests an hour) and take a JSON object or a form of at most
+16 KiB. A remove request always waits for a maintainer; a submitted feed is
+added at once when it is safe to, and otherwise waits for review.
 
 | Request | Does |
 |---|---|
-| `POST /feeds/add` with `{"url": "<feed URL>"}` (or `?url=`) | validates the feed ([`indexer-rules.md`](indexer-rules.md) § 4) and queues it for review |
+| `POST /feeds/add` with `{"url": "<feed URL>"}` (or `?url=`) | validates the feed ([`indexer-rules.md`](indexer-rules.md) § 4), then adds it at once or queues it for review (§ 10 there) |
 | `POST /calendars/<local name>/remove-request` with `{"message": "…"}` (optional, at most 1,000 characters) | records a request to remove the calendar, for review |
 
-`/feeds/add` answers `202` with
-`{"status": "queued" | "already-queued", "submission": n, "d", "name", "source", "role", "message"}`.
-Once a maintainer approves it, the entry is filed under the index key and the
-next poll creates its calendar key and publishes its events.
+`/feeds/add` answers `201` with
+`{"status": "approved", "submission": n, "d", "local_name", "name", "source", "role", "page", "message"}`
+when the calendar is added at once, and `202` with
+`{"status": "queued" | "already-queued", "submission": n, "d", "name", "source", "role", "message"}`
+when it waits for review. Once approved, by the index or a maintainer, the
+entry is filed and the next poll (within a minute) creates its calendar key
+and publishes its events.
 
 `/remove-request` answers `202` with
 `{"status": "received", "request": n, "d", "token": "eventindex-remove-…", "instructions": "…"}`.

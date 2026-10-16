@@ -19,6 +19,7 @@ import { identify } from '../../indexer/src/directory/id.ts';
 import type { Cities } from '../../indexer/src/service/admin.ts';
 import type { FetchResult } from '../../indexer/src/poller/fetch.ts';
 import { createApi } from '../src/server.ts';
+import type { Limits } from '../src/limits.ts';
 import { readFixture, feedUrlFor, NOW } from '../../indexer/test/helpers.ts';
 
 const repo = new URL('../../', import.meta.url).pathname;
@@ -44,12 +45,14 @@ export interface Harness {
   indexer: ReturnType<typeof createIndexer>;
   // Feeds the API's own fetch (for submissions) answers with.
   feeds: Map<string, FetchResult>;
+  // What the API logged.
+  logs: string[];
   get(path: string, headers?: Record<string, string>): Promise<Response>;
   post(path: string, body: unknown, headers?: Record<string, string>): Promise<Response>;
   close(): Promise<void>;
 }
 
-export async function harness(options: { queueCap?: number } = {}): Promise<Harness> {
+export async function harness(options: { queueCap?: number; limits?: Partial<Limits> } = {}): Promise<Harness> {
   const dataDir = mkdtempSync(join(tmpdir(), 'api-'));
   const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: '/nonexistent', EVENTINDEX_CALENDAR_SECRET_FILE: '/nonexistent' });
   const db = openIndexDb(settings.indexDb);
@@ -82,17 +85,19 @@ export async function harness(options: { queueCap?: number } = {}): Promise<Harn
   await indexer.tick();
 
   const feeds = new Map<string, FetchResult>();
+  const logs: string[] = [];
   const handler = createApi({
     db, dir, queues, events, settings, cities,
     now: () => clock.now,
     fetch: async (url) => feeds.get(url) ?? { status: 'error', code: 'http-404' },
-    ...(options.queueCap ? { limits: { queueCap: options.queueCap } } : {}),
+    ...(options.queueCap || options.limits ? { limits: { ...options.limits, ...(options.queueCap ? { queueCap: options.queueCap } : {}) } } : {}),
+    log: (line) => logs.push(line),
   });
   const server: Server = createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
-    base, dataDir, indexPubkey: getPublicKey(indexKey), clock, db, dir, queues, events, indexer, feeds,
+    base, dataDir, indexPubkey: getPublicKey(indexKey), clock, db, dir, queues, events, indexer, feeds, logs,
     get: (path, headers = {}) => fetch(`${base}${path}`, { headers }),
     post: (path, body, headers = {}) => fetch(`${base}${path}`, {
       method: 'POST',

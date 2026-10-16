@@ -142,10 +142,17 @@ creates the calendar key.
 
 ## 10. Submissions and removals
 
-- **Submissions.** A submitted feed that passes § 4 waits in a review queue
-  (at most 1,000). A maintainer files it as an entry or rejects it; a platform
-  default calendar is marked as such for the review. A feed already in the
-  directory or on the do-not-index list is not queued.
+- **Submissions.** A submitted feed that passes § 4 is approved at once when
+  it is an organizer's own calendar on a known platform (a Luma calendar, a
+  Meetup group, a public Google calendar, a Mobilizon group), named by its
+  organizer rather than a platform default, with at least one event; at most
+  50 such approvals a day, each logged. Any other waits in a review queue (at
+  most 1,000), where a maintainer files it or rejects it; a platform default
+  calendar is marked as such for the review. A feed already in the directory
+  or on the do-not-index list is not queued. An approval by the index can be
+  undone: the calendar is then removed as below.
+- **Poll on approval.** An approved calendar has no poll history, so the next
+  tick polls it before any other and publishes its events.
 - **Remove requests.** Anyone may ask for a calendar's removal, with an
   optional message. Each request gets a token (`eventindex-remove-` and 10
   characters of `a-z2-7`); when a poll finds the token anywhere in the feed,

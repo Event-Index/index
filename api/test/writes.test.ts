@@ -15,9 +15,9 @@ const local = (d: string) => h.dir.get(d)!.localName;
 let ip = 0;
 // Each test speaks from its own address, so rate limits do not leak between tests.
 const from = () => ({ 'x-real-ip': `198.51.100.${(ip += 1)}` });
-const GOOGLE = 'https://calendar.google.com/calendar/ical/j7gov1cmnqr9tvg14k621j7t5c%40group.calendar.google.com/public/basic.ics';
+const GOOGLE = 'https://example.org/python-events.ics';
 
-test('a submitted feed is validated and queued for review, not indexed', async () => {
+test('a submitted feed from an unknown host is validated and queued for review, not indexed', async () => {
   h.feeds.set(GOOGLE, { status: 'ok', text: readFixture('google-python-events.ics'), etag: null, lastModified: null, finalUrl: GOOGLE });
   const headers = from();
   const response = await h.post(`${API}/feeds/add`, { url: GOOGLE }, headers);
@@ -26,7 +26,7 @@ test('a submitted feed is validated and queued for review, not indexed', async (
   const body = await response.json() as any;
   assert.equal(body.status, 'queued');
   assert.equal(body.name, 'Python Events Calendar');
-  assert.equal(body.d, 'google:j7gov1cmnqr9tvg14k621j7t5c@group.calendar.google.com');
+  assert.equal(body.source, 'ics');
   assert.match(body.message, /review/);
   assert.equal(h.dir.get(body.d), null, 'not in the directory before review');
   assert.equal(h.queues.submissions('pending').length, 1);

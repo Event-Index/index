@@ -8,7 +8,7 @@ import { openIndexDb } from '../src/store/index-db.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, type Cities } from '../src/service/admin.ts';
+import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type Cities } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
 import type { Seed } from '../src/directory/seed.ts';
 import { NOW } from './helpers.ts';
@@ -158,6 +158,43 @@ test('relay pauses are kept in index.db, listed, set and cleared by the admin co
     assert.equal(run('resume-relay', 'wss://relay.example').status, 0);
     assert.match(run('relays').stdout, /no relay is paused/);
     assert.equal(run('pause-relay', 'not-a-relay').status, 2);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('an approval by the index itself can be undone: the calendar is removed and kept out', () => {
+  const s = stores();
+  const sub = s.queues.submit({ d: 'meetup:spammy', feedUrl: 'https://www.meetup.com/spammy/events/ical/', source: 'meetup', role: 'calendar', name: 'Spammy', at: NOW }, 100);
+  assert.ok('id' in sub);
+  s.dir.add({ d: 'meetup:spammy', role: 'calendar', source: 'meetup', feedUrl: 'https://www.meetup.com/spammy/events/ical/', pageUrl: null, name: 'Spammy', description: null, image: null, location: null, g: null, foundVia: 'submission', addedAt: NOW });
+  s.queues.resolveSubmission(sub.id, 'approved', NOW, 'auto');
+  assert.deepEqual(s.queues.autoApproved().map((x) => x.d), ['meetup:spammy']);
+  const removal = undoApproval(s, sub.id, NOW + 60);
+  assert.equal(s.queues.removal(removal.id)!.status, 'approved', 'the poll service removes it on its next tick');
+  assert.equal(s.queues.removal(removal.id)!.message, 'auto-approval undone');
+  assert.equal(s.queues.submission(sub.id)!.status, 'undone');
+  assert.throws(() => undoApproval(s, sub.id, NOW + 90), /not an approval by the index/);
+  const manual = s.queues.submit({ d: 'meetup:fine', feedUrl: 'https://www.meetup.com/fine/events/ical/', source: 'meetup', role: 'calendar', name: null, at: NOW }, 100);
+  assert.ok('id' in manual);
+  approveSubmission(s, manual.id, {}, cities, NOW);
+  assert.equal(s.queues.submission(manual.id)!.approvedBy, 'maintainer');
+  assert.throws(() => undoApproval(s, manual.id, NOW), /not an approval by the index/);
+});
+
+test('the admin command lists the approvals the index made itself', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const db = openIndexDb(join(dataDir, 'index.db'));
+    const q = queueStore(db);
+    const sub = q.submit({ d: 'meetup:auto', feedUrl: 'https://www.meetup.com/auto/events/ical/', source: 'meetup', role: 'calendar', name: 'Auto Group', at: NOW }, 100);
+    assert.ok('id' in sub);
+    q.resolveSubmission(sub.id, 'approved', NOW, 'auto');
+    db.close();
+    const run = (...args: string[]) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', ...args], { cwd: repo, env: { ...process.env, EVENTINDEX_DATA_DIR: dataDir }, encoding: 'utf8' });
+    const listed = run('approvals');
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.match(listed.stdout, new RegExp(`^${sub.id}\\t\\S+\\tmeetup:auto\\tAuto Group\\thttps://www.meetup.com/auto/events/ical/$`, 'm'));
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

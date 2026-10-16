@@ -434,6 +434,12 @@ ${entry ? `<p><a href="/calendar/${esc(entry.localName)}">Back to ${esc(name)}</
 }
 
 export function submitResultPage(outcome: { status: number; body: Record<string, unknown> }): string {
+  if (outcome.status === 201) {
+    const name = outcome.body['name'] ?? outcome.body['d'];
+    return layout('Added · Event Index', `<div class="page-head"><h1>Added</h1></div>
+<p><strong>${esc(name)}</strong> is in the index. Its first events appear within minutes on <a href="/calendar/${esc(outcome.body['local_name'])}">its page</a>.</p>
+<p><a href="/">Back to Event Index</a></p>`);
+  }
   if (outcome.status === 202) {
     const name = outcome.body['name'] ?? outcome.body['d'];
     const again = outcome.body['status'] === 'already-queued';

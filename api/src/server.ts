@@ -134,8 +134,8 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
   const limiter = rateLimiter();
   const view: ViewDeps = deps;
   const { dir, events, settings } = deps;
-  const writes = { dir, queues: deps.queues, fetch: deps.fetch, limits };
   const log = deps.log ?? (() => {});
+  const writes = { dir, queues: deps.queues, fetch: deps.fetch, limits, domain: settings.domain, log };
   const brand = brandFiles();
 
   const notFound = (what = 'Not found.'): never => { throw new HttpError(404, 'not-found', what); };

@@ -1,10 +1,12 @@
 // The two things anyone can ask of the index: to add a feed, and to remove a
-// calendar. Both wait for a maintainer's review; neither changes the
-// directory or publishes anything here.
+// calendar. A removal always waits for a maintainer. A feed that is safe to
+// index (autoApprovable) is filed at once and polled at the poll service's
+// next tick; any other waits for review. Nothing is published here.
 
 import { checkFeedUrl, validateFeed } from '../../indexer/src/directory/validate.ts';
-import { identify, FeedUrlError } from '../../indexer/src/directory/id.ts';
-import { normalizeFeed } from '../../indexer/src/normalize/normalize.ts';
+import { identify, FeedUrlError, type DirectoryIdentity } from '../../indexer/src/directory/id.ts';
+import { normalizeFeed, type NormalizedFeed } from '../../indexer/src/normalize/normalize.ts';
+import type { Source } from '../../indexer/src/types.ts';
 import type { FetchResult, Validators } from '../../indexer/src/poller/fetch.ts';
 import type { DirectoryStore, StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { QueueStore } from '../../indexer/src/store/queues.ts';
@@ -16,6 +18,21 @@ export interface WriteDeps {
   queues: QueueStore;
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
   limits: Limits;
+  // The site's address, for the page of a calendar filed at once.
+  domain: string;
+  log: (line: string) => void;
+}
+
+// The platforms whose calendars the index files without review.
+const KNOWN_PLATFORMS = new Set<Source>(['luma', 'meetup', 'google', 'mobilizon']);
+const DAY = 86400;
+
+// Safe to file without review: an organizer's own calendar on a known
+// platform (a Luma calendar, a Meetup group, a public Google calendar, a
+// Mobilizon group), named by its organizer rather than a platform default,
+// with at least one event. The URL checks have already passed.
+export function autoApprovable(identity: DirectoryIdentity, feed: NormalizedFeed): boolean {
+  return KNOWN_PLATFORMS.has(identity.source) && identity.role === 'calendar' && !feed.calendar.platformDefault && feed.records.length > 0;
 }
 
 export interface Outcome {
@@ -64,6 +81,29 @@ export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Pr
     platformDefault: feed.calendar.platformDefault, at: now,
   }, deps.limits.queueCap);
   if (queued.status === 'queue-full') return fail(503, 'queue-full', 'The review queue is full. Please try again in a few days.');
+  if (queued.status === 'queued' && autoApprovable(identity, feed) && deps.queues.autoApproved(now - DAY).length < deps.limits.autoApprovalsPerDay) {
+    deps.dir.add({
+      d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
+      name: feed.calendar.name, description: null, image: null, location: null, g: null, foundVia: 'submission', addedAt: now,
+    });
+    deps.queues.resolveSubmission(queued.id, 'approved', now, 'auto');
+    deps.log(`auto-approved submission ${queued.id}: ${identity.d} ${identity.feedUrl}`);
+    const localName = deps.dir.get(identity.d)!.localName;
+    return {
+      status: 201,
+      body: {
+        status: 'approved',
+        submission: queued.id,
+        d: identity.d,
+        local_name: localName,
+        name: feed.calendar.name,
+        source: identity.source,
+        role: identity.role,
+        page: `https://${deps.domain}/calendar/${localName}`,
+        message: 'Added to the index. Its first events appear within minutes.',
+      },
+    };
+  }
   return {
     status: 202,
     body: {

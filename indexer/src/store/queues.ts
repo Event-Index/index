@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS remove_requests (
 );
 `;
 
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type SubmissionStatus = 'pending' | 'approved' | 'rejected' | 'undone';
 export type RemovalStatus = 'pending' | 'approved' | 'rejected' | 'done';
 
 export interface Submission {
@@ -46,6 +46,9 @@ export interface Submission {
   platformDefault: boolean;
   submittedAt: number;
   status: SubmissionStatus;
+  // Who approved it: the index itself (`auto`) or a maintainer.
+  approvedBy: 'auto' | 'maintainer' | null;
+  resolvedAt: number | null;
 }
 
 export interface RemoveRequest {
@@ -64,9 +67,12 @@ export const TOKEN_PREFIX = 'eventindex-remove-';
 export function queueStore(index: IndexDb) {
   const db = index.raw;
   db.exec(SCHEMA);
+  const columns = db.prepare<[], { name: string }>("SELECT name FROM pragma_table_info('submissions')").all().map((c) => c.name);
+  if (!columns.includes('approved_by')) db.exec('ALTER TABLE submissions ADD COLUMN approved_by TEXT');
   const subOf = (r: Record<string, unknown>): Submission => ({
     id: r['id'] as number, d: r['d'] as string, feedUrl: r['feed_url'] as string, source: r['source'] as Source, role: r['role'] as Role,
     name: r['name'] as string | null, platformDefault: r['platform_default'] === 1, submittedAt: r['submitted_at'] as number, status: r['status'] as SubmissionStatus,
+    approvedBy: r['approved_by'] as Submission['approvedBy'], resolvedAt: r['resolved_at'] as number | null,
   });
   const remOf = (r: Record<string, unknown>): RemoveRequest => ({
     id: r['id'] as number, d: r['d'] as string, token: r['token'] as string, message: r['message'] as string | null,
@@ -91,8 +97,11 @@ export function queueStore(index: IndexDb) {
       const r = db.prepare<[number], Record<string, unknown>>('SELECT * FROM submissions WHERE id = ?').get(id);
       return r ? subOf(r) : null;
     },
-    resolveSubmission: (id: number, status: Exclude<SubmissionStatus, 'pending'>, at: number) =>
-      void db.prepare('UPDATE submissions SET status = ?, resolved_at = ? WHERE id = ?').run(status, at, id),
+    resolveSubmission: (id: number, status: Exclude<SubmissionStatus, 'pending'>, at: number, by: 'auto' | 'maintainer' | null = null) =>
+      void db.prepare('UPDATE submissions SET status = ?, resolved_at = ?, approved_by = coalesce(?, approved_by) WHERE id = ?').run(status, at, by, id),
+    // Submissions the index approved itself, newest first.
+    autoApproved: (since = 0) =>
+      db.prepare<[number], Record<string, unknown>>("SELECT * FROM submissions WHERE approved_by = 'auto' AND resolved_at >= ? ORDER BY resolved_at DESC, id DESC").all(since).map(subOf),
 
     requestRemoval(r: { d: string; message: string | null; at: number }): { id: number; token: string } {
       const token = `${TOKEN_PREFIX}${base32(randomBytes(7)).slice(0, 10)}`;

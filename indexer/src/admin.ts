@@ -6,6 +6,8 @@
 //   node indexer/src/admin.ts submissions
 //   node indexer/src/admin.ts approve-submission <id> [--city <slug>]
 //   node indexer/src/admin.ts reject-submission <id>
+//   node indexer/src/admin.ts approvals
+//   node indexer/src/admin.ts undo-approval <id>
 //   node indexer/src/admin.ts removals
 //   node indexer/src/admin.ts approve-removal <id>
 //   node indexer/src/admin.ts reject-removal <id>
@@ -24,7 +26,7 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, type AdminStores, type Cities } from './service/admin.ts';
+import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type AdminStores, type Cities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 
@@ -34,6 +36,8 @@ const USAGE = `usage: admin.ts <command>
   submissions
   approve-submission <id> [--city <slug>]
   reject-submission <id>
+  approvals
+  undo-approval <id>
   removals
   approve-removal <id>
   reject-removal <id>
@@ -98,7 +102,16 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
     case 'approve-submission': {
       const city = option(args, '--city');
       const { d } = approveSubmission(s, id(args[0]), city ? { city } : {}, readCities(undefined), now);
-      out(`filed ${d}; the poll service polls it on its next tick`);
+      out(`filed ${d}; the poll service polls and publishes it at its next tick, within a minute`);
+      return;
+    }
+    case 'approvals':
+      // Submissions the index approved itself, newest first.
+      for (const sub of s.queues.autoApproved()) out(`${sub.id}\t${time(sub.resolvedAt)}\t${sub.d}\t${sub.name ?? '-'}\t${sub.feedUrl}`);
+      return;
+    case 'undo-approval': {
+      const r = undoApproval(s, id(args[0]), now);
+      out(`remove request ${r.id} approved; the poll service removes the calendar on its next tick`);
       return;
     }
     case 'reject-submission':

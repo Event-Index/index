@@ -237,6 +237,8 @@ version on the same architecture; the export is the portable form.
 Submitted feeds and remove requests wait for a maintainer:
 
 ```sh
+eventindex-admin approvals                   # submissions the index approved itself
+eventindex-admin undo-approval 7             # removes that calendar and keeps it out
 eventindex-admin submissions                 # id, time, source, role, name, feed
 eventindex-admin approve-submission 3 --city new-york
 eventindex-admin reject-submission 4
