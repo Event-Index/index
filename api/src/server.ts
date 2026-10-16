@@ -22,7 +22,7 @@ import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
 import { fileNative, ownerAction, requestClaim, verifyClaimNip05, type ClaimDeps } from './claims.ts';
 import { checkAuth } from '../../indexer/src/claim/auth.ts';
 import { brandFiles } from './brand.ts';
-import { CSP, STYLE, calendarPage, calendarsPage, homePage, messagePage, removeResultPage, submitResultPage } from './pages.ts';
+import { CSP, SCRIPTED_CSP, STYLE, calendarPage, calendarsPage, claimPage, homePage, messagePage, nativePage, removeResultPage, submitResultPage } from './pages.ts';
 import { cityCounts, cityZones, comingUp, dayGrid } from './home.ts';
 
 export interface ApiDeps {
@@ -70,6 +70,10 @@ const CELL_KM = [Infinity, 5000, 1250, 156, 39.1, 4.89, 1.22, 0.153, 0.0382, 0.0
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Reply =>
   ({ status, type: JSON_TYPE, body: JSON.stringify(body), headers });
 const html = (status: number, body: string): Reply => ({ status, type: HTML_TYPE, body, headers: { 'Content-Security-Policy': CSP } });
+// A page that signs in with a nostr key: the site's script, and never cached.
+const scripted = (body: string): Reply => ({ status: 200, type: HTML_TYPE, body, headers: { 'Content-Security-Policy': SCRIPTED_CSP, 'Cache-Control': 'no-store' } });
+// The one script the site serves (pages that sign in with a nostr key).
+const CLAIM_SCRIPT = readFileSync(new URL('../site/claim.js', import.meta.url));
 const outcomeJson = (o: Outcome, retry?: number): Reply => json(o.status, o.body, retry ? { 'Retry-After': String(retry) } : {});
 const via = (entry: StoredEntry) => ({ Link: `<${entry.feedUrl}>; rel="via"` });
 
@@ -193,8 +197,11 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       const signer = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'signer';
       if (native || claim || nip05 || signer) {
         const text = await readText(req, limits.maxBodyBytes);
+        // The API's addresses; and on this machine, the one it was asked at.
+        const host = String(req.headers.host ?? '');
+        const loopback = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host) ? [`http://${host}${API}${path}`] : [];
         const auth = checkAuth(req.headers['authorization'], {
-          urls: [`${settings.apiBase}${path}`, `https://${settings.domain}${API}${path}`], method: 'POST', body: text, now,
+          urls: [`${settings.apiBase}${path}`, `https://${settings.domain}${API}${path}`, ...loopback], method: 'POST', body: text, now,
         });
         if (!auth.ok) return json(401, { error: 'unauthorized', reason: auth.reason, message: 'Sign this request with your nostr key (NIP-98).' });
         if (!deps.queues.useAuth(auth.eventId, now)) return json(401, { error: 'unauthorized', reason: 'used', message: 'This signature was used before. Sign the request again.' });
@@ -364,6 +371,14 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       }));
     }
     if (url.pathname === '/style.css') return { status: 200, type: 'text/css; charset=utf-8', body: STYLE };
+    if (url.pathname === '/claim.js') return { status: 200, type: 'text/javascript; charset=utf-8', body: CLAIM_SCRIPT };
+    if (url.pathname === '/add/nostr') return scripted(nativePage(deps.cities.cities));
+    if (parts.length === 3 && parts[0] === 'calendar' && parts[2] === 'claim') {
+      const entry = dir.byLocalName(decodeURIComponent(parts[1]!));
+      if (!entry || entry.role !== 'calendar') return html(404, messagePage('No such calendar', 'There is no such calendar in the directory.'));
+      if (entry.removed) return html(410, messagePage(entry.name ?? entry.d, 'No longer mirrored by Event Index at its organizer\'s request.'));
+      return scripted(claimPage(entry));
+    }
     const file = brand.get(url.pathname);
     if (file) {
       const headers: Record<string, string> = { 'Cache-Control': 'public, max-age=86400' };

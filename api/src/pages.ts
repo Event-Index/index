@@ -1,8 +1,13 @@
 // The pages of eventindex.space: server-rendered HTML, one stylesheet and the
-// brand files, all from this origin. No scripts, nothing that tracks a reader.
+// brand files, all from this origin. Nothing tracks a reader. Only the pages
+// where organizers sign in with their nostr key run a script, the site's own
+// (/claim.js).
 
 import { createHash } from 'node:crypto';
+import { npubEncode } from 'nostr-tools/nip19';
 import type { Settings } from '../../indexer/src/config.ts';
+import type { City } from '../../indexer/src/service/admin.ts';
+import { DELEGATED_KINDS } from '../../indexer/src/claim/signer.ts';
 import { PLATFORMS } from '../../indexer/src/project/profile.ts';
 import type { StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { EventRow } from '../../indexer/src/store/events.ts';
@@ -10,6 +15,9 @@ import { ringFor, type CityCount, type GridDay, type Upcoming } from './home.ts'
 import type { calendarView, statsView } from './views.ts';
 
 export const CSP = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+// The pages that sign in with a nostr key: the site's own script, talking
+// only to the site.
+export const SCRIPTED_CSP = `${CSP}; script-src 'self'; connect-src 'self'`;
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (text: unknown): string => String(text ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c]!);
@@ -22,10 +30,10 @@ const link = (url: string | null | undefined, text: string): string => {
 };
 
 const REPO = 'https://github.com/Event-Index/index';
-const platformName = (entry: StoredEntry) => PLATFORMS[entry.source]?.styled ?? 'iCalendar feed';
+const platformName = (entry: StoredEntry) => (entry.source === 'nostr' ? 'nostr' : PLATFORMS[entry.source]?.styled ?? 'iCalendar feed');
 const cityOf = (entry: StoredEntry) => entry.location?.split(',')[0]?.trim() || null;
 
-function layout(title: string, body: string, description = 'An open directory of public event calendars.'): string {
+function layout(title: string, body: string, description = 'An open directory of public event calendars.', script = false): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -41,7 +49,7 @@ function layout(title: string, body: string, description = 'An open directory of
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#1f5fbf">
-</head>
+${script ? '<script src="/claim.js" defer></script>\n' : ''}</head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
 <header class="site">
@@ -179,6 +187,20 @@ button:hover { opacity: .88; }
 .gap { margin-top: .6rem; }
 .box { border: 1px solid var(--line); border-radius: 14px; padding: 1.25rem; background: var(--tile); }
 .token { font-size: 1.1rem; padding: .75rem 1rem; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; display: inline-block; margin-bottom: 1rem; }
+.button { display: inline-block; padding: .6rem .95rem; border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 600; text-decoration: none; }
+.button:hover { opacity: .88; }
+.box + .box, .box + form.box, form.box + .box { margin-top: 1rem; }
+.box h2 + p, .box h3 + p { margin-top: .6rem; }
+fieldset { border: 0; margin: 0 0 1rem; padding: 0; }
+legend { font-weight: 600; margin-bottom: .5rem; }
+.choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .6rem; align-items: start; padding: .75rem 0; border-top: 1px solid var(--line); }
+.choice:first-of-type { border-top: 0; }
+.choice input { margin-top: .35rem; }
+.field { display: grid; gap: .35rem; margin: .75rem 0; }
+.field input, .field select { width: 100%; }
+select { font: inherit; font-size: 1rem; padding: .6rem .85rem; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }
+[data-status] { min-height: 1.5rem; margin-top: 1rem; font-weight: 600; }
+[hidden] { display: none !important; }
 footer.site { margin-top: 2rem; padding-bottom: 3rem; color: var(--muted); font-size: .88rem; }
 footer.site .rule { border-top: 1px solid var(--line); padding-top: 2rem; }
 footer.site p { max-width: 46rem; margin-bottom: .5rem; }
@@ -321,6 +343,8 @@ ${data.cities.map((c) => `<li><a href="/calendars?city=${esc(c.slug)}">${esc(c.n
 <input type="url" name="url" placeholder="https://…" aria-label="Feed address" required>
 <button type="submit">Submit for review</button>
 </form>
+<p><strong>Claim a calendar.</strong> Already on nostr? Find your calendar under <a href="/calendars">Calendars</a> and claim it, to publish its events from your own key: yourself, or by the index, as you.</p>
+<p><strong>Publish on nostr already?</strong> If your calendar's events are NIP-52 events from your own key, the index can list them as they are. <a href="/add/nostr">Add it by its key</a></p>
 <p><strong>Remove a calendar.</strong> Find it under <a href="/calendars">Calendars</a> and use the form on its page. Once a request is approved, its upcoming events are deleted and it is never indexed again.</p>
 </div>
 <div id="api">
@@ -366,6 +390,57 @@ function mirroredFrom(entry: StoredEntry): string {
     : 'Mirrored from its calendar feed by Event Index.';
 }
 
+// Who publishes the calendar's events on nostr.
+function publishedBy(entry: StoredEntry): string {
+  if (entry.mode === 'mirrored') return mirroredFrom(entry);
+  if (entry.mode === 'delegated') {
+    const platform = PLATFORMS[entry.source];
+    return `Published by Event Index as its organizer, through a signer they connected, from its calendar on ${esc(platform?.styled ?? 'its own site')}.`;
+  }
+  if (entry.source === 'nostr') return 'Published on nostr by its organizer. Event Index reads its events from their relays and signs nothing for it.';
+  return 'Published by its organizer from their own nostr key. Event Index reads its events from their relays.';
+}
+
+const shortNpub = (pubkey: string) => {
+  const npub = npubEncode(pubkey);
+  return `${npub.slice(0, 12)}…${npub.slice(-6)}`;
+};
+
+function removeForm(entry: StoredEntry): string {
+  return `<h3>Remove this calendar</h3>
+<p class="gap">You can have it removed from Event Index. A maintainer reviews each request. Once it is approved, the index stops reading the calendar, ${entry.mode === 'mirrored' ? 'deletes its upcoming events from relays that honor deletions, ' : ''}and never indexes it again.</p>
+<form action="/calendar/${esc(entry.localName)}/remove" method="post">
+<textarea name="message" maxlength="1000" placeholder="Anything a maintainer should know (optional). Please leave out personal details." aria-label="Message"></textarea>
+<button type="submit">Ask for removal</button>
+</form>`;
+}
+
+// What an organizer can do on a calendar's page.
+function organizerBox(entry: StoredEntry): string {
+  const name = esc(entry.localName);
+  if (entry.mode === 'mirrored') {
+    return `<div class="box">
+<h2 id="organizer">Organizer of this calendar?</h2>
+<div class="split gap">
+<div>
+<h3>Claim this calendar</h3>
+<p class="gap">Publish its events from your own nostr key: post them yourself, or have the index post them for you, as you. You sign in with your nostr browser extension and show that you run the calendar.</p>
+<p><a class="button" href="/calendar/${name}/claim">Claim this calendar</a></p>
+</div>
+<div>
+${removeForm(entry)}
+</div>
+</div>
+</div>`;
+  }
+  const manage = entry.source === 'nostr' ? '' : `<p class="gap"><a href="/calendar/${name}/claim">Manage how it is published</a></p>`;
+  return `<div class="box">
+<h2 id="organizer">Organizer of this calendar?</h2>
+${manage}
+${removeForm(entry)}
+</div>`;
+}
+
 function eventRow(row: EventRow, settings: Settings): string {
   const place = placeOf(row);
   const links = [href(row.url) ? `<a href="${href(row.url)}">Event page</a>` : null, `<a href="${esc(`${settings.apiBase}/events/byid/${row.id}.ics`)}">.ics</a>`];
@@ -388,7 +463,7 @@ export function calendarPage(entry: StoredEntry, view: ReturnType<typeof calenda
   const npub = view.eventindex.nostr?.npub;
   const facts = [
     entry.pageUrl ? `<li>${link(entry.pageUrl, 'The calendar\'s own page')}</li>` : '',
-    `<li>${link(entry.feedUrl, 'Feed')}</li>`,
+    view.calendar.feed ? `<li>${link(view.calendar.feed, 'Feed')}</li>` : '',
     `<li><a href="${esc(view.eventindex.ics)}">.ics</a></li>`,
     `<li><a href="${esc(`${settings.apiBase}/calendars/byslug/${entry.localName}`)}">JSON</a></li>`,
     npub ? `<li title="${esc(npub)}">nostr <code>${esc(`${npub.slice(0, 12)}…${npub.slice(-6)}`)}</code></li>` : '',
@@ -396,7 +471,7 @@ export function calendarPage(entry: StoredEntry, view: ReturnType<typeof calenda
   return layout(`${name} · Event Index`, `<div class="page-head">
 <p class="eyebrow">${esc(eyebrow)}</p>
 <h1>${esc(name)}</h1>
-<p class="muted">${mirroredFrom(entry)}</p>
+<p class="muted">${publishedBy(entry)}</p>
 <ul class="facts">
 ${facts.join('\n')}
 </ul>
@@ -407,16 +482,107 @@ ${facts.join('\n')}
 ${upcoming.length ? `<ul class="rows">\n${upcoming.map((row) => eventRow(row, settings)).join('\n')}\n</ul>` : '<p class="muted">None at the moment.</p>'}
 </section>
 
-<section class="narrow" aria-labelledby="remove">
-<div class="box">
-<h2 id="remove">Organizer of this calendar?</h2>
-<p class="gap">You can have it removed from Event Index. A maintainer reviews each request. Once it is approved, the index stops reading the feed, deletes the calendar's upcoming events from relays that honor deletions, and never indexes it again.</p>
-<form action="/calendar/${esc(entry.localName)}/remove" method="post">
-<textarea name="message" maxlength="1000" placeholder="Anything a maintainer should know (optional). Please leave out personal details." aria-label="Message"></textarea>
-<button type="submit">Ask for removal</button>
+<section class="narrow" aria-labelledby="organizer">
+${organizerBox(entry)}
+</section>`, `Events of ${name}, from ${platformName(entry)}.`);
+}
+
+const SIGN_IN = `<div class="box">
+<h2>Sign in with your nostr key</h2>
+<p>Your nostr browser extension (NIP-07) signs each request for this page alone. Your key never leaves it.</p>
+<p><button type="button" data-sign-in>Sign in with your nostr key</button></p>
+<p class="muted" data-who></p>
+</div>
+<noscript><p class="box">This page needs JavaScript and a nostr browser extension (NIP-07).</p></noscript>`;
+const STATUS = '<p data-status role="status" aria-live="polite"></p>';
+const KINDS = `kinds ${DELEGATED_KINDS.filter((k) => k !== 5).join(', ')} and deletions`;
+
+// Claiming a mirrored calendar, or, once it is theirs, how its organizer
+// manages it.
+export function claimPage(entry: StoredEntry): string {
+  const name = entry.name ?? entry.d;
+  const local = esc(entry.localName);
+  const api = `/api/1.0/calendars/${local}`;
+  const where = esc(PLATFORMS[entry.source]?.styled ?? 'the calendar\'s own site');
+  if (entry.mode !== 'mirrored') {
+    const owner = entry.owner ? `<p class="muted">Its organizer's key: <code>${esc(shortNpub(entry.owner))}</code></p>` : '';
+    const delegated = entry.mode === 'delegated'
+      ? `<div class="box" data-signer="${api}/signer">
+<h2>The signer</h2>
+<p>Event Index reads this calendar's feed and publishes its events as you, through the signer you connected, which it asks only for ${KINDS}. Disconnect it to publish the events yourself; the index then reads them from your relays.</p>
+<p><button type="button" data-disconnect>Disconnect the signer</button></p>
+</div>`
+      : entry.source !== 'nostr'
+        ? `<form class="box" data-connect data-signer="${api}/signer">
+<h2>Have the index publish as you</h2>
+<p>Connect a remote signer (NIP-46) and the index publishes this calendar's events from its feed on ${where} as you. It asks only for ${KINDS}, and you can disconnect it at any time, here or in your signer.</p>
+<div class="field"><label for="bunker">Your signer's connection</label><input id="bunker" name="bunker" placeholder="bunker://…" autocomplete="off" required></div>
+<button type="submit">Connect a signer</button>
+</form>`
+        : '';
+    return layout(`Manage ${name} · Event Index`, `<div class="page-head">
+<p class="eyebrow"><a href="/calendar/${local}">${esc(name)}</a></p>
+<h1>Manage ${esc(name)}</h1>
+<p class="muted">${publishedBy(entry)}</p>
+${owner}
+</div>
+<section class="narrow">
+${SIGN_IN}
+<div data-after-sign-in hidden>
+${delegated}
+</div>
+${STATUS}
+</section>`, `How ${name} is published.`, true);
+  }
+  return layout(`Claim ${name} · Event Index`, `<div class="page-head">
+<p class="eyebrow"><a href="/calendar/${local}">${esc(name)}</a></p>
+<h1>Claim ${esc(name)}</h1>
+<p class="muted">${mirroredFrom(entry)} Claim it to publish its events from your own nostr key instead of the key Event Index holds for it.</p>
+</div>
+<section class="narrow">
+${SIGN_IN}
+<form class="box" data-claim="${api}/claim" data-after-sign-in hidden>
+<fieldset>
+<legend>How should the calendar be published?</legend>
+<label class="choice"><input type="radio" name="mode" value="own" checked><span><strong>I publish it myself.</strong> You post its events from your own nostr app. The index stops reading the feed and reads your events instead. Its key's upcoming events are withdrawn, kept as cancelled where people have answered them.</span></label>
+<label class="choice"><input type="radio" name="mode" value="delegated"><span><strong>Publish it for me, as me.</strong> You keep using ${where}; the index keeps reading the feed and publishes each event as you, through a remote signer you connect (NIP-46). It asks only for ${KINDS}, and you can disconnect it at any time.</span></label>
+</fieldset>
+<div class="field" data-when="delegated"><label for="bunker">Your signer's connection</label><input id="bunker" name="bunker" placeholder="bunker://…" autocomplete="off"></div>
+<button type="submit">Claim this calendar</button>
+</form>
+<div class="box" data-result hidden>
+<h2>Show that you run the calendar</h2>
+<p class="token"><code data-token></code></p>
+<p data-instructions></p>
+<form data-nip05 hidden>
+<div class="field"><label for="nip05">Or name your key in NIP-05 at <span data-domains></span></label><input id="nip05" name="nip05" placeholder="events@example.org" autocomplete="off" required></div>
+<button type="submit">Check</button>
 </form>
 </div>
-</section>`, `Events of ${name}, from ${platformName(entry)}.`);
+${STATUS}
+<p class="muted" data-claim-note>You will get a short code to place in the calendar's description, or in one of its events, on ${where}. A maintainer reviews each claim once the code is found.</p>
+</section>`, `Claim ${name} on Event Index.`, true);
+}
+
+// Adding a calendar its organizer publishes on nostr, by their key.
+export function nativePage(cities: City[]): string {
+  const options = [...cities].sort((a, b) => a.name.localeCompare(b.name)).map((c) => `<option value="${esc(c.slug)}">${esc(c.name)}</option>`).join('\n');
+  return layout('Add a calendar by its nostr key · Event Index', `<div class="page-head">
+<h1>Add a calendar by its nostr key</h1>
+<p class="muted">If you publish your calendar's events on nostr (NIP-52) from your own key, the index can list them as they are: it reads your events from your relays and serves them as iCalendar, jCal and JSON-LD. The index signs nothing for it.</p>
+</div>
+<section class="narrow">
+${SIGN_IN}
+<form class="box" data-native="/api/1.0/calendars/native" data-after-sign-in hidden>
+<div class="field"><label for="city">Where are its events?</label><select id="city" name="city">
+<option value="">Somewhere else</option>
+${options}
+</select></div>
+<button type="submit">Add my calendar</button>
+</form>
+${STATUS}
+<p class="muted">A maintainer reviews each calendar before it is listed.</p>
+</section>`, 'Add a calendar you publish on nostr to Event Index.', true);
 }
 
 export function removeResultPage(entry: StoredEntry | null, outcome: { status: number; body: Record<string, unknown> }): string {

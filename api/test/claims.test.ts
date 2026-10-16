@@ -29,9 +29,11 @@ async function signed(path: string, body: unknown, key = organizerKey, options: 
     kind: 27235, content: '', created_at: options.at ?? h.clock.now,
     tags: [['u', options.url ?? `https://api.eventindex.space${path}`], ['method', 'POST'], ['payload', createHash('sha256').update(text).digest('hex')]],
   }, key);
-  const response = await h.post(path, text, { authorization: `Nostr ${Buffer.from(JSON.stringify(event)).toString('base64')}`, 'content-type': 'application/json' });
+  // Each from an address of its own, below the hourly limit.
+  const response = await h.post(path, text, { authorization: `Nostr ${Buffer.from(JSON.stringify(event)).toString('base64')}`, 'content-type': 'application/json', 'x-real-ip': `203.0.113.${(ip += 1)}` });
   return { status: response.status, body: await response.json() as any };
 }
+let ip = 0;
 
 test('a request without a proof of its key is refused', async () => {
   const path = `${API}/calendars/${local('meetup:pythonsd')}/claim`;
@@ -155,4 +157,12 @@ test('a calendar already published by its organizer cannot be claimed again; its
   assert.equal(connect.status, 202);
   assert.equal(h.queues.claim(connect.body.request)!.kind, 'connect');
   h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
+});
+
+test('a proof may name the address the request was made to on this machine, for running the site locally', async () => {
+  const path = `${API}/calendars/${local('meetup:pythonsd')}/claim`;
+  const local1 = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `${h.base}${path}` });
+  assert.equal(local1.status, 202);
+  const spoofed = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `http://evil.example${path}` });
+  assert.equal(spoofed.body.reason, 'wrong-url');
 });
