@@ -193,9 +193,12 @@ creates the calendar key.
   tick polls it before any other and publishes its events.
 - **Remove requests.** Anyone may ask for a calendar's removal, with an
   optional message. Each request gets a token (`eventindex-remove-` and 10
-  characters of `a-z2-7`); when a poll finds the token anywhere in the feed,
-  the request is marked verified, as proof that its author controls the
-  calendar. A maintainer approves or rejects every request, verified or not.
+  characters of `a-z2-7`); when a poll finds the token in what the organizer
+  writes in the feed (the calendar's name or description, or an event's title
+  or description, its folded lines joined; never an attendee's name, a place
+  or a link, which others may write), the request is marked verified, as
+  proof that its author controls the calendar. A maintainer approves or
+  rejects every request, verified or not.
 - **Removal.** At its next tick after the approval, the poll service, with the
   calendar key:
   - deletes every upcoming projection (kind `5`, [`nip52-mapping.md`](nip52-mapping.md) § 4),
@@ -310,7 +313,8 @@ mirrors, so that its events are published from their own key.
 - **Proof of the calendar**, either of:
   - a **token** (`eventindex-claim-` and 10 characters of `a-z2-7`) given with
     the claim, which the organizer places in the calendar's description or in
-    one of its events; the claim is verified when a poll finds it in the feed;
+    one of its events; the claim is verified when a poll finds it where a
+    remove token is looked for (§ 10);
   - **NIP-05** at the calendar's own domain naming the organizer's key: the
     feed's host for a feed on the organizer's own site, or the host of the
     calendar's page, never a platform's (Luma, Meetup, Google, nor the

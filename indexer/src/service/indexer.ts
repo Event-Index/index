@@ -40,7 +40,7 @@ import { publicEventId, nostrD } from '../project/ids.ts';
 import { nativeUid, type Found } from '../native/record.ts';
 import type { AuthorRead } from '../native/read.ts';
 import { limited, PERMISSIONS, vaultSigner, type RemoteSession, type RemoteSigners } from '../claim/signer.ts';
-import { parseBunkerUrl } from '../claim/proof.ts';
+import { authoredText, parseBunkerUrl } from '../claim/proof.ts';
 import type { Claim } from '../store/queues.ts';
 import type { SignerConnection } from '../store/vault-db.ts';
 
@@ -826,7 +826,8 @@ export function createIndexer(deps: IndexerDeps) {
     return published;
   }
 
-  function verifyTokens(d: string, text: string, now: number): void {
+  function verifyTokens(d: string, feed: string, now: number): void {
+    const text = authoredText(feed);
     for (const request of queues.openRemovalsFor(d)) {
       if (!request.verifiedAt && text.includes(request.token)) {
         queues.markVerified(request.id, now);

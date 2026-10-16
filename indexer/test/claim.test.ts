@@ -464,3 +464,17 @@ test('a claim retried after the index\'s relay failed keeps the connection it ma
   assert.equal(g.vault.connection(D), null, 'a failed claim leaves no connection');
   g.close();
 });
+
+test('a token is found in a description however the feed folds it, and never in an attendee\'s name', async () => {
+  const h = claimHarness();
+  const folded = h.queues.requestClaim({ d: D, pubkey: 'a0'.repeat(32), mode: 'own', signer: null, at: NOW });
+  const attendee = h.queues.requestClaim({ d: D, pubkey: 'b0'.repeat(32), mode: 'own', signer: null, at: NOW });
+  const half = Math.floor(folded.token.length / 2);
+  const description = `DESCRIPTION:Our group meets monthly. Claim code ${folded.token.slice(0, half)}\r\n ${folded.token.slice(half)} for Event Index.`;
+  h.texts[h.dir.get(D)!.feedUrl] = readFixture('meetup-pythonsd.ics')
+    .replace('SUMMARY:SDPy Monthly Meetup', `SUMMARY:SDPy Monthly Meetup\r\n${description}\r\nATTENDEE;CN=${attendee.token}:mailto:someone@example.org`);
+  await h.tickAt(NOW);
+  assert.equal(h.queues.claim(folded.id)!.verifiedBy, 'token');
+  assert.equal(h.queues.claim(attendee.id)!.verifiedBy, null);
+  h.close();
+});

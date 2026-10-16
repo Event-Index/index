@@ -199,8 +199,8 @@ and publishes its events.
 `/remove-request` answers `202` with
 `{"status": "received", "request": n, "d", "token": "eventindex-remove-…", "instructions": "…"}`.
 The token is the organizer's proof: placed in the calendar's description or
-in one of its events, it is found at the next poll and marks the request
-verified. A maintainer approves or rejects each request; an approved removal
+in one of its events (its title or description), it is found at the next poll
+and marks the request verified. A maintainer approves or rejects each request; an approved removal
 is carried out as [`indexer-rules.md`](indexer-rules.md) § 10 describes.
 
 The pages of `eventindex.space` post the same requests as forms

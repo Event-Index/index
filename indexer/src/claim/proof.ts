@@ -55,6 +55,30 @@ export async function checkNip05(
   return named === pubkey ? { ok: true } : { ok: false, reason: 'nip05-mismatch' };
 }
 
+// What an organizer writes in a feed: the calendar's name and description,
+// and its events' titles and descriptions, with folded lines joined. A token
+// that shows control of a calendar is looked for here only, never in an
+// attendee's name, a place or a link, which others may write.
+const AUTHORED = new Set(['NAME', 'X-WR-CALNAME', 'X-WR-CALDESC', 'SUMMARY', 'DESCRIPTION', 'STYLED-DESCRIPTION', 'X-ALT-DESC']);
+
+export function authoredText(feed: string): string {
+  const values: string[] = [];
+  for (const line of feed.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)) {
+    const name = /^[A-Za-z0-9-]+/.exec(line)?.[0]?.toUpperCase();
+    if (!name || !AUTHORED.has(name)) continue;
+    // The value follows the first colon outside a quoted parameter.
+    let quoted = false;
+    for (let i = name.length; i < line.length; i += 1) {
+      if (line[i] === '"') quoted = !quoted;
+      else if (line[i] === ':' && !quoted) {
+        values.push(line.slice(i + 1));
+        break;
+      }
+    }
+  }
+  return values.join('\n');
+}
+
 export interface BunkerPointer {
   pubkey: string;
   relays: string[];
