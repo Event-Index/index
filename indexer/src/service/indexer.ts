@@ -216,6 +216,8 @@ export function createIndexer(deps: IndexerDeps) {
           content: JSON.stringify({
             name: INDEX_NAME,
             about: `The open directory of public event calendars. Mirrors them as nostr calendars so any app can render them. ${settings.domain}`,
+            // The mark on its blue tile (brand/); never a calendar's picture.
+            picture: `https://${settings.domain}/brand/mark-tile-512.png`,
             website: `https://${settings.domain}`,
             nip05: `_@${settings.domain}`,
           }),

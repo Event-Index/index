@@ -37,6 +37,7 @@ claims, and native NIP-52 calendars.
 | `deploy/` | scripts and runbook for a server: setup, backups, upgrades, restore |
 | `spec/` | the iCalendar profile, the platform adapters, the NIP-52 mapping, the relay's write policy, the API reference |
 | `seeds/` | organizer calendar lists by platform and city |
+| `brand/` | the mark, the wordmark and the favicon set, with the tools that generate them |
 | `fixtures/` | captured and synthetic feeds the tests run against |
 | `scripts/` | maintenance tools |
 
@@ -66,6 +67,9 @@ To run a server, see [`deploy/README.md`](deploy/README.md).
 - Code: Apache License 2.0 ([`LICENSE`](LICENSE)).
 - Directory data (entries, calendar metadata, poll statistics, seed lists):
   CC0 1.0 ([`seeds/LICENSE`](seeds/LICENSE)).
+- The Event Index mark and wordmark ([`brand/`](brand/README.md)): CC0 1.0
+  ([`brand/LICENSE`](brand/LICENSE)). The wordmark's letters are set in Public
+  Sans, under the SIL Open Font License 1.1.
 - Event content remains its organizers'.
 
 ## Credits

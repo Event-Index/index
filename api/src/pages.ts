@@ -7,7 +7,7 @@ import type { StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { EventRow } from '../../indexer/src/store/events.ts';
 import type { calendarView, statsView } from './views.ts';
 
-export const CSP = "default-src 'none'; style-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+export const CSP = "default-src 'none'; style-src 'self'; img-src 'self'; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (text: unknown): string => String(text ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c]!);
@@ -30,8 +30,21 @@ function layout(title: string, body: string): string {
 <meta name="referrer" content="no-referrer">
 <title>${esc(title)}</title>
 <link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#1f5fbf">
 </head>
 <body>
+<header>
+<a href="/" aria-label="Event Index home">
+  <picture>
+    <source srcset="/brand/wordmark-dark.svg" media="(prefers-color-scheme: dark)">
+    <img src="/brand/wordmark-light.svg" alt="Event Index" height="32">
+  </picture>
+</a>
+</header>
 <main>
 ${body}
 </main>
@@ -45,8 +58,10 @@ export const STYLE = `:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #fc
 @media (prefers-color-scheme: dark) { :root { --fg: #ececee; --bg: #151517; --muted: #a2a2aa; --line: #34343a; --link: #8ab4ff; --box: #202024; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main, footer { max-width: 42rem; margin: 0 auto; padding: 0 1rem; }
-main { padding-top: 3rem; }
+header, main, footer { max-width: 42rem; margin: 0 auto; padding: 0 1rem; }
+header { padding-top: 2rem; }
+header img { display: block; height: 32px; width: auto; }
+main { padding-top: 2rem; }
 footer { padding-bottom: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); margin-top: 3rem; }
 h1 { font-size: 2rem; margin: 0 0 .5rem; overflow-wrap: anywhere; }
 h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; }
@@ -116,8 +131,7 @@ export function homePage(stats: ReturnType<typeof statsView>, settings: Settings
     ['/stats', 'the numbers below'],
     ['/dump/index.db', 'the directory as a SQLite file'],
   ];
-  return layout('Event Index', `<h1>Event Index</h1>
-<p class="lede">An open directory of public event calendars.</p>
+  return layout('Event Index', `<h1>An open directory of public event calendars.</h1>
 <p>Event Index keeps a directory of public calendar feeds from Luma, Meetup®, Mobilizon, Google Calendar and any site that publishes iCalendar. It reads each feed every few hours and serves every event as iCalendar, jCal and schema.org JSON-LD, and on nostr as a NIP-52 calendar event signed by a key of the calendar's own, so any app can show it and its organizer stays its host.</p>
 <p class="muted">Event Index is not affiliated with any platform it reads. Event details belong to their organizers; see each event's own page.</p>
 

@@ -149,6 +149,13 @@ it: `Luma` / `Luma`, `Meetup®` / `Meetup`, `Mobilizon` / `Mobilizon`, `Gancio` 
 `Gancio`, `Google Calendar` / `Google`. The sentence offers removal only;
 claiming a calendar is not offered by this index.
 
+A calendar key's `picture` is only ever its calendar's own image; one with no
+image has no `picture`. The Event Index mark is the index key's alone: its
+kind 0 is `name` `Event Index`, `about`, `picture`
+`https://eventindex.space/brand/mark-tile-512.png` (the mark on its tile,
+[`../brand/`](../brand/README.md)), `website` `https://eventindex.space`,
+`nip05` `_@eventindex.space`.
+
 **Kind 10002.** `["r", "wss://relay.eventindex.space"]` with no marker (RSVPs
 and comments sent to the host's inbox reach the index), then
 `["r", <relay>, "write"]` for each general relay the index publishes to

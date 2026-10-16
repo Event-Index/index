@@ -83,7 +83,16 @@ test('the index key publishes its profile, both headers and the directory entrie
   assert.deepEqual(own.map((e) => e.kind).sort(), [0, 10002, 39998, 39998, 39999]);
   const entry = own.find((e) => e.kind === 39999)!;
   assert.deepEqual(entry.tags.find((t) => t[0] === 'p'), ['p', h.dir.get('meetup:pythonsd')!.pubkey]);
-  assert.match(JSON.parse(own.find((e) => e.kind === 0)!.content).nip05, /^_@eventindex\.space$/);
+  assert.deepEqual(JSON.parse(own.find((e) => e.kind === 0)!.content), {
+    name: 'Event Index',
+    about: 'The open directory of public event calendars. Mirrors them as nostr calendars so any app can render them. eventindex.space',
+    picture: 'https://eventindex.space/brand/mark-tile-512.png',
+    website: 'https://eventindex.space',
+    nip05: '_@eventindex.space',
+  });
+  const calendarProfiles = h.sent.filter((s) => s.event.kind === 0 && s.event.pubkey !== h.indexPubkey);
+  assert.ok(calendarProfiles.length > 0);
+  for (const s of calendarProfiles) assert.ok(!s.event.content.includes('/brand/'), 'a calendar never carries the mark');
   await h.indexer.tick();
   assert.equal(h.sent.filter((s) => s.event.pubkey === h.indexPubkey).length, own.length, 'unchanged events are not sent again');
 });

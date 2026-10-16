@@ -18,6 +18,7 @@ import { npubEncode } from 'nostr-tools/nip19';
 import { LIMITS, rateLimiter, type Limits } from './limits.ts';
 import { calendarView, documentJsonLd, eventDocument, eventList, feedOf, feedWindow, statsView, withoutCopies, type Format, type ViewDeps } from './views.ts';
 import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
+import { brandFiles } from './brand.ts';
 import { CSP, STYLE, calendarPage, homePage, messagePage, removeResultPage, searchPage, submitResultPage } from './pages.ts';
 
 export interface ApiDeps {
@@ -134,6 +135,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
   const { dir, events, settings } = deps;
   const writes = { dir, queues: deps.queues, fetch: deps.fetch, limits };
   const log = deps.log ?? (() => {});
+  const brand = brandFiles();
 
   const notFound = (what = 'Not found.'): never => { throw new HttpError(404, 'not-found', what); };
   const listedCalendar = (name: string): StoredEntry => {
@@ -314,6 +316,13 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       return html(200, homePage(statsView(view, now), settings, indexPubkey ? npubEncode(indexPubkey) : null));
     }
     if (url.pathname === '/style.css') return { status: 200, type: 'text/css; charset=utf-8', body: STYLE };
+    const file = brand.get(url.pathname);
+    if (file) {
+      const headers: Record<string, string> = { 'Cache-Control': 'public, max-age=86400' };
+      // An SVG opened on its own runs nothing and loads nothing.
+      if (file.type === 'image/svg+xml') headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'";
+      return { status: 200, type: file.type, body: file.body, headers };
+    }
     if (url.pathname === '/search') {
       const q = url.searchParams.get('q')?.trim() ?? '';
       return html(200, searchPage(q, q ? calendarSearch(url.searchParams) : []));
