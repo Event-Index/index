@@ -119,13 +119,20 @@ export function identify(input: string): DirectoryIdentity {
 const GOOGLE_GROUP_SUFFIX = /@group(?:\.v)?\.calendar\.google\.com$/;
 const LOCAL_NAME_MAX = 64;
 
+// A native calendar's `d`: its author's key. The index reads its events by
+// that author.
+export function nativeD(pubkey: string): string {
+  return `nostr:${pubkey}`;
+}
+
 // The NIP-05 local name of a calendar key, from its entry's `d`: lowercase,
 // every run of other characters as one "-". An `ics:` entry keeps the first
-// 16 hex digits of its hash; a name longer than 64 characters keeps its first
-// 47 and 16 hex digits of the `d`'s SHA-256.
+// 16 hex digits of its hash, a native calendar the first 16 of its author's
+// key; a name longer than 64 characters keeps its first 47 and 16 hex digits
+// of the `d`'s SHA-256.
 export function localName(d: string): string {
-  const ics = /^ics:([0-9a-f]{64})$/.exec(d);
-  if (ics) return `ics-${ics[1]!.slice(0, 16)}`;
+  const hashed = /^(ics|nostr):([0-9a-f]{64})$/.exec(d);
+  if (hashed) return `${hashed[1]}-${hashed[2]!.slice(0, 16)}`;
   const name = d
     .replace(GOOGLE_GROUP_SUFFIX, '')
     .normalize('NFKD')

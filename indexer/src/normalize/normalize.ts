@@ -50,7 +50,7 @@ export interface EventRecord {
 }
 
 export interface LogEntry {
-  code: 'no-uid' | 'no-start' | 'bad-value' | 'duplicate-uid' | 'unknown-tzid' | 'multiple-calendars' | 'unparseable-event' | 'unparseable-line';
+  code: 'no-uid' | 'no-start' | 'no-title' | 'bad-value' | 'duplicate-uid' | 'unknown-tzid' | 'multiple-calendars' | 'unparseable-event' | 'unparseable-line';
   uid?: string;
   detail?: string;
 }

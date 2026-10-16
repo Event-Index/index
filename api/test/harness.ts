@@ -7,7 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { createServer, type Server } from 'node:http';
-import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
+import { finalizeEvent, generateSecretKey, getPublicKey, type VerifiedEvent } from 'nostr-tools/pure';
+import { matchFilter, type Filter } from 'nostr-tools/filter';
+import { nativeD } from '../../indexer/src/directory/id.ts';
+import type { RelayReader } from '../../indexer/src/native/read.ts';
 import { openIndexDb } from '../../indexer/src/store/index-db.ts';
 import { openVault } from '../../indexer/src/store/vault-db.ts';
 import { directoryStore, type Entry } from '../../indexer/src/store/directory.ts';
@@ -33,6 +36,32 @@ export const FIXTURES: Record<string, Partial<Entry>> = {
   'google-kubernetes-sig-cli.ics': {},
 };
 
+// An organizer who publishes NIP-52 from their own key: a throwaway key, a
+// profile, a calendar and two events, on a relay only the harness answers.
+export const NATIVE_RELAY = 'ws://native.test';
+export function nativeOrganizer() {
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  const sign = (kind: number, tags: string[][], content = '') => finalizeEvent({ kind, tags, content, created_at: NOW - 3600 }, key);
+  const events: VerifiedEvent[] = [
+    sign(0, [], JSON.stringify({ display_name: 'Lakeside Bitcoin Club', about: 'Monthly meetups by the lake.', website: 'https://lakeside.example.org' })),
+    sign(31924, [['d', 'main'], ['title', 'Lakeside events']]),
+    sign(31923, [['d', 'oct'], ['title', 'October meetup'], ['start', String(NOW + 3 * 86400)], ['end', String(NOW + 3 * 86400 + 7200)],
+      ['start_tzid', 'America/Chicago'], ['location', 'Lakeside Hall'], ['g', 'dp3wjztvt']], 'Monthly meetup. Bring a friend.'),
+    sign(31922, [['d', 'fest'], ['title', 'Harvest festival'], ['start', '2026-10-24']]),
+  ];
+  return { key, pubkey, d: nativeD(pubkey), events, sign };
+}
+
+export function fakeReader(held: Map<string, VerifiedEvent[]>): RelayReader {
+  return {
+    async query(urls: string[], filter: Filter) {
+      const answered = urls.filter((u) => held.has(u));
+      return { answered, found: answered.flatMap((relay) => held.get(relay)!.filter((e) => matchFilter(filter, e)).map((event) => ({ event, relay }))) };
+    },
+  };
+}
+
 export interface Harness {
   base: string;
   dataDir: string;
@@ -43,6 +72,10 @@ export interface Harness {
   queues: ReturnType<typeof queueStore>;
   events: ReturnType<typeof eventStore>;
   indexer: ReturnType<typeof createIndexer>;
+  // What the native organizer's relay holds (with the `native` option).
+  relay: Map<string, VerifiedEvent[]>;
+  native: ReturnType<typeof nativeOrganizer> | null;
+  settings: ReturnType<typeof loadSettings>;
   // Feeds the API's own fetch (for submissions) answers with.
   feeds: Map<string, FetchResult>;
   // What the API logged.
@@ -52,9 +85,12 @@ export interface Harness {
   close(): Promise<void>;
 }
 
-export async function harness(options: { queueCap?: number; limits?: Partial<Limits> } = {}): Promise<Harness> {
+export async function harness(options: { queueCap?: number; limits?: Partial<Limits>; native?: boolean } = {}): Promise<Harness> {
   const dataDir = mkdtempSync(join(tmpdir(), 'api-'));
-  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: '/nonexistent', EVENTINDEX_CALENDAR_SECRET_FILE: '/nonexistent' });
+  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: '/nonexistent', EVENTINDEX_CALENDAR_SECRET_FILE: '/nonexistent',
+    EVENTINDEX_RELAY_URL: NATIVE_RELAY, EVENTINDEX_GENERAL_RELAYS: 'none', EVENTINDEX_PROFILE_RELAYS: 'none' });
+  const native = options.native ? nativeOrganizer() : null;
+  const relay = new Map<string, VerifiedEvent[]>([[NATIVE_RELAY, native ? [...native.events] : []]]);
   const db = openIndexDb(settings.indexDb);
   const dir = directoryStore(db);
   const queues = queueStore(db);
@@ -71,8 +107,14 @@ export async function harness(options: { queueCap?: number; limits?: Partial<Lim
       return fixture ? { status: 'ok', text: readFixture(fixture), etag: null, lastModified: null, finalUrl: url } : { status: 'error', code: 'http-404' };
     },
     publisher: { publish: async () => {}, rsvps: async () => new Set(), close: () => {} },
+    reader: fakeReader(relay),
+    relayAllowed: async () => true,
     log: () => {},
   });
+  if (native) {
+    dir.add({ d: native.d, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: null, description: null, image: null,
+      location: 'Chicago, US', g: 'dp3w', foundVia: 'owner', addedAt: NOW - 86400, mode: 'own', owner: native.pubkey });
+  }
   for (const [fixture, extra] of Object.entries(FIXTURES)) {
     const id = identify(feedUrlFor(fixture));
     dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null,
@@ -92,12 +134,13 @@ export async function harness(options: { queueCap?: number; limits?: Partial<Lim
     fetch: async (url) => feeds.get(url) ?? { status: 'error', code: 'http-404' },
     ...(options.queueCap || options.limits ? { limits: { ...options.limits, ...(options.queueCap ? { queueCap: options.queueCap } : {}) } } : {}),
     log: (line) => logs.push(line),
+    reader: fakeReader(relay),
   });
   const server: Server = createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
-    base, dataDir, indexPubkey: getPublicKey(indexKey), clock, db, dir, queues, events, indexer, feeds, logs,
+    base, dataDir, indexPubkey: getPublicKey(indexKey), clock, db, dir, queues, events, indexer, feeds, logs, relay, native, settings,
     get: (path, headers = {}) => fetch(`${base}${path}`, { headers }),
     post: (path, body, headers = {}) => fetch(`${base}${path}`, {
       method: 'POST',

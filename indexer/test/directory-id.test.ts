@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { identify, canonicalFeedUrl, localName } from '../src/directory/id.ts';
+import { identify, canonicalFeedUrl, localName, nativeD } from '../src/directory/id.ts';
 
 test('a Luma calendar is identified by its calendar id, whatever the domain', () => {
   for (const url of [
@@ -92,4 +92,10 @@ test('localName stays within NIP-05 characters and 64 characters', () => {
 
 test('identify refuses a Google URL with broken percent-encoding', () => {
   assert.throws(() => identify('https://calendar.google.com/calendar/ical/%E0%A4%A/public/basic.ics'), /invalid-url/);
+});
+
+test('a native calendar\'s d is its author\'s key, and its local name the key\'s first 16 hex digits', () => {
+  const key = '8b4ba26f'.repeat(8);
+  assert.equal(nativeD(key), `nostr:${key}`);
+  assert.equal(localName(nativeD(key)), 'nostr-8b4ba26f8b4ba26f');
 });

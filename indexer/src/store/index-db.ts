@@ -98,6 +98,8 @@ export interface IndexDb {
   lastTemplate(pubkey: string, kind: number, d: string): unknown;
   // The calendar key's projections that are live (not withdrawn).
   liveProjections(pubkey: string): Array<{ kind: number; d: string; start: number }>;
+  // How many of the key's events (live or cancelled) have yet to start.
+  pendingProjections(pubkey: string, now: number): number;
   loadPresence(calendarD: string): PresenceState;
   savePresence(calendarD: string, state: PresenceState): void;
   pollState(calendarD: string): PollState;
@@ -182,6 +184,9 @@ export function openIndexDb(path: string): IndexDb {
     liveProjections: (pubkey) => db.prepare<[string], { kind: number; d: string; start: number }>(
       "SELECT kind, d, start FROM projections WHERE pubkey = ? AND status = 'live' ORDER BY start",
     ).all(pubkey),
+    pendingProjections: (pubkey, now) => db.prepare<[string, number], { n: number }>(
+      "SELECT count(*) AS n FROM projections WHERE pubkey = ? AND kind IN (31922, 31923) AND status != 'deleted' AND start >= ?",
+    ).get(pubkey, now)!.n,
     recordsOf: (calendarD) => db.prepare<[string], { id: string; uid: string; ics: string; changed_at: number }>(
       'SELECT id, uid, ics, changed_at FROM records WHERE calendar_d = ? ORDER BY uid',
     ).all(calendarD).map((r) => ({ id: r.id, uid: r.uid, ics: r.ics, changedAt: r.changed_at })),

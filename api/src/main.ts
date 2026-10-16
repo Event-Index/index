@@ -15,6 +15,8 @@ import { queueStore } from '../../indexer/src/store/queues.ts';
 import { eventStore } from '../../indexer/src/store/events.ts';
 import type { Cities } from '../../indexer/src/service/admin.ts';
 import { createApi } from './server.ts';
+import { poolReader } from '../../indexer/src/native/read.ts';
+import { SimplePool } from 'nostr-tools/pool';
 
 function log(line: string): void {
   process.stdout.write(`${new Date().toISOString()} ${line}\n`);
@@ -33,6 +35,7 @@ const server = createServer(createApi({
   cities,
   now: () => Math.floor(Date.now() / 1000),
   fetch: (url, validators) => fetchFeed(url, validators),
+  reader: poolReader(new SimplePool()),
   log,
 }));
 server.requestTimeout = 60_000;

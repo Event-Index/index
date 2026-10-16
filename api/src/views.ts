@@ -12,7 +12,7 @@ import { naddrFor } from '../../indexer/src/project/annotate.ts';
 import { publicCalendar, toJcal, toJsonLd, type PublicContext } from '../../indexer/src/project/public.ts';
 import { occurrences, projectionWindow, type Occurrence } from '../../indexer/src/project/window.ts';
 import type { IndexDb } from '../../indexer/src/store/index-db.ts';
-import type { DirectoryStore, StoredEntry } from '../../indexer/src/store/directory.ts';
+import { currentKey, type DirectoryStore, type StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { EventRow, EventStore } from '../../indexer/src/store/events.ts';
 
 export interface ViewDeps {
@@ -25,18 +25,41 @@ export interface ViewDeps {
 const DAY = 86400;
 const PRODID = '-//Event Index//eventindex.space//EN';
 
+// How a calendar's events reach nostr: mirrored by the index with a key it
+// holds, published by the organizer from their own key, or published by the
+// index as the organizer, through a signer they connected.
+const PUBLISHING = { mirrored: 'mirrored', own: 'organizer', delegated: 'delegated' } as const;
+
+// A 31924 coordinate as an naddr.
+function calendarAddress(coordinate: string | null, relays: string[]): string | null {
+  const match = /^31924:([0-9a-f]{64}):(.*)$/.exec(coordinate ?? '');
+  return match ? naddrFor(match[1]!, 31924, match[2]!, relays) : null;
+}
+
+function nostrFacts(deps: ViewDeps, entry: StoredEntry) {
+  const { settings } = deps;
+  if (entry.mode === 'mirrored') {
+    return entry.pubkey
+      ? { npub: npubEncode(entry.pubkey), nip05: `${entry.localName}@${settings.domain}`, calendar: naddrFor(entry.pubkey, 31924, 'calendar', [settings.publicRelay]) }
+      : null;
+  }
+  if (!entry.owner) return null;
+  return { npub: npubEncode(entry.owner), nip05: null, calendar: calendarAddress(entry.nativeCalendar, entry.ownerRelays.slice(0, 1)) };
+}
+
 export function calendarView(deps: ViewDeps, entry: StoredEntry) {
   const { settings } = deps;
   const state = deps.db.pollState(entry.d);
   const indexPubkey = deps.dir.fact('index_pubkey');
   const name = entry.localName;
+  const fromNostr = entry.mode === 'own';
   return {
     calendar: {
       d: entry.d,
       name: entry.name,
       role: entry.role,
-      source: entry.source,
-      feed: entry.feedUrl,
+      source: fromNostr ? 'nostr' : entry.source,
+      feed: fromNostr || !entry.feedUrl ? null : entry.feedUrl,
       url: entry.pageUrl,
       description: entry.description,
       image: adapterFor(entry.source).policy.images ? entry.image : null,
@@ -47,19 +70,15 @@ export function calendarView(deps: ViewDeps, entry: StoredEntry) {
     eventindex: {
       local_name: name,
       address: indexPubkey ? `39999:${indexPubkey}:${entry.d}` : null,
-      nostr: entry.pubkey
-        ? {
-          npub: npubEncode(entry.pubkey),
-          nip05: `${name}@${settings.domain}`,
-          calendar: naddrFor(entry.pubkey, 31924, 'calendar', [settings.publicRelay]),
-        }
-        : null,
+      nostr: nostrFacts(deps, entry),
+      publishing: PUBLISHING[entry.mode],
       page: `https://${settings.domain}/calendar/${name}`,
       ics: `${settings.apiBase}/ics/calendar/${name}.ics`,
       last_indexed: state.lastSuccessAt,
       event_count: deps.events.countByCalendar(entry.d),
       stale: state.stale,
-      claimed: false,
+      claimed: entry.claimedAt !== null,
+      claimed_at: entry.claimedAt,
       removed: entry.removed !== null,
     },
   };
@@ -101,21 +120,27 @@ export function loadRecord(deps: ViewDeps, recordId: string, now: number, cache:
 }
 
 // The nostr address an event lives at: its own, or for a co-host's copy, the
-// signing calendar's.
-function nostrOf(deps: ViewDeps, row: EventRow): string | null {
+// signing calendar's; for a calendar its organizer publishes, the
+// organizer's event the record came from.
+function nostrOf(deps: ViewDeps, row: EventRow, event: ICAL.Component | null): string | null {
+  if (deps.dir.get(row.calendarD)?.mode === 'own') {
+    const naddr = event?.getFirstPropertyValue('x-eventindex-nostr');
+    return typeof naddr === 'string' ? naddr : null;
+  }
   const signer = row.canonical ? deps.events.byId(row.canonical) : row;
   if (!signer) return null;
-  const pubkey = deps.dir.get(signer.calendarD)?.pubkey;
+  const entry = deps.dir.get(signer.calendarD);
+  const pubkey = entry ? currentKey(entry) : null;
   return pubkey ? naddrFor(pubkey, signer.kind, signer.d, [deps.settings.publicRelay]) : null;
 }
 
-export function eventFacts(deps: ViewDeps, row: EventRow, entry: StoredEntry) {
+export function eventFacts(deps: ViewDeps, row: EventRow, entry: StoredEntry, event: ICAL.Component | null = null) {
   return {
     id: row.id,
     url: `${deps.settings.apiBase}/events/byid/${row.id}`,
     start: row.start,
     end: row.end,
-    nostr: nostrOf(deps, row),
+    nostr: nostrOf(deps, row, event),
     calendar: row.calendarD,
     canonical: row.canonical,
     cohosts: row.cohosts,
@@ -133,7 +158,7 @@ export function eventItem(deps: ViewDeps, row: EventRow, format: Format, now: nu
   const occurrence = loaded?.occurrences.find((o) => o.id === row.id);
   if (!loaded || !occurrence) return null;
   if (format === 'json') return toJsonLd(occurrence, loaded.ctx);
-  return { jcal: toJcal(publicCalendar(loaded.record, occurrence, loaded.ctx)), eventindex: eventFacts(deps, row, loaded.entry) };
+  return { jcal: toJcal(publicCalendar(loaded.record, occurrence, loaded.ctx)), eventindex: eventFacts(deps, row, loaded.entry, occurrence.event) };
 }
 
 export function eventList(deps: ViewDeps, rows: EventRow[], format: Format, now: number) {

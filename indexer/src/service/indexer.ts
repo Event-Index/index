@@ -3,6 +3,7 @@
 // nostr up to date, and write the daily dump.
 
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import ICAL from 'ical.js';
 import { dirname } from 'node:path';
 import { finalizeEvent, getPublicKey, type VerifiedEvent } from 'nostr-tools/pure';
 import type { Settings } from '../config.ts';
@@ -21,7 +22,7 @@ import { spreadCreatedAt } from '../rules/limits.ts';
 import { makeDump } from '../store/dump.ts';
 import type { IndexDb } from '../store/index-db.ts';
 import type { Vault } from '../store/vault-db.ts';
-import type { DirectoryStore, StoredEntry } from '../store/directory.ts';
+import { currentKey, type DirectoryStore, type StoredEntry } from '../store/directory.ts';
 import type { QueueStore } from '../store/queues.ts';
 import type { EventRow, EventStore } from '../store/events.ts';
 import type { Filter } from 'nostr-tools/filter';
@@ -29,6 +30,10 @@ import { setsFor, type RelaySet } from './routing.ts';
 import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
 import { followed, FOLLOW_NEAR } from './follows.ts';
+import { readAuthor, type RelayReader } from '../native/read.ts';
+import { nativeFeed } from '../native/record.ts';
+import { nextPollAt, isStale } from '../rules/schedule.ts';
+import { expand } from '../project/projector.ts';
 
 // Where an event goes: the index's own relay (always), or a set of outside
 // relays (service/routing.ts).
@@ -62,6 +67,11 @@ export interface IndexerDeps {
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
   publisher: Publisher;
   log: (line: string) => void;
+  // Reads organizers' own events from relays (native and claimed calendars).
+  reader?: RelayReader;
+  // Whether a relay an organizer names may be used (default: a public wss
+  // host, native/read.ts).
+  relayAllowed?: (url: string) => Promise<boolean>;
   maxPollsPerTick?: number;
   // Aborted on shutdown: the tick stops between polls.
   signal?: AbortSignal;
@@ -84,6 +94,9 @@ const DIRECTORY_KINDS = [39999];
 const BACKFILL_VERSION = '1';
 // Feeds discovery checks in one tick.
 const DISCOVERY_CHECKS_PER_TICK = 5;
+
+// No co-hosts: a native calendar's events are its organizer's own.
+const NO_PLAN: CohostPlan = { yields: new Map(), cohostsOf: new Map(), cohosted: new Map(), canonicalOf: new Map() };
 
 function identityOf(entry: StoredEntry): DirectoryIdentity {
   return { d: entry.d, role: entry.role, source: entry.source, feedUrl: entry.feedUrl, pageUrl: entry.pageUrl };
@@ -171,12 +184,24 @@ export function createIndexer(deps: IndexerDeps) {
     settings: { perRun: settings.discoveryPerRun, perDay: settings.discoveryPerDay, followCap: settings.followCap, checksPerStep: DISCOVERY_CHECKS_PER_TICK },
   });
 
-  // The calendar keys the index key follows: the earliest filed, up to the
-  // cap. Nearing or passing the cap is logged once a day.
+  // The keys the index key follows: every key a listed entry names in `p`
+  // (calendar keys, organizers' own keys, a claimed calendar's old key while
+  // events it signed are to come), the earliest filed first, up to the cap.
+  // Nearing or passing the cap is logged once a day.
   let followNoticeAt = -Infinity;
   function follows(now: number): string[] {
-    const entryOf = new Map(dir.list().filter((e) => e.pubkey).map((e) => [e.pubkey!, e]));
-    const keys = [...allowed.live].map((pk) => ({ d: entryOf.get(pk)?.d ?? pk, pubkey: pk, addedAt: entryOf.get(pk)?.addedAt ?? Number.MAX_SAFE_INTEGER }));
+    const byKey = new Map<string, { d: string; pubkey: string; addedAt: number }>();
+    const add = (d: string, pubkey: string, addedAt: number) => {
+      const known = byKey.get(pubkey);
+      if (!known || addedAt < known.addedAt) byKey.set(pubkey, { d, pubkey, addedAt });
+    };
+    for (const entry of dir.list()) {
+      const key = currentKey(entry);
+      if (key && entry.role === 'calendar') add(entry.d, key, entry.addedAt);
+      const former = formerKeyOf(entry, now);
+      if (former) add(entry.d, former, entry.addedAt);
+    }
+    const keys = [...byKey.values()];
     const cap = settings.followCap;
     if (keys.length >= cap * FOLLOW_NEAR && now - followNoticeAt >= DAY) {
       followNoticeAt = now;
@@ -190,8 +215,9 @@ export function createIndexer(deps: IndexerDeps) {
   // The co-host plan needs every calendar's events; until a calendar polls,
   // its stored records stand in for its feed.
   for (const entry of dir.list()) {
+    if (entry.role !== 'calendar' || entry.mode === 'own') continue;
     const records = db.recordsOf(entry.d);
-    if (records.length === 0 || entry.role !== 'calendar') continue;
+    if (records.length === 0) continue;
     try {
       feeds.set(entry.d, {
         context: { ...identityOf(entry), entryName: entry.name },
@@ -327,6 +353,61 @@ export function createIndexer(deps: IndexerDeps) {
     deps.log('retired the index key\'s own event-calendars header');
   }
 
+  // After a claim, the calendar key the index held, while events it signed
+  // are still to come.
+  function formerKeyOf(entry: StoredEntry, now: number): string | null {
+    if (entry.mode === 'mirrored' || !entry.pubkey || entry.removed) return null;
+    return db.pendingProjections(entry.pubkey, now) > 0 ? entry.pubkey : null;
+  }
+
+  // Where organizers' own events are read: the index's relay, and the
+  // general and profile relays.
+  const usualRelays = [...new Set([settings.relayUrl, ...settings.generalRelays, ...settings.profileRelays])];
+
+  // A native or claimed calendar: its organizer's events, read by author.
+  async function pollOwn(entry: StoredEntry, now: number, report: TickReport): Promise<void> {
+    report.polled.push(entry.d);
+    const state = db.pollState(entry.d);
+    const fail = (code: string) => {
+      report.failed.push(entry.d);
+      const failures = state.failures + 1;
+      const firstFailureAt = state.firstFailureAt ?? now;
+      db.savePollState(entry.d, { ...state, failures, firstFailureAt, stale: isStale({ now, firstFailureAt }),
+        nextPollAt: nextPollAt({ now, refreshInterval: null, nextEventStart: null, failures, retryAfter: null }) });
+      deps.log(`read ${entry.d}: ${code}`);
+    };
+    if (!deps.reader || !entry.owner) return fail('no-reader');
+    const read = await readAuthor(deps.reader, entry.owner, usualRelays, deps.relayAllowed ? { relayAllowed: deps.relayAllowed } : {});
+    if (!read.ok) return fail('no-relay-answered');
+    dir.setOwnerRelays(entry.d, read.writeRelays);
+    const newestCalendar = read.calendars[0];
+    const nativeCalendar = newestCalendar ? `31924:${entry.owner}:${newestCalendar.tags.find((t) => t[0] === 'd')?.[1] ?? ''}` : entry.nativeCalendar;
+    dir.setOwnership(entry.d, { mode: entry.mode, owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar });
+    // A calendar filed by its key is described by its organizer's profile; a
+    // claimed one keeps what its feed said.
+    if (entry.source === 'nostr') {
+      const title = newestCalendar?.tags.find((t) => t[0] === 'title')?.[1]?.trim() || null;
+      dir.setMeta(entry.d, {
+        name: read.profile?.name ?? title ?? entry.name,
+        description: newestCalendar?.content.trim() || read.profile?.about || null,
+        url: read.profile?.website ?? null,
+        image: read.profile?.picture ?? null,
+      });
+    }
+    const fresh = dir.get(entry.d)!;
+    const feed = nativeFeed(read.events, {
+      d: entry.d, source: 'nostr', role: 'calendar', feedUrl: '', pageUrl: fresh.pageUrl, entryName: fresh.name,
+      calendarName: fresh.name, calendarAddress: `39999:${indexPubkey}:${entry.d}`,
+    });
+    for (const record of feed.records) {
+      db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+    }
+    events.replaceCalendar(entry.d, eventRows(feed, NO_PLAN, now));
+    const nextEventStart = expand(feed, now).map((o) => o.start).filter((t) => t >= now).sort((a, b) => a - b)[0] ?? null;
+    db.savePollState(entry.d, { ...state, failures: 0, firstFailureAt: null, lastSuccessAt: now, stale: false, refreshInterval: null, nextEventStart,
+      nextPollAt: nextPollAt({ now, refreshInterval: null, nextEventStart, failures: 0, retryAfter: null }) });
+  }
+
   async function publishDirectory(now: number): Promise<number> {
     const items: Array<{ template: EventTemplate; d: string; start: number }> = [
       {
@@ -346,18 +427,23 @@ export function createIndexer(deps: IndexerDeps) {
         start: now,
       },
       { template: { kind: 10002, tags: [['r', settings.publicRelay], ...[...generalRelays, ...listRelays].map((r) => ['r', r, 'write'])], content: '' }, d: '', start: now },
-      // Follows every calendar key it holds.
+      // Follows every calendar key it holds, and the organizers who publish
+      // their calendars from their own keys.
       { template: { kind: 3, tags: follows(now).map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
       { template: eventsHeader(), d: 'events', start: now },
     ];
     for (const entry of dir.list({ includeRemoved: true })) {
-      if (entry.role === 'calendar' && !entry.pubkey) continue;
+      const key = currentKey(entry);
+      if (entry.role === 'calendar' && !key) continue;
       items.push({
         template: directoryEntry({
           identity: identityOf(entry),
           calendar: metaOf(entry, dir.calendarMeta(entry.d)),
           header,
-          pubkey: entry.pubkey,
+          pubkey: key,
+          formerKey: formerKeyOf(entry, now),
+          readFrom: entry.mode === 'own' ? 'nostr' : 'feed',
+          nativeCalendar: entry.nativeCalendar,
           localName: entry.localName,
           location: entry.location,
           geohash: entry.g,
@@ -501,7 +587,8 @@ export function createIndexer(deps: IndexerDeps) {
       for (const { e } of due) {
         if (deps.signal?.aborted) break;
         try {
-          await poll(e, now, report);
+          if (e.mode === 'own') await pollOwn(e, now, report);
+          else await poll(e, now, report);
         } catch (error) {
           report.failed.push(e.d);
           deps.log(`poll ${e.d}: ${(error as Error).stack ?? error}`);

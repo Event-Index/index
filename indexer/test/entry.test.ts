@@ -83,3 +83,58 @@ test('the events header stays a list header under the index key', () => {
   assert.deepEqual(events.tags[0], ['d', 'events']);
   assert.deepEqual(events.tags.filter((t) => t[0] === 'item-kind').map((t) => t[1]), ['31923', '31922']);
 });
+
+const OWNER = 'a0'.repeat(32);
+
+test('a native calendar\'s entry names its author and its calendar, and no feed', () => {
+  const d = `nostr:${OWNER}`;
+  const entry = directoryEntry({
+    identity: { d, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: 'https://example.org' },
+    calendar: { name: 'Lakeside Bitcoin Club', nameSource: 'entry', platformDefault: false, description: 'Monthly meetups.', url: 'https://example.org', image: 'https://example.org/p.png', color: null, refreshInterval: null, timezone: null },
+    header: HEADER, pubkey: OWNER, localName: 'nostr-a0a0a0a0a0a0a0a0', location: 'Chicago, US', geohash: 'dp3w', city: 'chicago',
+    nativeCalendar: `31924:${OWNER}:main`,
+  });
+  assert.deepEqual(entry.tags, [
+    ['d', d],
+    ['z', HEADER],
+    ['name', 'Lakeside Bitcoin Club'],
+    ['role', 'calendar'],
+    ['p', OWNER],
+    ['index-name', 'nostr-a0a0a0a0a0a0a0a0'],
+    ['source', 'nostr'],
+    ['location', 'Chicago, US'],
+    ['g', 'dp3w'],
+    ['calendar', `31924:${OWNER}:main`],
+    ['t', 'chicago'],
+    ['t', 'nostr'],
+    ['description', 'Monthly meetups.'],
+    ['image', 'https://example.org/p.png'],
+  ]);
+});
+
+test('a calendar claimed to publish itself is read from nostr: its organizer\'s key first, the old key second', () => {
+  const id = identify(feedUrlFor('luma-calendar-craftnook.ics'));
+  const feed = normalizeFeed(readFixture('luma-calendar-craftnook.ics'), id);
+  const entry = directoryEntry({
+    identity: id, calendar: feed.calendar, header: HEADER, pubkey: OWNER, formerKey: CAL, readFrom: 'nostr',
+    localName: 'luma-cal-bvurd9eazndgbwy', location: 'New York, US', geohash: 'dr5r', city: 'new-york',
+  });
+  assert.deepEqual(entry.tags.filter((t) => t[0] === 'p'), [['p', OWNER], ['p', CAL]]);
+  assert.equal(entry.tags.find((t) => t[0] === 'source')![1], 'nostr');
+  assert.equal(entry.tags.find((t) => t[0] === 'feed'), undefined, 'the feed is no longer read');
+  assert.deepEqual(entry.tags.find((t) => t[0] === 'luma-id'), ['luma-id', 'cal-BvuRd9eaZnDGBwy'], 'its Luma link stays');
+  assert.deepEqual(entry.tags.filter((t) => t[0] === 't'), [['t', 'new-york'], ['t', 'nostr']]);
+});
+
+test('a calendar published for its organizer, as them, keeps its feed and names their calendar', () => {
+  const id = identify(feedUrlFor('meetup-pythonsd.ics'));
+  const feed = normalizeFeed(readFixture('meetup-pythonsd.ics'), id);
+  const entry = directoryEntry({
+    identity: id, calendar: feed.calendar, header: HEADER, pubkey: OWNER, localName: 'meetup-pythonsd',
+    nativeCalendar: `31924:${OWNER}:meetup:pythonsd`,
+  });
+  assert.deepEqual(entry.tags.filter((t) => t[0] === 'p'), [['p', OWNER]]);
+  assert.equal(entry.tags.find((t) => t[0] === 'source')![1], 'meetup');
+  assert.equal(entry.tags.find((t) => t[0] === 'feed')![1], 'https://www.meetup.com/pythonsd/events/ical/');
+  assert.deepEqual(entry.tags.find((t) => t[0] === 'calendar'), ['calendar', `31924:${OWNER}:meetup:pythonsd`]);
+});

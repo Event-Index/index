@@ -131,3 +131,41 @@ test('the dump holds the directory, calendar metadata and poll statistics, and n
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('an entry is mirrored until its organizer owns it; ownership and the owner\'s relays are kept', () => {
+  const db = openIndexDb(':memory:');
+  const dir = directoryStore(db);
+  dir.add(entry('meetup:pythonsd'));
+  assert.equal(dir.get('meetup:pythonsd')!.mode, 'mirrored');
+  assert.equal(dir.get('meetup:pythonsd')!.owner, null);
+  dir.setOwnership('meetup:pythonsd', { mode: 'delegated', owner: 'a0'.repeat(32), claimedAt: NOW, nativeCalendar: `31924:${'a0'.repeat(32)}:meetup:pythonsd` });
+  dir.setOwnerRelays('meetup:pythonsd', ['wss://home.example.org']);
+  const owned = dir.get('meetup:pythonsd')!;
+  assert.equal(owned.mode, 'delegated');
+  assert.equal(owned.owner, 'a0'.repeat(32));
+  assert.equal(owned.claimedAt, NOW);
+  assert.equal(owned.nativeCalendar, `31924:${'a0'.repeat(32)}:meetup:pythonsd`);
+  assert.deepEqual(owned.ownerRelays, ['wss://home.example.org']);
+  assert.deepEqual(dir.byOwner('a0'.repeat(32)).map((e) => e.d), ['meetup:pythonsd']);
+
+  const native = entry(`nostr:${'b0'.repeat(32)}`, { source: 'nostr', feedUrl: '', mode: 'own', owner: 'b0'.repeat(32) });
+  assert.equal(dir.add(native), true);
+  assert.equal(dir.get(native.d)!.mode, 'own');
+  assert.equal(dir.get(native.d)!.localName, 'nostr-b0b0b0b0b0b0b0b0');
+  assert.equal(dir.byFeedUrl(''), null, 'a native entry is never found by an empty feed URL');
+});
+
+test('a directory from before ownership gains its columns when opened', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'dir-'));
+  const path = join(dataDir, 'index.db');
+  const old = new Database(path);
+  old.exec(`CREATE TABLE directory (d TEXT PRIMARY KEY, role TEXT NOT NULL, source TEXT NOT NULL, feed_url TEXT NOT NULL, page_url TEXT, name TEXT,
+    description TEXT, image TEXT, location TEXT, g TEXT, found_via TEXT, pubkey TEXT UNIQUE, added_at INTEGER NOT NULL, removed TEXT, removed_at INTEGER, calendar_meta TEXT);
+    INSERT INTO directory (d, role, source, feed_url, added_at) VALUES ('meetup:pythonsd', 'calendar', 'meetup', 'https://www.meetup.com/pythonsd/events/ical/', ${NOW});`);
+  old.close();
+  const db = openIndexDb(path);
+  const dir = directoryStore(db);
+  assert.equal(dir.get('meetup:pythonsd')!.mode, 'mirrored');
+  db.close();
+  rmSync(dataDir, { recursive: true, force: true });
+});

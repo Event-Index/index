@@ -16,6 +16,7 @@ import type { QueueStore } from '../../indexer/src/store/queues.ts';
 import type { EventStore } from '../../indexer/src/store/events.ts';
 import { npubEncode } from 'nostr-tools/nip19';
 import { LIMITS, rateLimiter, type Limits } from './limits.ts';
+import type { RelayReader } from '../../indexer/src/native/read.ts';
 import { calendarView, documentJsonLd, eventDocument, eventList, feedOf, feedWindow, statsView, withoutCopies, type Format, type ViewDeps } from './views.ts';
 import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
 import { brandFiles } from './brand.ts';
@@ -31,6 +32,8 @@ export interface ApiDeps {
   cities: Cities;
   now: () => number;
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
+  // Reads organizers' own events from relays (filing a native calendar).
+  reader?: RelayReader;
   limits?: Partial<Limits>;
   log?: (line: string) => void;
 }
@@ -211,7 +214,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
           notFound();
         }
       }
-      const entry = dir.byPubkey(pubkey);
+      const entry = dir.byPubkey(pubkey) ?? dir.byOwner(pubkey)[0] ?? null;
       return entry ? json(200, calendarView(view, entry)) : notFound('No calendar in the directory has this key.');
     }
     if (area === 'search' && how === 'calendars' && arg === 'byterm' && parts.length === 3) {

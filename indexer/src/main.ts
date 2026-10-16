@@ -18,6 +18,8 @@ import { openVault } from './store/vault-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
+import { poolReader } from './native/read.ts';
+import { SimplePool } from 'nostr-tools/pool';
 
 const TICK_SECONDS = 30;
 
@@ -47,6 +49,8 @@ async function main(): Promise<void> {
   const indexKey = readIndexKey(settings.indexKeyFile);
   const dir = directoryStore(db);
   const publisher = relayPublisher(settings, log, { pauses: relayPauses(dir) });
+  // Organizers' own events are read on a pool of their own.
+  const readPool = new SimplePool();
   const controller = new AbortController();
   const stop = (signal: string) => {
     if (controller.signal.aborted) return;
@@ -67,6 +71,7 @@ async function main(): Promise<void> {
     now: () => Math.floor(Date.now() / 1000),
     fetch: (url, validators) => fetchFeed(url, validators),
     publisher,
+    reader: poolReader(readPool),
     log,
     signal: controller.signal,
   });
@@ -93,6 +98,7 @@ async function main(): Promise<void> {
     }
   } finally {
     publisher.close();
+    readPool.destroy();
     vault.close();
     db.close();
     lock.release();

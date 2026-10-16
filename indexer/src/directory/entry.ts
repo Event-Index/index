@@ -13,8 +13,15 @@ export interface EntryInput {
   calendar: CalendarMeta;
   // The list header's coordinate, 39998:<pubkey>:<d>.
   header: string;
-  // The calendar key; null for an aggregator.
+  // The calendar's current key (the calendar key, or its organizer's own
+  // once they publish as themselves); null for an aggregator.
   pubkey: string | null;
+  // After a claim, the calendar key the index held, while events it signed
+  // are still to come.
+  formerKey?: string | null;
+  // `nostr` once the calendar's events are read from its organizer's own
+  // key instead of its feed.
+  readFrom?: 'feed' | 'nostr';
   // Its local name on the index (page and NIP-05 name).
   localName: string;
   location?: string | null;
@@ -37,22 +44,24 @@ export function directoryEntry(input: EntryInput): EventTemplate {
   const { identity, calendar } = input;
   const policy = adapterFor(identity.source).policy;
   const platformId = identity.d.slice(identity.d.indexOf(':') + 1);
+  const source = input.readFrom === 'nostr' ? 'nostr' : identity.source;
   const tags: Array<[string, string | null | undefined]> = [
     ['d', identity.d],
     ['z', input.header],
     ['name', calendar.name ?? identity.d],
     ['role', identity.role],
     ['p', identity.role === 'calendar' ? input.pubkey : null],
+    ['p', identity.role === 'calendar' && input.formerKey !== input.pubkey ? input.formerKey : null],
     ['index-name', input.localName],
-    ['feed', identity.feedUrl],
-    ['source', identity.source],
+    ['feed', source === 'nostr' ? null : identity.feedUrl],
+    ['source', source],
     ['location', input.location],
     ['g', input.geohash],
     ['luma-id', identity.source === 'luma' && identity.role === 'calendar' ? platformId : null],
     ['meetup-group', identity.source === 'meetup' ? platformId : null],
     ['calendar', input.nativeCalendar],
     ['t', input.city],
-    ['t', identity.source],
+    ['t', source],
     ['description', policy.fullDescription ? calendar.description : null],
     ['image', policy.images ? calendar.image : null],
     ['removed', input.removed],
