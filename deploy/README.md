@@ -248,6 +248,7 @@ eventindex-admin removals                    # id, time, whether the token was f
 eventindex-admin approve-removal 2
 eventindex-admin reject-removal 5
 eventindex-admin remove meetup-pythonsd --message "asked by email"
+eventindex-admin aggregator npub1…            # a listed nostr publisher of other organizers' events
 eventindex-admin claims                      # id, time, proof (token or NIP-05), mode, calendar, the claimant's key
 eventindex-admin approve-claim 7             # only once the claim is verified
 eventindex-admin reject-claim 8
@@ -261,6 +262,18 @@ now publishes, and deletes the key from `vault.db`. It cannot be undone from
 here; the organizer can still have the calendar removed. Whether the index's
 relay also takes the events of organizers it publishes as is
 `RELAY_HOSTS_CLAIMANTS` in `deploy.env` (off).
+
+## Every public NIP-52 event
+
+With `INGEST_NOSTR=1` the poll service reads every public NIP-52 event by
+kind and lists each publisher in the directory
+([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 14). A first run
+reads each relay's history over a few minutes, a few thousand events a
+tick; `eventindex-admin status` counts the calendars listed. Their entries
+stay on the index's relay until `PUBLISH_NOSTR_ENTRIES_OUTSIDE=1`, which
+sends them to the list and search relays at their sets' pace. Nostr
+publishers of other organizers' events are listed in
+`seeds/nostr-aggregators.json`, or marked with `eventindex-admin aggregator`.
 
 ## Discovery and coverage
 

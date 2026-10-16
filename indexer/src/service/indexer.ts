@@ -520,6 +520,11 @@ export function createIndexer(deps: IndexerDeps) {
     const d = nativeD(pubkey);
     if (dir.doNotIndex(d)) return null;
     const existing = dir.get(d);
+    if (existing && !existing.removed && aggregators.has(pubkey) && existing.role !== 'aggregator') {
+      // A key added to the aggregators' list after it was listed.
+      dir.setRole(d, 'aggregator');
+      return dir.get(d);
+    }
     if (existing) return existing.removed ? null : existing;
     if (!list || !settings.ingestNip52) return null;
     const profile = store.profile(pubkey);

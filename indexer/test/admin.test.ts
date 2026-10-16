@@ -8,7 +8,7 @@ import { openIndexDb } from '../src/store/index-db.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
 import { discoveredStore } from '../src/store/discovered.ts';
 import { identify } from '../src/directory/id.ts';
@@ -349,4 +349,14 @@ test('a key that publishes a calendar itself owns no other; one the index publis
   s.dir.retire('meetup:pythonsd', 'organizer request', NOW);
   approveClaim(s, delegated.id, NOW);
   assert.equal(s.queues.claim(delegated.id)!.status, 'approved', 'a removed calendar does not count');
+});
+
+test('a maintainer marks a listed nostr publisher as an aggregator', () => {
+  const s = stores();
+  const key = 'c0'.repeat(32);
+  s.dir.add({ d: `nostr:${key}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: 'Bitcoin Events Worldwide', description: null, image: null,
+    location: null, g: null, foundVia: 'ingest', addedAt: NOW, mode: 'own', owner: key });
+  markAggregator(s, key);
+  assert.equal(s.dir.get(`nostr:${key}`)!.role, 'aggregator');
+  assert.throws(() => markAggregator(s, 'd0'.repeat(32)), /not listed/);
 });

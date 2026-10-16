@@ -19,6 +19,7 @@
 //   node indexer/src/admin.ts claims
 //   node indexer/src/admin.ts approve-claim <id>
 //   node indexer/src/admin.ts reject-claim <id>
+//   node indexer/src/admin.ts aggregator <npub or hex>
 //   node indexer/src/admin.ts relays
 //   node indexer/src/admin.ts pause-relay <wss://…> [--hours <n>]
 //   node indexer/src/admin.ts resume-relay <wss://…>
@@ -35,7 +36,7 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 import { discoveredStore, type Found } from './store/discovered.ts';
@@ -60,6 +61,7 @@ const USAGE = `usage: admin.ts <command>
   claims
   approve-claim <id>
   reject-claim <id>
+  aggregator <npub or hex>
   relays
   pause-relay <wss://…> [--hours <n>]
   resume-relay <wss://…>`;
@@ -219,6 +221,14 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       rejectClaim(s, id(args[0]), now);
       out('rejected');
       return;
+    case 'aggregator': {
+      const arg = args[0] ?? '';
+      const pubkey = arg.startsWith('npub1') ? (decode(arg as `npub1${string}`).data as string) : arg;
+      if (!/^[0-9a-f]{64}$/.test(pubkey)) throw new UsageError('aggregator needs an npub or a hex key');
+      markAggregator(s, pubkey);
+      out(`nostr:${pubkey} is listed as an aggregator; copies of organizers' own events are marked at the next tick`);
+      return;
+    }
     case 'relays': {
       const paused = relayPauses(s.dir).all();
       if (paused.length === 0) out('no relay is paused');

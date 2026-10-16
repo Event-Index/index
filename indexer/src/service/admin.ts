@@ -237,6 +237,15 @@ export function rejectClaim(s: AdminStores, id: number, now: number): void {
   s.queues.resolveClaim(id, 'rejected', now);
 }
 
+// A nostr publisher that publishes other organizers' events under its own
+// key: its entry gets the role aggregator, and an organizer's own original of
+// one of its events becomes canonical (spec/indexer-rules.md § 15).
+export function markAggregator(s: AdminStores, pubkey: string): void {
+  const entry = s.dir.get(`nostr:${pubkey}`);
+  if (!entry) throw new Error(`nostr:${pubkey} is not listed`);
+  s.dir.setRole(entry.d, 'aggregator');
+}
+
 export function status(s: AdminStores, now: number) {
   const all = s.dir.list({ includeRemoved: true });
   const listed = all.filter((e) => !e.removed);
