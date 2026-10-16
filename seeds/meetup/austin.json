@@ -1,0 +1,14 @@
+{
+  "city": "Austin",
+  "country": "US",
+  "geonames_id": 4671654,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "round-rock-bitcoin-node-runners",
+      "found_via": "btcmap:round-rock-bitcoiners"
+    }
+  ],
+  "skipped": []
+}

@@ -1,0 +1,30 @@
+{
+  "city": "Denver",
+  "country": "US",
+  "geonames_id": 5419384,
+  "source": "luma",
+  "found_via": "luma:discplace-I94ZmQKKyVnCQKv",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-0LlxdAdVysuvHMm",
+    "cal-5p55x4r1I5SlfOT",
+    "cal-9W6BGelXwdNLAQx",
+    "cal-HOwk70F1O7tbbQa",
+    "cal-M4DK3ffolfPWfJX",
+    "cal-daeweDjZLsm9qFq"
+  ],
+  "skipped": [
+    {
+      "id": "cal-5kSAWu4DDMZIard",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-azNSTGAzt9BUGft",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-re8UaRArfWgstEk",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

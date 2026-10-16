@@ -1,0 +1,40 @@
+{
+  "city": "San Francisco",
+  "country": "US",
+  "geonames_id": 5391959,
+  "source": "luma",
+  "found_via": "luma:discplace-BDj7GNbGlsF7Cka",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-5vct8djci1YNWY3",
+    "cal-7FNSndCUzFmmOrd",
+    "cal-BIfGjPFqLuLbZvX",
+    "cal-G1vJPmVL5EEPLqe",
+    "cal-KWHGnqfru58yDGJ",
+    "cal-MJ28KU4lOJNFNHk",
+    "cal-PTQHoOpRUQ67d7U",
+    "cal-TqlnE35lpsiFp1N",
+    "cal-dnePGDOBT5zCgCp",
+    "cal-hpjD7wdpeOLbcMD",
+    "cal-hrV94ojRyh72wo4",
+    "cal-m1B6N8gMuVnPman",
+    "cal-qqO4nnDpYKE2en6",
+    "cal-twiOosdGMMY66DI",
+    "cal-vH0avsiSKkbUthy",
+    "cal-zauF7Gj3RTECxwR"
+  ],
+  "skipped": [
+    {
+      "id": "cal-XC2Gcln5gLaAjVE",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-bBjQXbr11LdVOK3",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-eZqKXHHskJZ6o7f",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

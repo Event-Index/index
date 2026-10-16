@@ -1,5 +1,5 @@
 {
-  "description": "US cities with more than 1,000,000 residents (US Census Bureau city population estimates, Vintage 2024), and the seed lists for each. Coordinates and ids from GeoNames (CC BY 4.0).",
+  "description": "US cities with more than 1,000,000 residents (US Census Bureau city population estimates, Vintage 2024), then US cities with a Luma Discover page (marked \"wave\": 2), and the seed lists for each. Coordinates and ids from GeoNames (CC BY 4.0).",
   "cities": [
     {
       "name": "New York",
@@ -142,6 +142,124 @@
       "timezone": "America/Chicago",
       "luma_discover": null,
       "seeds": []
+    },
+    {
+      "name": "San Francisco",
+      "slug": "san-francisco",
+      "country": "US",
+      "geonames_id": 5391959,
+      "latitude": 37.77493,
+      "longitude": -122.41942,
+      "timezone": "America/Los_Angeles",
+      "luma_discover": "luma:discplace-BDj7GNbGlsF7Cka",
+      "seeds": [
+        "luma/san-francisco.json",
+        "meetup/san-francisco.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Austin",
+      "slug": "austin",
+      "country": "US",
+      "geonames_id": 4671654,
+      "latitude": 30.26715,
+      "longitude": -97.74306,
+      "timezone": "America/Chicago",
+      "luma_discover": "luma:discplace-0tPy8KGz3xMycnt",
+      "seeds": [
+        "luma/austin.json",
+        "meetup/austin.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Miami",
+      "slug": "miami",
+      "country": "US",
+      "geonames_id": 4164138,
+      "latitude": 25.77427,
+      "longitude": -80.19366,
+      "timezone": "America/New_York",
+      "luma_discover": "luma:discplace-fSrrRYurTwydAGK",
+      "seeds": [
+        "luma/miami.json",
+        "meetup/miami.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Boston",
+      "slug": "boston",
+      "country": "US",
+      "geonames_id": 4930956,
+      "latitude": 42.35843,
+      "longitude": -71.05977,
+      "timezone": "America/New_York",
+      "luma_discover": "luma:discplace-VWeZ1zUvnawYHMj",
+      "seeds": [
+        "luma/boston.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Seattle",
+      "slug": "seattle",
+      "country": "US",
+      "geonames_id": 5809844,
+      "latitude": 47.60621,
+      "longitude": -122.33207,
+      "timezone": "America/Los_Angeles",
+      "luma_discover": "luma:discplace-FQ4E58PeBMHGTKK",
+      "seeds": [
+        "luma/seattle.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Washington DC",
+      "slug": "washington-dc",
+      "country": "US",
+      "geonames_id": 4140963,
+      "latitude": 38.89511,
+      "longitude": -77.03637,
+      "timezone": "America/New_York",
+      "luma_discover": "luma:discplace-AANPgOymN6bqFn8",
+      "seeds": [
+        "luma/washington-dc.json",
+        "meetup/washington-dc.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Atlanta",
+      "slug": "atlanta",
+      "country": "US",
+      "geonames_id": 4180439,
+      "latitude": 33.749,
+      "longitude": -84.38798,
+      "timezone": "America/New_York",
+      "luma_discover": "luma:discplace-C6hWuH5suHJIUqC",
+      "seeds": [
+        "luma/atlanta.json",
+        "meetup/atlanta.json"
+      ],
+      "wave": 2
+    },
+    {
+      "name": "Denver",
+      "slug": "denver",
+      "country": "US",
+      "geonames_id": 5419384,
+      "latitude": 39.73915,
+      "longitude": -104.9847,
+      "timezone": "America/Denver",
+      "luma_discover": "luma:discplace-I94ZmQKKyVnCQKv",
+      "seeds": [
+        "luma/denver.json",
+        "meetup/denver.json"
+      ],
+      "wave": 2
     }
   ]
 }

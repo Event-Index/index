@@ -1,0 +1,14 @@
+{
+  "city": "Atlanta",
+  "country": "US",
+  "geonames_id": 4180439,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "atlantabitdevs",
+      "found_via": "btcmap:atlanta-bit-devs"
+    }
+  ],
+  "skipped": []
+}

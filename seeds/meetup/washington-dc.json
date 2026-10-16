@@ -1,0 +1,20 @@
+{
+  "city": "Washington DC",
+  "country": "US",
+  "geonames_id": 4140963,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "bitcoin-district",
+      "found_via": "btcmap:bitcoin-district"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "southern-maryland-bitcoiners",
+      "reason": "http-404",
+      "found_via": "btcmap:southern-maryland-bitcoiners"
+    }
+  ]
+}

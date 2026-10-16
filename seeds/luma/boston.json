@@ -1,0 +1,63 @@
+{
+  "city": "Boston",
+  "country": "US",
+  "geonames_id": 4930956,
+  "source": "luma",
+  "found_via": "luma:discplace-VWeZ1zUvnawYHMj",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-BI22W7AXNavDI82",
+    "cal-KRBFnqgJRRU07pp",
+    "cal-QV7Usxo0hj1056W",
+    "cal-Qd1lDdTjtD8nb9E",
+    "cal-SRZBqShHEEHRr2D",
+    "cal-ZBG0uF753Zm1FFp",
+    "cal-wXeomljuhPkyUOu"
+  ],
+  "skipped": [
+    {
+      "id": "cal-4BvDjU6CjGMNIDM",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-7Twjgyg61DfFxGz",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-9LsDNJvYE79WBK3",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-A6uFUI6o6UAiijn",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-ClZC3XYjmhb5mA2",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-DYNnOBHl8WBY4Yn",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-WwbFnoQJKTd7V9h",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-brGm2dUbGITnoNZ",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-iPEqc7XEBk860Oh",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-igBHePdci20EP1F",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-wangzqXPsbZfGZW",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

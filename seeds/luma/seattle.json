@@ -1,0 +1,48 @@
+{
+  "city": "Seattle",
+  "country": "US",
+  "geonames_id": 5809844,
+  "source": "luma",
+  "found_via": "luma:discplace-FQ4E58PeBMHGTKK",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-0VMgRPJpqUzLxOa",
+    "cal-2hvlu572bo1oupO",
+    "cal-8EtFfS1gDogglBc",
+    "cal-EHvDh6vhawZP9k8",
+    "cal-JiqCSUCQSxBv3G0",
+    "cal-TOpA5LAFfuDeFpu",
+    "cal-WO1M3HdUJLlZf8S",
+    "cal-c5XPgmvHJ474NQB",
+    "cal-ctrKzA6cCfNfhHL",
+    "cal-n08PC9gOPSte7ZB",
+    "cal-romySnRGQeuKDGN",
+    "cal-z8Up5wWUbKZBoso"
+  ],
+  "skipped": [
+    {
+      "id": "cal-B1gNRRTK5w1UDoh",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-XTDdSpLdkO7lVpz",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-dQNqltrzAnGX3dk",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-dxQMQgxdN6Tkzfr",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-fxeAMyi5QQwximB",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-ijoShAbTKbu97dK",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

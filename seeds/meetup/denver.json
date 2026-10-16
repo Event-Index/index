@@ -1,0 +1,24 @@
+{
+  "city": "Denver",
+  "country": "US",
+  "geonames_id": 5419384,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "bitcoin-and-beer",
+      "found_via": "btcmap:bitcoin-and-beer"
+    },
+    {
+      "id": "boulder-bitcoiners",
+      "found_via": "btcmap:boulder-bitcoin"
+    }
+  ],
+  "skipped": [
+    {
+      "id": "denver-bitdevs",
+      "reason": "http-404",
+      "found_via": "btcmap:denver-bit-devs"
+    }
+  ]
+}

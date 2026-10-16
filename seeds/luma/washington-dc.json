@@ -1,0 +1,37 @@
+{
+  "city": "Washington DC",
+  "country": "US",
+  "geonames_id": 4140963,
+  "source": "luma",
+  "found_via": "luma:discplace-AANPgOymN6bqFn8",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-5AFcuvrNVHYRJ4Y",
+    "cal-AAO2oyuqOv3LHFu",
+    "cal-CDoX2WaI5IHD5xs",
+    "cal-CHgjatA42aHonoG",
+    "cal-QV7Usxo0hj1056W",
+    "cal-ZTg0NuynRxKdYuk",
+    "cal-dRj07249dbXdjhk",
+    "cal-doDhvwOH8EwYfrU",
+    "cal-eCuIBRbS1atJOa6",
+    "cal-fHHfS2rChIZ1IWx",
+    "cal-kgY3yq1wD2o9XxI",
+    "cal-pkokVablNyu5dmi",
+    "cal-vmWN8e61SJQ5tdS"
+  ],
+  "skipped": [
+    {
+      "id": "cal-CAe4wTmk5d68Pif",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-ErdsOnb9nz3HdtU",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-mqqsxUcYL42wHDX",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

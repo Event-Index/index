@@ -1,0 +1,14 @@
+{
+  "city": "San Francisco",
+  "country": "US",
+  "geonames_id": 5391959,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "bay-area-bitcoiners",
+      "found_via": "btcmap:bay-area-bitcoiners"
+    }
+  ],
+  "skipped": []
+}

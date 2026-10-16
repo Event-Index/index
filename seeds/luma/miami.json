@@ -1,0 +1,47 @@
+{
+  "city": "Miami",
+  "country": "US",
+  "geonames_id": 4164138,
+  "source": "luma",
+  "found_via": "luma:discplace-fSrrRYurTwydAGK",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-1HgflJfLH3HNUSP",
+    "cal-Bn1qy7gsHKYLeEV",
+    "cal-Fmb19yTwPm1wWRj",
+    "cal-GC5KnPoGH2C76rp",
+    "cal-NgTwepzMKeP3Xlg",
+    "cal-Ps9bA54FxmrrWOd",
+    "cal-QY2DqtsLo6ysea5",
+    "cal-RrWXCpmoDOe1a6N",
+    "cal-SRZBqShHEEHRr2D",
+    "cal-TOpA5LAFfuDeFpu",
+    "cal-zOpVdPClLz4ApTV"
+  ],
+  "skipped": [
+    {
+      "id": "cal-1tA5HEPIwxCX0Zc",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-3TFaILAegLzZBLZ",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-72vAOE4HLzIk8EW",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-GCLU8KrxylB0VJz",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-PcSGhdLYU4ZOXUP",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-lq4fXxHInBSQJA1",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

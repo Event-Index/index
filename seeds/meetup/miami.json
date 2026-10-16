@@ -1,0 +1,14 @@
+{
+  "city": "Miami",
+  "country": "US",
+  "geonames_id": 4164138,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "bitmiami-bitcoin",
+      "found_via": "btcmap:bit-miami"
+    }
+  ],
+  "skipped": []
+}

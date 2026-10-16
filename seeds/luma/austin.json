@@ -1,0 +1,35 @@
+{
+  "city": "Austin",
+  "country": "US",
+  "geonames_id": 4671654,
+  "source": "luma",
+  "found_via": "luma:discplace-0tPy8KGz3xMycnt",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-8e0aYvamGpJrn9c",
+    "cal-9dlTIhjaH2sJAkX",
+    "cal-HFQ2Etb8FONMVGc",
+    "cal-HQ6oY7gI3IML5vC",
+    "cal-ZpHWANHYDFXWAE9",
+    "cal-bwOgFE4wFnhH5rm",
+    "cal-gmMOid1Rsqc3Hih",
+    "cal-o1sqBdZCdfGyP1y",
+    "cal-ouHgAHCszM3INEo",
+    "cal-rJtDNkJ1QU1Sr2w",
+    "cal-rtotZPnee3QUMZC",
+    "cal-rwQQdIctP4pVyr7",
+    "cal-sCWf8GDVBzZzYi9",
+    "cal-uMxBtBJD0EQW5lO",
+    "cal-w9vKicJVcBwta81"
+  ],
+  "skipped": [
+    {
+      "id": "cal-CpUeiHdthB5t8Rf",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-yHCRbSGo6aQBMYx",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}

@@ -7,7 +7,8 @@ Seed lists are directory data, dedicated to the public domain under CC0 1.0
 ## Format
 
 `cities.json` lists the cities the seed lists cover (US cities with more than
-1,000,000 residents), each with its GeoNames id, coordinates, IANA time zone, Luma Discover
+1,000,000 residents; then, marked `"wave": 2`, US cities with a Luma Discover
+page), each with its GeoNames id, coordinates, IANA time zone, Luma Discover
 page (when it has one) and seed files.
 
 One JSON file per platform and city, `seeds/<source>/<city-slug>.json`:

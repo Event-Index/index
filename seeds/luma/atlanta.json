@@ -1,0 +1,39 @@
+{
+  "city": "Atlanta",
+  "country": "US",
+  "geonames_id": 4180439,
+  "source": "luma",
+  "found_via": "luma:discplace-C6hWuH5suHJIUqC",
+  "found_at": "2026-10-16",
+  "calendars": [
+    "cal-AeCQIZeAfkwD3tP",
+    "cal-S4RPA30sCjSleK6",
+    "cal-dD2KrSmXFZzqY7e"
+  ],
+  "skipped": [
+    {
+      "id": "cal-37inn1PMjv4Ackv",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-4HKCbQdRmFZwSC3",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-AvFo8KGqlCr834Y",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-RPWD0ItAz9zWEgB",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-ejgVgbKFJcZrL9O",
+      "reason": "platform-default-calendar"
+    },
+    {
+      "id": "cal-vq7GUMDVU5mI3Vn",
+      "reason": "platform-default-calendar"
+    }
+  ]
+}
