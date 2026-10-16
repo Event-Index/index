@@ -68,8 +68,8 @@ To run a server, see [`deploy/README.md`](deploy/README.md).
 - Directory data (entries, calendar metadata, poll statistics, seed lists):
   CC0 1.0 ([`seeds/LICENSE`](seeds/LICENSE)).
 - The Event Index mark and wordmark ([`brand/`](brand/README.md)): CC0 1.0
-  ([`brand/LICENSE`](brand/LICENSE)). The wordmark's letters are set in Public
-  Sans, under the SIL Open Font License 1.1.
+  ([`brand/LICENSE`](brand/LICENSE)). The typeface, Public Sans, is under the
+  SIL Open Font License 1.1 ([`brand/fonts/OFL.txt`](brand/fonts/OFL.txt)).
 - Event content remains its organizers'.
 
 ## Credits

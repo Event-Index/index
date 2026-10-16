@@ -19,7 +19,8 @@ import { LIMITS, rateLimiter, type Limits } from './limits.ts';
 import { calendarView, documentJsonLd, eventDocument, eventList, feedOf, feedWindow, statsView, withoutCopies, type Format, type ViewDeps } from './views.ts';
 import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
 import { brandFiles } from './brand.ts';
-import { CSP, STYLE, calendarPage, homePage, messagePage, removeResultPage, searchPage, submitResultPage } from './pages.ts';
+import { CSP, STYLE, calendarPage, calendarsPage, homePage, messagePage, removeResultPage, submitResultPage } from './pages.ts';
+import { cityCounts, cityZones, comingUp, dayGrid } from './home.ts';
 
 export interface ApiDeps {
   db: IndexDb;
@@ -313,7 +314,19 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
     if (method !== 'GET' && method !== 'HEAD') return html(405, messagePage('Not allowed', 'This page takes GET.'));
     if (url.pathname === '/') {
       const indexPubkey = dir.fact('index_pubkey');
-      return html(200, homePage(statsView(view, now), settings, indexPubkey ? npubEncode(indexPubkey) : null));
+      const entries = dir.list();
+      const zones = cityZones(entries, deps.cities);
+      const zoned = <T extends { calendarD: string; tzid: string | null }>(r: T): T => ({ ...r, tzid: r.tzid ?? zones.get(r.calendarD) ?? null });
+      // Four weeks from this Monday, with a day's margin for zones.
+      const days = dayGrid(events.startsBetween(now - 8 * 86400, now + 29 * 86400).map(zoned), now).days;
+      return html(200, homePage({
+        stats: statsView(view, now),
+        days,
+        upcoming: comingUp(events.search({ from: now, to: now + 30 * 86400, limit: 500 }).map(zoned), entries, now, 6),
+        cities: cityCounts(entries, deps.cities),
+        settings,
+        indexNpub: indexPubkey ? npubEncode(indexPubkey) : null,
+      }));
     }
     if (url.pathname === '/style.css') return { status: 200, type: 'text/css; charset=utf-8', body: STYLE };
     const file = brand.get(url.pathname);
@@ -323,14 +336,23 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       if (file.type === 'image/svg+xml') headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'";
       return { status: 200, type: file.type, body: file.body, headers };
     }
-    if (url.pathname === '/search') {
+    if (url.pathname === '/calendars' || url.pathname === '/search') {
       const q = url.searchParams.get('q')?.trim() ?? '';
-      return html(200, searchPage(q, q ? calendarSearch(url.searchParams) : []));
+      const entries = dir.list();
+      const cities = cityCounts(entries, deps.cities);
+      const city = cities.find((c) => c.slug === url.searchParams.get('city')) ?? null;
+      let found = q ? calendarSearch(new URLSearchParams({ q, limit: '500' })) : entries.filter((e) => e.role === 'calendar');
+      if (city) found = found.filter((e) => cityCounts([e], deps.cities)[0]?.slug === city.slug);
+      const counts = events.upcomingByCalendar(now);
+      const items = found.map((entry) => ({ entry, upcoming: counts.get(entry.d) ?? 0 }))
+        .sort((a, b) => b.upcoming - a.upcoming || (a.entry.name ?? a.entry.d).localeCompare(b.entry.name ?? b.entry.d));
+      return html(200, calendarsPage({ q, city, items, cities }));
     }
     if (parts.length === 2 && parts[0] === 'calendar') {
       const entry = dir.byLocalName(decodeURIComponent(parts[1]!));
       if (!entry) return html(404, messagePage('No such calendar', 'There is no such calendar in the directory.'));
-      const upcoming = entry.removed ? [] : events.byCalendar(entry.d, now, now + YEAR, 50);
+      const zone = cityZones([entry], deps.cities).get(entry.d) ?? (dir.calendarMeta(entry.d) as { timezone?: string | null } | null)?.timezone ?? null;
+      const upcoming = entry.removed ? [] : events.byCalendar(entry.d, now, now + YEAR, 50).map((r) => ({ ...r, tzid: r.tzid ?? zone }));
       return html(200, calendarPage(entry, calendarView(view, entry), upcoming, settings));
     }
     return html(404, messagePage('Not found', 'There is nothing at this address.'));

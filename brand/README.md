@@ -23,8 +23,10 @@ The same tokens as the site (`api/src/pages.ts`):
 ## Typeface
 
 Public Sans, weight 600, for the wordmark. The SVGs carry the letters as
-paths, so nothing needs the font installed. The site sets its text in the
-reader's system font.
+paths, so nothing needs the font installed. The site sets its text in Public
+Sans too, from its own copy: `fonts/` holds the latin subset at weights 400,
+600 and 700 (WOFF2, from the `@fontsource/public-sans` package), served under
+`/brand/fonts/`, under the SIL Open Font License 1.1 (`fonts/OFL.txt`).
 
 ## Files
 

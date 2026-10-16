@@ -120,6 +120,14 @@ export function eventStore(index: IndexDb) {
     },
     byCalendar: (calendarD: string, from: number, to: number, limit = 500) => search({ from, to, calendars: [calendarD], limit }),
     search,
+    // Starts of the events in a span, for counting by day.
+    startsBetween: (from: number, to: number) => db.prepare<[number, number], { calendar_d: string; start: number; tzid: string | null; kind: number }>(
+      'SELECT calendar_d, start, tzid, kind FROM events WHERE start >= ? AND start < ? AND cancelled = 0 AND canonical IS NULL',
+    ).all(from, to).map((r) => ({ calendarD: r.calendar_d, start: r.start, tzid: r.tzid, allDay: r.kind === 31922 })),
+    // Upcoming events per calendar, a co-host's copy included.
+    upcomingByCalendar: (now: number) => new Map(db.prepare<[number], { d: string; n: number }>(
+      'SELECT calendar_d AS d, count(*) AS n FROM events WHERE start >= ? GROUP BY calendar_d',
+    ).all(now).map((r) => [r.d, r.n])),
     countUpcoming: (now: number) => db.prepare<[number], { n: number }>('SELECT count(*) AS n FROM events WHERE start >= ?').get(now)!.n,
     countByCalendar: (calendarD: string) => db.prepare<[string], { n: number }>('SELECT count(*) AS n FROM events WHERE calendar_d = ?').get(calendarD)!.n,
     // The calendars with an event carrying the topic.

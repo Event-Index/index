@@ -24,6 +24,8 @@ export interface City {
   geonames_id: number;
   latitude: number;
   longitude: number;
+  // The city's IANA zone, for showing times of events that carry none.
+  timezone?: string;
 }
 
 export interface Cities {

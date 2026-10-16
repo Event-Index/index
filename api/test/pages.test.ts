@@ -30,23 +30,70 @@ function plainPage(response: Response, html: string): void {
   }
 }
 
-test('the one page: what it is, search, submit, the API, stats and the dump', async () => {
+test('the home page: headline, the four weeks, coming up, cities, how it works, organizers and developers', async () => {
   const response = await h.get('/');
   const html = await response.text();
   assert.equal(response.status, 200);
   plainPage(response, html);
   assert.match(html, /<a href="\/" aria-label="Event Index home">\s*<picture>/);
-  assert.match(html, /<h1>An open directory of public event calendars\.<\/h1>/);
-  assert.match(html, /<form[^>]+action="\/search"[^>]+method="get"/);
-  assert.match(html, /<form[^>]+action="\/submit"[^>]+method="post"/);
-  assert.match(html, /https:\/\/api\.eventindex\.space\/api\/1\.0/);
-  assert.match(html, /href="https:\/\/api\.eventindex\.space\/api\/1\.0\/dump\/index\.db"/);
+  for (const [path, text] of [['/calendars', 'Calendars'], ['/#add', 'Add a calendar'], ['/#api', 'API'], ['/#relay', 'Relay']]) {
+    assert.ok(html.includes(`<a href="${path}">${text}</a>`), text);
+  }
+  assert.match(html, /<h1>Public event calendars in one open directory\.<\/h1>/);
   assert.match(html, /<strong>5<\/strong> calendars/);
-  assert.match(html, /\/\.well-known\/nostr\.json/);
-  assert.match(html, /CC0/);
-  const css = await h.get('/style.css');
+  // The grid: four weeks of days, rings on the days with events.
+  assert.match(html, /<svg viewBox="0 0 308 230" role="img" aria-label="The next four weeks: \d+ events on \d+ days">/);
+  assert.equal((html.match(/<g class="g-cell/g) ?? []).length, 28);
+  assert.ok((html.match(/class="g-ring"/g) ?? []).length > 0);
+  // Coming up: at most six cards, titles only, under each source's policy.
+  const cards = html.match(/<li class="card">[\s\S]*?<\/li>/g) ?? [];
+  assert.ok(cards.length > 0 && cards.length <= 6);
+  assert.ok(cards.every((card) => /<div class="tile" aria-hidden="true"><span class="m">[A-Z][a-z]{2}<\/span><span class="d">\d{1,2}<\/span><\/div>/.test(card)));
+  assert.ok(!html.includes('Qualcomm'), 'no Meetup description on the home page');
+  assert.match(html, /<a href="\/calendars\?city=san-diego">San Diego <span class="n">1<\/span><\/a>/);
+  assert.match(html, /<a href="\/calendars\?city=new-york">New York <span class="n">2<\/span><\/a>/);
+  assert.match(html, /<h2 id="how">How it works<\/h2>/);
+  assert.match(html, /<form class="row" action="\/calendars" method="get"/);
+  assert.match(html, /<div id="add">[\s\S]*<form class="row" action="\/submit" method="post">/);
+  assert.match(html, /<dt>API<\/dt><dd>https:\/\/api\.eventindex\.space\/api\/1\.0<\/dd>/);
+  assert.match(html, /<dt id="relay">Relay<\/dt><dd>wss:\/\/relay\.eventindex\.space<\/dd>/);
+  assert.match(html, /_@eventindex\.space/);
+  assert.match(html, /href="https:\/\/api\.eventindex\.space\/api\/1\.0\/dump\/index\.db"/);
+  assert.match(html, /<a href="https:\/\/nosfabrica\.com">NosFabrica<\/a> is a core maintainer of Event Index\. <a href="https:\/\/brainstorm\.world">Brainstorm<\/a> is one consumer of the index\./);
+  assert.match(html, /not affiliated with any platform it reads/);
+  assert.ok(!/\u2014/.test(html), 'no em dashes in the copy');
+  const sheet = /<link rel="stylesheet" href="(\/style\.css\?v=[0-9a-f]{10})">/.exec(html);
+  assert.ok(sheet, 'the stylesheet\'s address changes with its content');
+  const css = await h.get(sheet[1]!);
   assert.equal(css.status, 200);
   assert.match(css.headers.get('content-type')!, /^text\/css/);
+  const text = await css.text();
+  assert.match(text, /@font-face \{ font-family: "Public Sans"; font-style: normal; font-weight: 600;/);
+  assert.match(text, /prefers-reduced-motion/);
+  assert.match(text, /:focus-visible/);
+  assert.match(response.headers.get('content-security-policy')!, /font-src 'self'/);
+});
+
+test('the typeface is served from the site itself', async () => {
+  for (const weight of [400, 600, 700]) {
+    const response = await h.get(`/brand/fonts/public-sans-latin-${weight}-normal.woff2`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'font/woff2');
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), readFileSync(`${brand}fonts/public-sans-latin-${weight}-normal.woff2`));
+  }
+  assert.equal((await h.get('/brand/fonts/OFL.txt')).status, 404);
+});
+
+test('the calendars page lists every calendar, by city or by search', async () => {
+  const all = await (await h.get('/calendars')).text();
+  assert.equal((all.match(/<a href="\/calendar\//g) ?? []).length, 5);
+  const city = await h.get('/calendars?city=new-york');
+  const html = await city.text();
+  plainPage(city, html);
+  assert.match(html, /<h1>Calendars in New York<\/h1>/);
+  assert.equal((html.match(/<a href="\/calendar\//g) ?? []).length, 2);
+  assert.match(html, /<a href="\/calendars\?city=new-york" aria-current="page">/);
+  assert.match(html, /\d+ upcoming events?/);
 });
 
 test('directory search as a page', async () => {
@@ -66,7 +113,7 @@ test('a calendar\'s page: its events under its content policy, and the remove fo
   assert.equal(response.status, 200);
   plainPage(response, html);
   assert.match(html, /<h1>San Diego Python Users Group<\/h1>/);
-  assert.match(html, /Meetup®/);
+  assert.match(html, /<p class="eyebrow">Meetup® · San Diego<\/p>/);
   assert.match(html, /not affiliated with Meetup/);
   assert.match(html, new RegExp(`<form[^>]+action="/calendar/${name}/remove"[^>]+method="post"`));
   assert.match(html, new RegExp(`/api/1.0/ics/calendar/${name}.ics`));

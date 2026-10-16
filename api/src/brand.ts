@@ -1,6 +1,6 @@
-// The logo files (../../brand/): the favicon set at the site root, and the
-// mark and wordmark under /brand/. Read once at start; nothing else in the
-// folder is served.
+// The logo files (../../brand/): the favicon set at the site root, the mark
+// and wordmark under /brand/, and the site's typeface under /brand/fonts/.
+// Read once at start; nothing else in the folder is served.
 
 import { readFileSync, readdirSync } from 'node:fs';
 
@@ -9,6 +9,7 @@ const TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
 };
 
 export interface BrandFile {
@@ -27,5 +28,6 @@ export function brandFiles(dir: URL = new URL('../../brand/', import.meta.url)):
   add('favicon', '/');
   add('mark', '/brand/');
   add('wordmark', '/brand/');
+  add('fonts', '/brand/fonts/');
   return files;
 }

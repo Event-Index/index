@@ -9,7 +9,8 @@ the mark.
 
 The wordmark's letters are set in Public Sans (weight 600) and embedded as
 outlines. Public Sans is licensed under the SIL Open Font License 1.1; the
-font itself is not distributed here.
+font files in fonts/, which the site serves, come with that license
+(fonts/OFL.txt) and are not covered by the dedication above.
 
 The scripts in tools/ are code, under the Apache License 2.0 (see ../LICENSE).
 
