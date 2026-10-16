@@ -14,7 +14,7 @@ import { recordFromText, type CalendarMeta, type NormalizedFeed } from '../norma
 import { pollCalendar } from '../poller/poll.ts';
 import type { FetchResult, Validators } from '../poller/fetch.ts';
 import { cohostPlan, cohostsIn, projectable, type CohostPlan } from '../project/projector.ts';
-import { calendarProfile, calendarList, deletionFor, INDEX_NAME } from '../project/profile.ts';
+import { calendarProfile, calendarList, deletionFor, retiredProfile, INDEX_NAME } from '../project/profile.ts';
 import { geoOf, locationsOf, summaryOf, venueHidden, type EventTemplate } from '../project/nip52.ts';
 import { encodeGeohash } from '../project/geohash.ts';
 import { projectionHash } from '../project/hash.ts';
@@ -407,6 +407,44 @@ export function createIndexer(deps: IndexerDeps) {
     deps.log(`outside relays: backfill of ${count} events from ${authors.length} keys queued for ${[...new Set(facts.map(([, r]) => r))].join(', ')}`);
   }
 
+  // While calendar keys are paused, a calendar that is removed or claimed is
+  // cleared from the outside relays by its own key: a neutral last profile,
+  // and a deletion of every calendar and event it signed (each version's
+  // `e`, then its `a` and `k`), to the search, general and profile relays.
+  // Nothing else of it goes there. The clearing is kept as a fact until the
+  // outside relays have taken it, and sent again after a restart.
+  const CLEARING = 'outside_clearing ';
+  const clearingHere = new Set<string>();
+  async function sendClearing(d: string, now: number): Promise<void> {
+    const { pubkey, localName } = JSON.parse(dir.fact(CLEARING + d)!) as { pubkey: string; localName: string };
+    const templates = [
+      retiredProfile(localName),
+      ...db.signedAddresses(pubkey, [31922, 31923, 31924]).map((a) => deletionFor({ versions: a.versions, coordinate: `${a.kind}:${pubkey}:${a.d}`, kind: a.kind })),
+    ];
+    const signed = templates.map((t) => vault.sign(d, { ...t, created_at: now }));
+    for (const set of ['search', 'general', 'profiles'] as RelaySet[]) if (relaysOf[set].length) await publisher.publish(signed, set);
+    clearingHere.add(d);
+  }
+  async function clearOutside(entry: StoredEntry, pubkey: string, now: number): Promise<void> {
+    if (!settings.calendarKeysPaused || !settings.publishToGeneralRelays) return;
+    dir.setFact(CLEARING + entry.d, JSON.stringify({ pubkey, localName: entry.localName, at: now }));
+    await sendClearing(entry.d, now);
+    deps.log(`outside relays: clearing ${entry.d}`);
+  }
+  async function keepClearing(now: number): Promise<void> {
+    for (const { key } of dir.factsWithPrefix(CLEARING)) {
+      const d = key.slice(CLEARING.length);
+      if (!clearingHere.has(d)) {
+        await sendClearing(d, now);
+      } else if ((publisher.pending?.() ?? 0) === 0) {
+        dir.deleteFact(key);
+        dir.setFact(`outside_cleared ${d}`, String(now));
+        clearingHere.delete(d);
+        deps.log(`outside relays: ${d} cleared`);
+      }
+    }
+  }
+
   // Signs templates (hash-tracked unless `always`) with created_at moving
   // forward per address, sends them, and records them.
   async function publishAs(
@@ -775,6 +813,7 @@ export function createIndexer(deps: IndexerDeps) {
       d: 'calendar', start: now,
     });
     const published = await publishAs(key, (t) => vault.sign(entry.d, t), items, now);
+    await clearOutside(entry, key, now);
     for (const p of deleted) db.markWithdrawn(key, p.kind, p.d, 'deleted');
     for (const p of kept) db.markWithdrawn(key, p.kind, p.d, 'cancelled');
     // While calendar keys are paused no key is deleted: each signs its own
@@ -1081,6 +1120,7 @@ export function createIndexer(deps: IndexerDeps) {
         },
       ];
       published = await publishAs(pubkey, (t) => vault.sign(entry.d, t), items, now);
+      await clearOutside(entry, pubkey, now);
       for (const p of upcoming) db.markWithdrawn(pubkey, p.kind, p.d, 'deleted');
       // Nothing is signed for the calendar again; its backups age out. While
       // calendar keys are paused the key stays, to sign its deletions outside.
@@ -1249,6 +1289,11 @@ export function createIndexer(deps: IndexerDeps) {
         await maybeBackfill(now);
       } catch (error) {
         deps.log(`outside relays: backfill: ${(error as Error).message}`);
+      }
+      try {
+        await keepClearing(now);
+      } catch (error) {
+        deps.log(`outside relays: clearing: ${(error as Error).message}`);
       }
       maybeDump(now);
       return report;

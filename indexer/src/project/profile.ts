@@ -27,6 +27,14 @@ export function calendarPage(localName: string): string {
   return `https://${INDEX_DOMAIN}/calendar/${localName}`;
 }
 
+// A calendar key's last profile, once the index no longer publishes with it:
+// a neutral name, no NIP-05, website or picture, and the calendar's page.
+export const RETIRED_NAME = 'Retired Event Index mirror';
+export function retiredProfile(localName: string): EventTemplate {
+  const about = `${INDEX_NAME} no longer publishes with this key. The calendar's page: ${calendarPage(localName)}`;
+  return { kind: 0, tags: [], content: JSON.stringify({ name: RETIRED_NAME, about }) };
+}
+
 export interface ProfileInput {
   name: string;
   url: string | null;

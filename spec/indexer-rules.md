@@ -285,8 +285,14 @@ creates the calendar key.
   has a key publishes to the index's relay only; nothing a calendar key signs
   goes to the outside relays or is sent to them again. No calendar key is
   deleted: a removal or a claim withdraws the calendar's events on the
-  index's relay and keeps its key. When the pause ends, keys are made at each
-  calendar's next poll and the outside relays get what they missed.
+  index's relay as at any time and keeps its key, and the key clears the
+  calendar from the outside relays (search, general and profile relays): a
+  last kind 0 with the name `Retired Event Index mirror`, no `nip05`,
+  `website` or `picture`, and an `about` naming the calendar's page; and a
+  kind 5 for every 31922, 31923 and 31924 it signed, naming each version's
+  `e`, then the `a` and the `k`. The clearing is resent after a restart
+  until the outside relays have taken it. When the pause ends, keys are made
+  at each calendar's next poll and the outside relays get what they missed.
 - On SIGTERM the service stops after the poll in progress.
 
 ## 12. Calendars published by their organizers

@@ -98,6 +98,9 @@ export interface IndexDb {
   lastTemplate(pubkey: string, kind: number, d: string): unknown;
   // The calendar key's projections that are live (not withdrawn).
   liveProjections(pubkey: string): Array<{ kind: number; d: string; start: number }>;
+  // Every address of these kinds the key signed, with every version's id,
+  // withdrawn ones included.
+  signedAddresses(pubkey: string, kinds: number[]): Array<{ kind: number; d: string; versions: string[] }>;
   // How many of the key's events (live or cancelled) have yet to start.
   pendingProjections(pubkey: string, now: number): number;
   loadPresence(calendarD: string): PresenceState;
@@ -181,6 +184,18 @@ export function openIndexDb(path: string): IndexDb {
     projection,
     versions: (pubkey, kind, d) => listVersions.all(pubkey, kind, d).map((r) => r.event_id),
     lastCreatedAt: (pubkey, kind, d) => projection(pubkey, kind, d)?.createdAt ?? null,
+    signedAddresses(pubkey, kinds) {
+      const rows = db.prepare<Array<string | number>, { kind: number; d: string; event_id: string }>(
+        `SELECT kind, d, event_id FROM versions WHERE pubkey = ? AND kind IN (${kinds.map(() => '?').join(', ') || "''"}) ORDER BY kind, d, created_at, event_id`,
+      ).all(pubkey, ...kinds);
+      const byAddress = new Map<string, { kind: number; d: string; versions: string[] }>();
+      for (const r of rows) {
+        const key = `${r.kind}:${r.d}`;
+        if (!byAddress.has(key)) byAddress.set(key, { kind: r.kind, d: r.d, versions: [] });
+        byAddress.get(key)!.versions.push(r.event_id);
+      }
+      return [...byAddress.values()];
+    },
     liveProjections: (pubkey) => db.prepare<[string], { kind: number; d: string; start: number }>(
       "SELECT kind, d, start FROM projections WHERE pubkey = ? AND status = 'live' ORDER BY start",
     ).all(pubkey),
