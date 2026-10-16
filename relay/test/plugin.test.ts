@@ -96,6 +96,11 @@ test('a changed allowlist is read without a restart', async () => {
   writeAllowlist({ index: getPublicKey(indexKey), live: [getPublicKey(calendarKey)], removed: [getPublicKey(added)] });
   assert.equal((await ask(sign(added, 31923))).action, 'reject', 'a removed calendar publishes no events');
   assert.equal((await ask(sign(added, 0))).action, 'accept', 'its removed profile still goes out');
+  const organizer = generateSecretKey();
+  assert.equal((await ask(sign(organizer, 31923))).action, 'reject');
+  writeAllowlist({ index: getPublicKey(indexKey), live: [getPublicKey(calendarKey)], removed: [getPublicKey(added)], hosted: [getPublicKey(organizer)] });
+  assert.equal((await ask(sign(organizer, 31923))).action, 'accept', 'an organizer the index publishes as, when hosted');
+  assert.equal((await ask(sign(organizer, 0))).action, 'reject', 'but not their profile');
   assert.equal(plugin.pid, pid);
 });
 

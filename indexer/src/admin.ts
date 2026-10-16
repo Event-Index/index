@@ -16,6 +16,9 @@
 //   node indexer/src/admin.ts approve-removal <id>
 //   node indexer/src/admin.ts reject-removal <id>
 //   node indexer/src/admin.ts remove <local name or d> [--message <text>]
+//   node indexer/src/admin.ts claims
+//   node indexer/src/admin.ts approve-claim <id>
+//   node indexer/src/admin.ts reject-claim <id>
 //   node indexer/src/admin.ts relays
 //   node indexer/src/admin.ts pause-relay <wss://…> [--hours <n>]
 //   node indexer/src/admin.ts resume-relay <wss://…>
@@ -32,7 +35,7 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 import { discoveredStore, type Found } from './store/discovered.ts';
@@ -54,6 +57,9 @@ const USAGE = `usage: admin.ts <command>
   approve-removal <id>
   reject-removal <id>
   remove <local name or d> [--message <text>]
+  claims
+  approve-claim <id>
+  reject-claim <id>
   relays
   pause-relay <wss://…> [--hours <n>]
   resume-relay <wss://…>`;
@@ -94,6 +100,7 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       out(`upcoming events ${r.upcomingEvents}`);
       out(`submissions     ${r.pendingSubmissions} pending`);
       out(`remove requests ${r.pendingRemovals} pending`);
+      out(`claims          ${r.pendingClaims} pending`);
       out(`last dump       ${time(r.lastDump)}`);
       return;
     }
@@ -151,7 +158,8 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
     }
     case 'submissions':
       for (const sub of s.queues.submissions('pending')) {
-        out(`${sub.id}\t${time(sub.submittedAt)}\t${sub.source}\t${sub.role}\t${sub.name ?? '-'}${sub.platformDefault ? ' (platform default calendar: only its owner should submit it)' : ''}\t${sub.feedUrl}`);
+        const where = sub.source === 'nostr' ? `${npubEncode(sub.d.slice('nostr:'.length))} (filed by its key)` : sub.feedUrl;
+        out(`${sub.id}\t${time(sub.submittedAt)}\t${sub.source}\t${sub.role}\t${sub.name ?? '-'}${sub.platformDefault ? ' (platform default calendar: only its owner should submit it)' : ''}\t${sub.city ?? '-'}\t${where}`);
       }
       return;
     case 'approve-submission': {
@@ -195,6 +203,22 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       out(`remove request ${r.id} approved; the poll service removes the calendar on its next tick`);
       return;
     }
+    case 'claims':
+      for (const c of s.queues.claims('pending')) {
+        const entry = s.dir.get(c.d);
+        const proof = c.verifiedBy === 'nip05' ? `NIP-05 ${c.nip05}` : c.verifiedBy === 'token' ? 'token in feed' : 'not shown yet';
+        const mode = c.mode === 'own' ? 'publishes itself' : 'publish as them';
+        out(`${c.id}\t${time(c.requestedAt)}\t${proof}\t${mode}\t${entry?.localName ?? c.d}\t${entry?.name ?? '-'}\t${npubEncode(c.pubkey)}`);
+      }
+      return;
+    case 'approve-claim':
+      approveClaim(s, id(args[0]), now);
+      out('approved; the poll service hands the calendar to its organizer on its next tick');
+      return;
+    case 'reject-claim':
+      rejectClaim(s, id(args[0]), now);
+      out('rejected');
+      return;
     case 'relays': {
       const paused = relayPauses(s.dir).all();
       if (paused.length === 0) out('no relay is paused');

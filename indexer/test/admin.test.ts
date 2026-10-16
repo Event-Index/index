@@ -8,7 +8,7 @@ import { openIndexDb } from '../src/store/index-db.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
 import { discoveredStore } from '../src/store/discovered.ts';
 import { identify } from '../src/directory/id.ts';
@@ -120,7 +120,7 @@ test('status counts the directory, the queues and the stale feeds', () => {
   const report = status(s, NOW);
   assert.deepEqual(report, {
     indexPubkey: 'ab'.repeat(32), calendars: 2, aggregators: 0, removed: 0, withKey: 0, stale: ['meetup:sdbitcoiners'], neverPolled: 2,
-    upcomingEvents: 0, pendingSubmissions: 1, pendingRemovals: 1, lastDump: null,
+    upcomingEvents: 0, pendingSubmissions: 1, pendingRemovals: 1, pendingClaims: 0, lastDump: null,
   });
 });
 
@@ -306,4 +306,29 @@ test('the admin command files the aggregators and lists what discovery did, skip
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }
+});
+
+test('approving a native calendar files it as its organizer\'s, in the city they named', () => {
+  const s = stores();
+  const pubkey = 'a0'.repeat(32);
+  const queued = s.queues.submit({ d: `nostr:${pubkey}`, feedUrl: '', source: 'nostr', role: 'calendar', name: 'Lakeside Bitcoin Club', city: 'chicago', at: NOW }, 10);
+  const { d } = approveSubmission(s, (queued as { id: number }).id, {}, cities, NOW);
+  const entry = s.dir.get(d)!;
+  assert.deepEqual([entry.d, entry.mode, entry.owner, entry.source, entry.feedUrl, entry.pubkey], [`nostr:${pubkey}`, 'own', pubkey, 'nostr', '', null]);
+  assert.equal(entry.location, 'Chicago, US');
+  assert.equal(entry.name, 'Lakeside Bitcoin Club');
+});
+
+test('a claim is approved only once its organizer has shown control of the calendar', () => {
+  const s = stores();
+  importSeeds(s, [seedFile('meetup/san-diego.json')], cities, NOW);
+  const { id } = s.queues.requestClaim({ d: 'meetup:pythonsd', pubkey: 'a0'.repeat(32), mode: 'own', signer: null, at: NOW });
+  assert.throws(() => approveClaim(s, id, NOW), /not shown control/);
+  s.queues.markClaimVerified(id, 'token', null, NOW + 60);
+  approveClaim(s, id, NOW + 120);
+  assert.equal(s.queues.claim(id)!.status, 'approved');
+  assert.throws(() => approveClaim(s, id, NOW + 180), /not pending/);
+  const other = s.queues.requestClaim({ d: 'meetup:pythonsd', pubkey: 'b0'.repeat(32), mode: 'own', signer: null, at: NOW });
+  rejectClaim(s, other.id, NOW + 200);
+  assert.equal(s.queues.claim(other.id)!.status, 'rejected');
 });

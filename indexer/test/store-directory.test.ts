@@ -121,7 +121,9 @@ test('the dump holds the directory, calendar metadata and poll statistics, and n
     const dump = new Database(out, { readonly: true });
     const tables = dump.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((t) => (t as { name: string }).name);
     assert.deepEqual(tables, ['about', 'calendars', 'poll_stats']);
-    assert.equal((dump.prepare('SELECT d FROM calendars').get() as { d: string }).d, 'meetup:pythonsd');
+    const calendar = dump.prepare('SELECT * FROM calendars').get() as Record<string, unknown>;
+    assert.equal(calendar['d'], 'meetup:pythonsd');
+    assert.deepEqual([calendar['mode'], calendar['owner'], calendar['claimed_at'], calendar['native_calendar']], ['mirrored', null, null, null]);
     const stats = dump.prepare('SELECT * FROM poll_stats').get() as Record<string, unknown>;
     assert.equal(stats['last_success_at'], NOW);
     assert.ok(!('etag' in stats));
@@ -168,4 +170,48 @@ test('a directory from before ownership gains its columns when opened', () => {
   assert.equal(dir.get('meetup:pythonsd')!.mode, 'mirrored');
   db.close();
   rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('a claim request gets a token, waits for proof and review, and keeps a sealed signer only until used', () => {
+  const db = openIndexDb(':memory:');
+  const queues = queueStore(db);
+  const claimant = 'a0'.repeat(32);
+  const { id, token } = queues.requestClaim({ d: 'meetup:pythonsd', pubkey: claimant, mode: 'delegated', signer: '{"sealed":1}', at: NOW });
+  assert.match(token, /^eventindex-claim-[a-z2-7]{10}$/);
+  const claim = queues.claim(id)!;
+  assert.deepEqual({ ...claim, token: undefined }, {
+    id, d: 'meetup:pythonsd', pubkey: claimant, kind: 'claim', mode: 'delegated', token: undefined, requestedAt: NOW, status: 'pending',
+    verifiedBy: null, verifiedAt: null, nip05: null, signer: '{"sealed":1}', note: null, resolvedAt: null,
+  });
+  assert.deepEqual(queues.openClaimsFor('meetup:pythonsd').map((c) => c.id), [id]);
+  queues.markClaimVerified(id, 'nip05', '_@pythonsd.example.org', NOW + 5);
+  queues.markClaimVerified(id, 'token', null, NOW + 9);
+  assert.deepEqual([queues.claim(id)!.verifiedBy, queues.claim(id)!.verifiedAt, queues.claim(id)!.nip05], ['nip05', NOW + 5, '_@pythonsd.example.org'], 'the first proof stands');
+  queues.resolveClaim(id, 'approved', NOW + 20);
+  assert.deepEqual(queues.claims('approved').map((c) => c.id), [id]);
+  queues.resolveClaim(id, 'done', NOW + 30);
+  assert.equal(queues.claim(id)!.signer, null, 'a used signer is not kept');
+  const failed = queues.requestClaim({ d: 'meetup:pythonsd', pubkey: claimant, mode: 'own', signer: null, at: NOW });
+  queues.resolveClaim(failed.id, 'failed', NOW + 40, 'the signer did not answer');
+  assert.equal(queues.claim(failed.id)!.note, 'the signer did not answer');
+
+  const owner = queues.ownerRequest({ d: 'meetup:pythonsd', pubkey: claimant, kind: 'disconnect', signer: null, at: NOW });
+  assert.equal(queues.claim(owner)!.status, 'approved', 'an owner\'s own request needs no review');
+  assert.equal(queues.claim(owner)!.token, null);
+});
+
+test('a proof of a key is used once', () => {
+  const db = openIndexDb(':memory:');
+  const queues = queueStore(db);
+  assert.equal(queues.useAuth('e1'.repeat(32), NOW), true);
+  assert.equal(queues.useAuth('e1'.repeat(32), NOW + 30), false);
+  assert.equal(queues.useAuth('e2'.repeat(32), NOW + 30), true);
+});
+
+test('a submission can name its city, and a directory from before gains the column', () => {
+  const db = openIndexDb(':memory:');
+  const queues = queueStore(db);
+  const result = queues.submit({ d: `nostr:${'a0'.repeat(32)}`, feedUrl: '', source: 'nostr', role: 'calendar', name: 'Lakeside', city: 'chicago', at: NOW }, 10);
+  assert.equal(result.status, 'queued');
+  assert.equal(queues.submission((result as { id: number }).id)!.city, 'chicago');
 });

@@ -19,6 +19,8 @@ import { LIMITS, rateLimiter, type Limits } from './limits.ts';
 import type { RelayReader } from '../../indexer/src/native/read.ts';
 import { calendarView, documentJsonLd, eventDocument, eventList, feedOf, feedWindow, statsView, withoutCopies, type Format, type ViewDeps } from './views.ts';
 import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
+import { fileNative, ownerAction, requestClaim, verifyClaimNip05, type ClaimDeps } from './claims.ts';
+import { checkAuth } from '../../indexer/src/claim/auth.ts';
 import { brandFiles } from './brand.ts';
 import { CSP, STYLE, calendarPage, calendarsPage, homePage, messagePage, removeResultPage, submitResultPage } from './pages.ts';
 import { cityCounts, cityZones, comingUp, dayGrid } from './home.ts';
@@ -34,6 +36,7 @@ export interface ApiDeps {
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
   // Reads organizers' own events from relays (filing a native calendar).
   reader?: RelayReader;
+  relayAllowed?: (url: string) => Promise<boolean>;
   limits?: Partial<Limits>;
   log?: (line: string) => void;
 }
@@ -78,7 +81,7 @@ export function clientAddress(req: Pick<IncomingMessage, 'socket' | 'headers'>):
   return fromProxy && typeof forwarded === 'string' && forwarded ? forwarded : socket;
 }
 
-async function readBody(req: IncomingMessage, max: number): Promise<Record<string, unknown>> {
+async function readText(req: IncomingMessage, max: number): Promise<string> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
@@ -86,7 +89,14 @@ async function readBody(req: IncomingMessage, max: number): Promise<Record<strin
     if (size <= max) chunks.push(chunk as Buffer);
   }
   if (size > max) throw new HttpError(413, 'too-large', `The request body can be at most ${max} bytes.`);
-  const text = Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function readBody(req: IncomingMessage, max: number): Promise<Record<string, unknown>> {
+  return parseBody(req, await readText(req, max));
+}
+
+function parseBody(req: IncomingMessage, text: string): Record<string, unknown> {
   if (!text) return {};
   const type = String(req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase();
   if (type === 'application/x-www-form-urlencoded') return Object.fromEntries(new URLSearchParams(text));
@@ -139,6 +149,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
   const { dir, events, settings } = deps;
   const log = deps.log ?? (() => {});
   const writes = { dir, queues: deps.queues, fetch: deps.fetch, limits, domain: settings.domain, log };
+  const claims: ClaimDeps = { ...writes, settings, cities: deps.cities, ...(deps.reader ? { reader: deps.reader } : {}), ...(deps.relayAllowed ? { relayAllowed: deps.relayAllowed } : {}) };
   const brand = brandFiles();
 
   const notFound = (what = 'Not found.'): never => { throw new HttpError(404, 'not-found', what); };
@@ -175,6 +186,27 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
     const method = req.method ?? 'GET';
 
     if (method === 'POST') {
+      // Requests signed with the organizer's own key (NIP-98).
+      const native = path === '/calendars/native';
+      const claim = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'claim';
+      const nip05 = parts.length === 5 && parts[0] === 'calendars' && parts[2] === 'claim' && parts[4] === 'nip05' && /^\d+$/.test(parts[3]!);
+      const signer = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'signer';
+      if (native || claim || nip05 || signer) {
+        const text = await readText(req, limits.maxBodyBytes);
+        const auth = checkAuth(req.headers['authorization'], {
+          urls: [`${settings.apiBase}${path}`, `https://${settings.domain}${API}${path}`], method: 'POST', body: text, now,
+        });
+        if (!auth.ok) return json(401, { error: 'unauthorized', reason: auth.reason, message: 'Sign this request with your nostr key (NIP-98).' });
+        if (!deps.queues.useAuth(auth.eventId, now)) return json(401, { error: 'unauthorized', reason: 'used', message: 'This signature was used before. Sign the request again.' });
+        const wait = limited('key', req, limits.keyRequestsPerHour, now);
+        if (wait) return json(429, { error: 'rate-limited', message: 'Too many requests from this address. Try again later.' }, { 'Retry-After': String(wait) });
+        const body = parseBody(req, text);
+        if (native) return outcomeJson(await fileNative(claims, auth.pubkey, body, now));
+        const entry = dir.byLocalName(decodeURIComponent(parts[1]!));
+        if (claim) return outcomeJson(requestClaim(claims, entry, auth.pubkey, body, now));
+        if (nip05) return outcomeJson(await verifyClaimNip05(claims, entry, Number(parts[3]), auth.pubkey, body, now));
+        return outcomeJson(ownerAction(claims, entry, auth.pubkey, body, now));
+      }
       if (path === '/feeds/add') {
         const body = await readBody(req, limits.maxBodyBytes);
         const wait = limited('add', req, limits.submitsPerHour, now);
@@ -377,7 +409,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       res.end(req.method === 'HEAD' ? undefined : reply.body);
     };
     if (req.method === 'OPTIONS') {
-      res.writeHead(204, { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' });
+      res.writeHead(204, { ...headers, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '86400' });
       res.end();
       return;
     }

@@ -3,6 +3,7 @@
 
 import type { ContentPolicy } from '../adapters/index.ts';
 import type { Source } from '../types.ts';
+import { naddrEncode, npubEncode } from 'nostr-tools/nip19';
 import { INDEX_RELAY, type EventTemplate } from './nip52.ts';
 
 export const INDEX_NAME = 'Event Index';
@@ -33,7 +34,15 @@ export interface ProfileInput {
   source: Source;
   localName: string;
   policy: ContentPolicy;
-  state: 'mirrored' | 'removed';
+  // `claimed`: the organizer now publishes the calendar from their own key.
+  state: 'mirrored' | 'removed' | 'claimed';
+  // The organizer's key, for a claimed calendar.
+  owner?: string;
+}
+
+// Where a claimed calendar now publishes.
+export function claimedSentence(owner: string): string {
+  return `This calendar now publishes as ${npubEncode(owner)}.`;
 }
 
 export function calendarProfile(input: ProfileInput): EventTemplate {
@@ -43,7 +52,9 @@ export function calendarProfile(input: ProfileInput): EventTemplate {
     : `mirrored from its calendar feed by ${INDEX_NAME}`;
   const about = input.state === 'removed'
     ? `No longer mirrored by ${INDEX_NAME} at its organizer's request.`
-    : `Events of ${input.name}, ${from}. Organizer? You can have this calendar removed: ${calendarPage(input.localName)}.`;
+    : input.state === 'claimed' && input.owner
+      ? claimedSentence(input.owner)
+      : `Events of ${input.name}, ${from}. Organizer? You can claim this calendar or have it removed: ${calendarPage(input.localName)}.`;
   const content: Record<string, string> = { name: input.name, about };
   if (input.image && input.policy.images) content['picture'] = input.image;
   if (input.url) content['website'] = input.url;
@@ -63,15 +74,41 @@ export interface ListedEvent {
   start: number;
 }
 
-export function calendarList(input: { name: string; description: string | null; now: number; items: ListedEvent[] }): EventTemplate {
+export interface CalendarListInput {
+  name: string;
+  description: string | null;
+  now: number;
+  items: ListedEvent[];
+  // The calendar's d: `calendar` for a calendar key's one calendar; the
+  // directory entry's d for one published as its organizer.
+  d?: string;
+  // The relay its events are on.
+  relay?: string;
+  // For a claimed calendar's last list: the organizer's key, their calendar
+  // when they have one, and a relay of theirs.
+  owner?: string;
+  ownerCalendar?: string | null;
+  ownerRelay?: string;
+}
+
+export function calendarList(input: CalendarListInput): EventTemplate {
+  const relay = input.relay ?? INDEX_RELAY;
   const listed = input.items
     .filter((item) => item.start >= input.now - CALENDAR_LIST_PAST)
     .sort((a, b) => a.start - b.start || (a.coordinate < b.coordinate ? -1 : 1))
     .slice(0, CALENDAR_LIST_MAX);
+  let content = input.description ?? '';
+  if (input.owner) {
+    const calendar = /^31924:([0-9a-f]{64}):(.*)$/.exec(input.ownerCalendar ?? '');
+    const link = calendar
+      ? naddrEncode({ kind: 31924, pubkey: calendar[1]!, identifier: calendar[2]!, relays: input.ownerRelay ? [input.ownerRelay] : [] })
+      : npubEncode(input.owner);
+    content = `${claimedSentence(input.owner)} nostr:${link}`;
+  }
   return {
     kind: 31924,
-    tags: [['d', 'calendar'], ['title', input.name], ...listed.map((item) => ['a', item.coordinate, INDEX_RELAY])],
-    content: input.description ?? '',
+    tags: [['d', input.d ?? 'calendar'], ['title', input.name], ...listed.map((item) => ['a', item.coordinate, relay])],
+    content,
   };
 }
 

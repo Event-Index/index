@@ -5,6 +5,8 @@
 export interface Limits {
   submitsPerHour: number;
   removeRequestsPerHour: number;
+  // Requests signed with a nostr key: filings, claims and owners' changes.
+  keyRequestsPerHour: number;
   // Pending submissions the review queue holds at most.
   queueCap: number;
   // Submissions approved without review in a day, at most; past it they wait.
@@ -18,6 +20,7 @@ export interface Limits {
 export const LIMITS: Limits = {
   submitsPerHour: 10,
   removeRequestsPerHour: 5,
+  keyRequestsPerHour: 20,
   queueCap: 1000,
   autoApprovalsPerDay: 50,
   removeRequestsPerCalendar: 10,

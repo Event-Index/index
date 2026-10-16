@@ -218,8 +218,21 @@ export function relayPublisher(settings: Settings, log: (line: string) => void, 
       }
     },
 
-    async rsvps(pubkey: string): Promise<Set<string>> {
-      const found = (await pool.querySync([settings.relayUrl], { kinds: [31925], '#p': [pubkey], limit: 10_000 })) as VerifiedEvent[];
+    // An organizer's own relays: every event must be taken by one of them.
+    async publishTo(events: VerifiedEvent[], relays: string[]): Promise<void> {
+      for (let i = 0; i < events.length; i += OWN_CONCURRENCY) {
+        await Promise.all(events.slice(i, i + OWN_CONCURRENCY).map(async (e) => {
+          const results = await Promise.allSettled(pool.publish(relays, e));
+          if (!results.some((r) => r.status === 'fulfilled')) {
+            const reasons = results.map((r) => (r.status === 'rejected' ? String((r.reason as Error)?.message ?? r.reason) : '')).filter(Boolean);
+            throw new Error(`no relay took event ${e.id.slice(0, 12)}: ${[...new Set(reasons)].join('; ')}`);
+          }
+        }));
+      }
+    },
+
+    async rsvps(pubkey: string, relays: string[] = []): Promise<Set<string>> {
+      const found = (await pool.querySync([...new Set([settings.relayUrl, ...relays])], { kinds: [31925], '#p': [pubkey], limit: 10_000 })) as VerifiedEvent[];
       return new Set(found.flatMap((e) => e.tags.filter((t) => t[0] === 'a' && t[1]).map((t) => t[1]!)));
     },
 

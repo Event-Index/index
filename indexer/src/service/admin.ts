@@ -143,10 +143,21 @@ export function approveSubmission(s: AdminStores, id: number, options: { city?: 
   if (s.dir.doNotIndex(submission.d)) throw new Error(`${submission.d} is on the do-not-index list`);
   if (s.dir.get(submission.d)) throw new Error(`${submission.d} is already in the directory`);
   let place = { location: null as string | null, g: null as string | null };
-  if (options.city) {
-    const city = cities.cities.find((c) => c.slug === options.city);
-    if (!city) throw new Error(`no city ${options.city} in cities.json`);
+  const slug = options.city ?? submission.city;
+  if (slug) {
+    const city = cities.cities.find((c) => c.slug === slug);
+    if (!city) throw new Error(`no city ${slug} in cities.json`);
     place = area(city);
+  }
+  if (submission.source === 'nostr') {
+    // A calendar its organizer publishes on nostr, filed by its key.
+    const owner = submission.d.slice('nostr:'.length);
+    s.dir.add({
+      d: submission.d, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: submission.name, description: null, image: null,
+      ...place, foundVia: 'owner', addedAt: now, mode: 'own', owner,
+    });
+    s.queues.resolveSubmission(id, 'approved', now);
+    return { d: submission.d };
   }
   const identity = identify(submission.feedUrl);
   s.dir.add({
@@ -199,6 +210,29 @@ export function removeCalendar(s: AdminStores, nameOrD: string, message: string 
   return { id };
 }
 
+function pendingClaim(s: AdminStores, id: number) {
+  const claim = s.queues.claim(id);
+  if (!claim || claim.kind !== 'claim' || claim.status !== 'pending') throw new Error(`claim ${id} is not pending`);
+  return claim;
+}
+
+// The poll service carries out an approved claim on its next tick. A claim
+// is approved only once its organizer has shown control of the calendar
+// (the token in its feed, or NIP-05 at its domain); their key they proved
+// when they made it.
+export function approveClaim(s: AdminStores, id: number, now: number): void {
+  const claim = pendingClaim(s, id);
+  if (!claim.verifiedAt) throw new Error(`claim ${id}: its organizer has not shown control of the calendar yet`);
+  const entry = s.dir.get(claim.d);
+  if (!entry || entry.removed || entry.mode !== 'mirrored') throw new Error(`claim ${id}: ${claim.d} is no longer a mirrored calendar`);
+  s.queues.resolveClaim(id, 'approved', now);
+}
+
+export function rejectClaim(s: AdminStores, id: number, now: number): void {
+  pendingClaim(s, id);
+  s.queues.resolveClaim(id, 'rejected', now);
+}
+
 export function status(s: AdminStores, now: number) {
   const all = s.dir.list({ includeRemoved: true });
   const listed = all.filter((e) => !e.removed);
@@ -215,6 +249,7 @@ export function status(s: AdminStores, now: number) {
     upcomingEvents: s.events.countUpcoming(now),
     pendingSubmissions: s.queues.submissions('pending').length,
     pendingRemovals: s.queues.removals('pending').length,
+    pendingClaims: s.queues.claims('pending').length,
     lastDump: dump ? Number(dump) : null,
   };
 }

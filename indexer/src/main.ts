@@ -19,6 +19,7 @@ import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
 import { poolReader } from './native/read.ts';
+import { nip46Signers } from './claim/signer.ts';
 import { SimplePool } from 'nostr-tools/pool';
 
 const TICK_SECONDS = 30;
@@ -72,10 +73,11 @@ async function main(): Promise<void> {
     fetch: (url, validators) => fetchFeed(url, validators),
     publisher,
     reader: poolReader(readPool),
+    signers: nip46Signers(readPool),
     log,
     signal: controller.signal,
   });
-  log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}`);
+  log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}; claimants ${settings.hostClaimants ? 'hosted' : 'not hosted'} on the relay`);
 
   try {
     while (!controller.signal.aborted) {

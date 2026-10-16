@@ -19,11 +19,15 @@ import { relayPublisher } from '../src/service/publisher.ts';
 import { loadSettings } from '../src/config.ts';
 import { nativeD } from '../src/directory/id.ts';
 import { poolReader } from '../src/native/read.ts';
-import { NOW } from './helpers.ts';
+import { nip46Signers } from '../src/claim/signer.ts';
+import { sealFor } from '../src/claim/seal.ts';
+import { identify } from '../src/directory/id.ts';
+import { readFixture, feedUrlFor, NOW } from './helpers.ts';
 
 const hasNak = spawnSync('nak', ['--version']).status === 0;
 const skip = !hasNak && 'nak is not installed';
 const relays: Array<{ url: string; proc: ChildProcess }> = [];
+const bunkers: ChildProcess[] = [];
 const pool = new SimplePool();
 
 async function freePort(): Promise<number> {
@@ -59,8 +63,25 @@ async function relay(): Promise<string> {
 
 after(() => {
   pool.destroy();
+  for (const b of bunkers) b.kill();
   for (const r of relays) r.proc.kill();
 });
+
+// A remote signer (NIP-46) holding a key, on a relay; resolves to its
+// bunker:// address.
+async function bunker(key: Uint8Array, relayUrl: string): Promise<string> {
+  const proc = spawn('nak', ['bunker', '--sec', Buffer.from(key).toString('hex'), relayUrl], { stdio: ['ignore', 'pipe', 'pipe'] });
+  bunkers.push(proc);
+  let out = '';
+  proc.stdout!.on('data', (chunk) => { out += chunk; });
+  proc.stderr!.on('data', (chunk) => { out += chunk; });
+  for (let i = 0; i < 200; i += 1) {
+    const found = /bunker: (bunker:\/\/\S+)/.exec(out);
+    if (found) return found[1]!;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`nak bunker did not start: ${out}`);
+}
 
 // The index's own relay and an organizer's home relay.
 async function world() {
@@ -75,17 +96,19 @@ async function world() {
   const readPool = new SimplePool();
   const publisher = relayPublisher(settings, () => {});
   const clock = { now: NOW };
+  const queues = queueStore(db);
   const indexer = createIndexer({
-    db, dir, queues: queueStore(db), events, vault, indexKey, settings, publisher,
+    db, dir, queues, events, vault, indexKey, settings, publisher,
     reader: poolReader(readPool, 2000),
+    signers: nip46Signers(readPool, 10_000),
     // Local relays, for the rehearsal only.
     relayAllowed: async () => true,
     now: () => clock.now,
-    fetch: async () => ({ status: 'error', code: 'http-404' }),
+    fetch: async (u) => ({ status: 'ok', text: readFixture('meetup-pythonsd.ics'), etag: null, lastModified: null, finalUrl: u }),
     log: () => {},
   });
   return {
-    own, home, db, dir, events, vault, indexer, clock, indexPubkey: getPublicKey(indexKey),
+    own, home, db, dir, queues, events, vault, indexer, clock, indexPubkey: getPublicKey(indexKey),
     close() { publisher.close(); readPool.destroy(); vault.close(); db.close(); },
   };
 }
@@ -117,6 +140,48 @@ test('a native calendar: the organizer publishes to their own relay, and the ind
     assert.deepEqual(onOwn.map((e) => e.kind), [10002], 'the index publishes nothing as the organizer');
     const listed = await pool.querySync([w.own], { kinds: [39999], authors: [w.indexPubkey] });
     assert.deepEqual(listed[0]!.tags.find((t) => t[0] === 'p'), ['p', organizer]);
+  } finally {
+    w.close();
+  }
+});
+
+test('"publish for me, as me" through a real remote signer: the calendar\'s events go out under the organizer\'s key', { skip }, async () => {
+  const w = await world();
+  try {
+    const organizerKey = generateSecretKey();
+    const organizer = getPublicKey(organizerKey);
+    await Promise.all(pool.publish([w.own], finalizeEvent({ kind: 10002, tags: [['r', w.home]], content: '', created_at: NOW }, organizerKey)));
+    const id = identify(feedUrlFor('meetup-pythonsd.ics'));
+    w.dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null,
+      location: 'San Diego, US', g: '9mud', foundVia: 'maintainer', addedAt: NOW });
+    await w.indexer.tick();
+    const key = w.dir.get(id.d)!.pubkey!;
+    assert.equal((await pool.querySync([w.own], { kinds: [31923], authors: [key] })).length, 4, 'mirrored first, under the calendar key');
+
+    const address = await bunker(organizerKey, w.home);
+    const claim = w.queues.requestClaim({ d: id.d, pubkey: organizer, mode: 'delegated', signer: sealFor(w.vault.intakePubkey, address), at: NOW });
+    w.queues.markClaimVerified(claim.id, 'token', null, NOW);
+    w.queues.resolveClaim(claim.id, 'approved', NOW);
+    w.clock.now = NOW + 60;
+    const report = await w.indexer.tick();
+    assert.deepEqual([w.queues.claim(claim.id)!.status, w.queues.claim(claim.id)!.note], ['done', null]);
+    assert.deepEqual(report.failed, []);
+    assert.equal(w.vault.connection(id.d)!.owner, organizer);
+
+    const theirs = await pool.querySync([w.home], { authors: [organizer] });
+    assert.deepEqual(theirs.map((e) => e.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'signed by the organizer\'s signer, on their relay');
+    assert.equal((await pool.querySync([w.own], { kinds: [31923], authors: [organizer] })).length, 0, 'the index\'s relay does not host them');
+    const old = await pool.querySync([w.own], { kinds: [0], authors: [key] });
+    assert.match(JSON.parse(old[0]!.content).about, /now publishes as npub1/);
+    assert.equal((await pool.querySync([w.own], { kinds: [31923], authors: [key] })).length, 0, 'the old copies are deleted');
+
+    const off = w.queues.ownerRequest({ d: id.d, pubkey: organizer, kind: 'disconnect', signer: null, at: NOW + 70 });
+    w.clock.now = NOW + 120;
+    await w.indexer.tick();
+    assert.equal(w.queues.claim(off)!.status, 'done');
+    assert.equal(w.vault.connection(id.d), null);
+    assert.equal(w.dir.get(id.d)!.mode, 'own');
+    assert.equal(w.events.byCalendar(id.d, NOW, NOW + 365 * 86400).length, 4, 'its events are now read as the organizer\'s own');
   } finally {
     w.close();
   }

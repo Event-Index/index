@@ -46,6 +46,9 @@ export interface Settings {
   // the index's (hex), and the relay it reads them from; none unless set.
   coveragePubkey: string | null;
   coverageRelay: string | null;
+  // Off unless set: the index's relay also takes the events of organizers
+  // the index publishes as (kinds 31922, 31923, 31924 and 5).
+  hostClaimants: boolean;
 }
 
 export const PROFILE_RELAYS = ['wss://purplepag.es'];
@@ -107,5 +110,6 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     followCap: count(env['EVENTINDEX_FOLLOW_CAP'], FOLLOW_CAP, 'EVENTINDEX_FOLLOW_CAP'),
     coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
+    hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',
   };
 }

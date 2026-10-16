@@ -321,7 +321,7 @@ test('the relay allowlist names every key before its first events go out, and re
       checked.push(list.length);
     };
     const h = harness({ fixtures: ['meetup-pythonsd.ics', 'luma-calendar-craftnook.ics'], dataDir, onPublish });
-    assert.deepEqual(read(), { index: h.indexPubkey, live: [], removed: [] }, 'written as the service starts');
+    assert.deepEqual(read(), { index: h.indexPubkey, live: [], removed: [], hosted: [] }, 'written as the service starts');
     await h.indexer.tick();
     assert.ok(checked.length >= 3);
     const python = h.dir.get('meetup:pythonsd')!.pubkey!;
@@ -332,12 +332,12 @@ test('the relay allowlist names every key before its first events go out, and re
     h.queues.resolveRemoval(id, 'approved', NOW);
     h.clock.now = NOW + 60;
     await h.indexer.tick();
-    assert.deepEqual(read(), { index: h.indexPubkey, live: [craft], removed: [python] });
+    assert.deepEqual(read(), { index: h.indexPubkey, live: [craft], removed: [python], hosted: [] });
 
     // A restart rebuilds the list from the directory.
     rmSync(file);
     const again = harness({ fixtures: [], dataDir, db: h.db, vault: h.vault, indexKey: h.indexKey });
-    assert.deepEqual(read(), { index: again.indexPubkey, live: [craft], removed: [python] });
+    assert.deepEqual(read(), { index: again.indexPubkey, live: [craft], removed: [python], hosted: [] });
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

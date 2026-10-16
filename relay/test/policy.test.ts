@@ -7,7 +7,8 @@ const INDEX = hex('a');
 const LIVE = hex('b');
 const REMOVED = hex('c');
 const STRANGER = hex('d');
-const allow: Allowlist = { index: INDEX, live: new Set([LIVE]), removed: new Set([REMOVED]) };
+const HOSTED = hex('9');
+const allow: Allowlist = { index: INDEX, live: new Set([LIVE]), removed: new Set([REMOVED]), hosted: new Set([HOSTED]) };
 const event = (pubkey: string, kind: number, tags: string[][] = []): PolicyEvent =>
   ({ id: hex('e'), pubkey, kind, tags, content: '', created_at: 1792108194, sig: hex('f') + hex('f') });
 const nothingStored: Lookup = async () => false;
@@ -37,6 +38,13 @@ test('a calendar key publishes its profile, relay list, calendar, events and del
 test('a removed calendar\'s key may still publish its profile and deletions only', async () => {
   for (const kind of [0, 5]) await accepts(event(REMOVED, kind));
   for (const kind of [10002, 31922, 31923, 31924]) await refuses(event(REMOVED, kind), new RegExp(`kind ${kind}`));
+});
+
+test('an organizer the index publishes as, when the relay hosts them, publishes calendars, events and deletions only', async () => {
+  for (const kind of [5, 31922, 31923, 31924]) await accepts(event(HOSTED, kind));
+  for (const kind of [0, 1, 3, 10002, 39999]) await refuses(event(HOSTED, kind), new RegExp(`kind ${kind}`));
+  await accepts(event(STRANGER, 31925, [ours(31923, HOSTED)]), undefined);
+  await accepts(event(STRANGER, 1111, [['A', `31923:${HOSTED}:d1`], ['K', '31923']]));
 });
 
 test('anyone may RSVP to an event of one of the index\'s keys', async () => {
@@ -80,7 +88,7 @@ test('events the operator loads (import, sync, stream) are not filtered', async 
 });
 
 test('with no allowlist read yet, the index\'s own keys are refused like anyone', async () => {
-  const empty: Allowlist = { index: null, live: new Set(), removed: new Set() };
+  const empty: Allowlist = { index: null, live: new Set(), removed: new Set(), hosted: new Set() };
   const d = await decide(event(LIVE, 31923), 'IP4', empty, nothingStored);
   assert.equal(d.action, 'reject');
 });

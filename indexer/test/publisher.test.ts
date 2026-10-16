@@ -143,3 +143,20 @@ test('an empty set sends nothing and queues nothing', async () => {
   assert.equal(publisher.pending!(), 0);
   assert.equal(got.size, 0);
 });
+
+test('events for an organizer\'s own relays go to all of them and need one to take each', async () => {
+  const { publisher, got } = setup((relay) => (relay === 'wss://down.example' ? 'connection failed' : null));
+  const list = events(2);
+  await publisher.publishTo!(list, ['wss://home.example', 'wss://down.example']);
+  assert.deepEqual(got.get('wss://home.example')!.map((e) => e.id), list.map((e) => e.id));
+  const none = setup(() => 'blocked: not here');
+  await assert.rejects(none.publisher.publishTo!(events(1), ['wss://home.example', 'wss://down.example']), /no relay took/);
+});
+
+test('RSVPs are read from the index\'s relay and the relays named', async () => {
+  const asked: string[][] = [];
+  const pool: RelayPool = { publish: () => [], querySync: async (relays) => { asked.push(relays); return []; }, close: () => {} };
+  const publisher = relayPublisher(settings, () => {}, { pool });
+  await publisher.rsvps('ab'.repeat(32), ['wss://home.example']);
+  assert.deepEqual(asked, [[settings.relayUrl, 'wss://home.example']]);
+});

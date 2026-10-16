@@ -14,6 +14,7 @@ import type { QuarantineReason } from '../rules/presence.ts';
 import type { IndexDb } from '../store/index-db.ts';
 import type { Vault } from '../store/vault-db.ts';
 import type { FetchResult, Validators } from './fetch.ts';
+import { vaultSigner, type Signer } from '../claim/signer.ts';
 
 export interface Entry extends DirectoryIdentity {
   entryName: string | null;
@@ -30,6 +31,15 @@ export interface PollDeps {
   rsvps: (pubkey: string) => Promise<Set<string>>;
   // The general relays the index publishes to, if any.
   generalRelays?: string[];
+  // Who signs the calendar's events, asked once its feed has been read; by
+  // default its calendar key, created on first use.
+  signer?: () => Promise<Signer>;
+  // The key each other calendar signs with, for co-host tags.
+  keyOf?: (calendarD: string) => string;
+  // A calendar published as its organizer: no profile or relay list of
+  // theirs is written, its calendar's d is the entry's d, and its events
+  // name the relay they are on.
+  delegated?: { relay: string };
 }
 
 export type PollReport =
@@ -99,22 +109,37 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     return { status: 'aggregator', feed, text: fetched.text };
   }
 
-  const pubkey = deps.vault.createKey(entry.d);
+  let signer: Signer;
+  try {
+    signer = deps.signer ? await deps.signer() : vaultSigner(deps.vault, entry.d, deps.vault.createKey(entry.d));
+  } catch {
+    return failed(entry, deps, 'signer');
+  }
+  const pubkey = signer.pubkey;
+  const relay = deps.delegated?.relay ?? INDEX_RELAY;
   const rsvps = await deps.rsvps(pubkey);
   const effectivePlan = typeof plan === 'function' ? plan(feed) : plan ?? cohostPlan([feed], now);
   const result = projectFeed({
     feed,
     calendarPubkey: pubkey,
     indexPubkey: deps.indexPubkey,
-    keyOf: (d) => deps.vault.pubkeyFor(d) ?? deps.vault.createKey(d),
+    keyOf: deps.keyOf ?? ((d) => deps.vault.pubkeyFor(d) ?? deps.vault.createKey(d)),
     db: deps.db,
     now,
     hasRsvps: (address) => rsvps.has(address),
     plan: effectivePlan,
     generalRelays: deps.generalRelays ?? [],
+    ...(deps.delegated ? { delegated: { relay, calendarD: entry.d } } : {}),
   });
 
-  const signed = result.publish.map((planned) => ({ planned, event: deps.vault.sign(entry.d, planned.template) }));
+  // Everything is signed before anything is sent, so a signer that stops
+  // answering half-way publishes nothing.
+  const signed: Array<{ planned: (typeof result.publish)[number]; event: VerifiedEvent }> = [];
+  try {
+    for (const planned of result.publish) signed.push({ planned, event: await signer.sign(planned.template) });
+  } catch {
+    return failed(entry, deps, 'signer');
+  }
   try {
     await deps.publish(signed.map((s) => s.event));
   } catch {
@@ -132,7 +157,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     if (single) {
       const kind = (record.master!.getFirstPropertyValue('dtstart') as ICAL.Time).isDate ? 31922 : 31923;
       const d = nostrD(record.uid);
-      if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { nostr: naddrFor(pubkey, kind, d, [INDEX_RELAY]) });
+      if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { nostr: naddrFor(pubkey, kind, d, relay ? [relay] : []) });
     }
     const canonical = effectivePlan.canonicalOf.get(record.id);
     if (canonical) notes.set(record.id, { ...notes.get(record.id), canonical });

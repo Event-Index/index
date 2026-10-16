@@ -90,6 +90,10 @@ export interface ProjectorInput {
   perSecond?: number;
   // The general relays the index publishes to, for the kind 10002.
   generalRelays?: string[];
+  // A calendar published as its organizer: their own profile and relay list
+  // are left alone, the calendar's d is the entry's, and events name the
+  // relay they are on.
+  delegated?: { relay: string; calendarD: string };
 }
 
 export interface Planned {
@@ -116,7 +120,7 @@ interface Candidate {
   always?: boolean;
 }
 
-function cancelledCopy(template: EventTemplate): EventTemplate {
+export function cancelledCopy(template: EventTemplate): EventTemplate {
   const tags = template.tags.map((t): Tag => (t[0] === 'title' && !t[1]!.startsWith(CANCELLED_PREFIX) ? ['title', `${CANCELLED_PREFIX}${t[1]}`] : [...t]));
   return { ...template, tags };
 }
@@ -129,7 +133,7 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
 
   const kept = projectable(feed, now, log);
 
-  const context = projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey });
+  const context = { ...projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey }), ...(input.delegated ? { relay: input.delegated.relay } : {}) };
   const projected: Array<{ o: Occurrence; template: EventTemplate }> = [];
   const yielded = new Set<string>();
   const yieldedTo = new Map<string, { uid: string; signer: string }>();
@@ -195,9 +199,15 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
     policy: adapterFor(feed.context.source).policy,
     state: 'mirrored',
   });
-  candidates.push({ template: profile, kind: 0, d: '', start: now });
-  candidates.push({ template: relayList(input.generalRelays), kind: 10002, d: '', start: now });
-  candidates.push({ template: calendarList({ name, description: feed.calendar.description, now, items: listed }), kind: 31924, d: 'calendar', start: now });
+  if (!input.delegated) {
+    candidates.push({ template: profile, kind: 0, d: '', start: now });
+    candidates.push({ template: relayList(input.generalRelays), kind: 10002, d: '', start: now });
+  }
+  const listD = input.delegated?.calendarD ?? 'calendar';
+  candidates.push({
+    template: calendarList({ name, description: feed.calendar.description, now, items: listed, d: listD, ...(input.delegated ? { relay: input.delegated.relay } : {}) }),
+    kind: 31924, d: listD, start: now,
+  });
 
   const due = candidates
     .map((c) => ({ ...c, hash: projectionHash(c.template) }))
