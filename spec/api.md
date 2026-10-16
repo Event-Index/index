@@ -101,6 +101,9 @@ read. A removed calendar is still answered by these lookups, with
 | `GET /events/bycalendar/<local name>[.json]?from=&to=&limit=` | a calendar's occurrences that overlap `from`–`to` (default: the projection window), soonest first |
 | `GET /search/events/byterm[.json]?q=&from=&to=&near=<geohash>&radius=<km>&tag=&limit=` | matching occurrences, soonest first |
 
+- `canonical` is the public id of the event this one copies: a co-host's
+  copy, a feed's or an aggregator's copy of an organizer's own event, or an
+  aggregator's copy of a feed's ([`indexer-rules.md`](indexer-rules.md) § 15).
 - `/events/byid/<id>` answers an occurrence by its id, and a record by the id
   of its master: for a recurring record, the whole series (in JSON-LD an
   `EventSeries` with its occurrences in the window as `subEvent`); for a past
@@ -127,7 +130,7 @@ a schema.org `Event`. Otherwise each item is:
     "end": 1792476000,
     "nostr": "naddr1…",
     "calendar": "<calendar d>",
-    "canonical": "<public id of the signing record, when this one is a co-host's copy>",
+    "canonical": "<public id of the event this one copies, if any>",
     "cohosts": ["<calendar d>"],
     "source": "meetup",
     "via": "<the calendar's feed URL>"
@@ -185,16 +188,32 @@ added at once when it is safe to, and otherwise waits for review.
 
 | Request | Does |
 |---|---|
-| `POST /feeds/add` with `{"url": "<feed URL>"}` (or `?url=`) | validates the feed ([`indexer-rules.md`](indexer-rules.md) § 4), then adds it at once or queues it for review (§ 10 there) |
-| `POST /calendars/<local name>/remove-request` with `{"message": "…"}` (optional, at most 1,000 characters) | records a request to remove the calendar, for review |
+| `POST /feeds/add` with `{"url": "<link>"}` (or `?url=`) | resolves the link (below), validates the feed ([`indexer-rules.md`](indexer-rules.md) § 4), then adds it at once or queues it for review (§ 10 there); or lists a nostr publisher at once |
+| `POST /calendars/<local name>/remove-request` with `{"message": "…"}` (optional, at most 1,000 characters) | records a request to remove the calendar, for review; signed with the calendar's own key (below), carries it out at once |
 
-`/feeds/add` answers `201` with
-`{"status": "approved", "submission": n, "d", "local_name", "name", "source", "role", "page", "message"}`
+`/feeds/add` takes whatever link people paste, and resolves it:
+
+| Link | Resolves to |
+|---|---|
+| a Meetup group's page, its `/events/` page, or an event's page (`/<group>/events/<id>/`) | the group's feed, `https://www.meetup.com/<group>/events/ical/` |
+| a Luma calendar (`luma.com/calendar/cal-…`) | its feed |
+| a Luma vanity page (`luma.com/<name>`) or an event's page | the calendar named in the page's own data, read once through the same guarded fetch and size cap as feeds |
+| a Google Calendar embed (`?src=<id>`) or share (`?cid=`) link | the calendar's public feed; a private address is refused |
+| a Mobilizon group's page (`/@<group>`) | its feed, `/@<group>/feed/ics` |
+| an npub, an nprofile (with or without `nostr:`), or a NIP-05 address | a nostr publisher, listed at once when its relays hold NIP-52 events from it |
+| anything else | a feed address, as given |
+
+For a feed it answers `201` with
+`{"status": "approved", "submission": n, "d", "local_name", "name", "source", "role", "page", "found", "message"}`
 when the calendar is added at once, and `202` with
-`{"status": "queued" | "already-queued", "submission": n, "d", "name", "source", "role", "message"}`
-when it waits for review. Once approved, by the index or a maintainer, the
-entry is filed and the next poll (within a minute) creates its calendar key
-and publishes its events.
+`{"status": "queued" | "already-queued", "submission": n, "d", "name", "source", "role", "found", "message"}`
+when it waits for review; `found` says in plain words what was found
+(`Found the Meetup group "…".`). Once approved, by the index or a maintainer,
+the entry is filed under the index key and the next poll (within a minute)
+creates its calendar key and publishes its events. For a nostr publisher it
+answers `201` with
+`{"status": "listed", "d": "nostr:<hex key>", "local_name", "name", "events": n, "found", "message"}`.
+A refused link answers with a code and a sentence saying why.
 
 `/remove-request` answers `202` with
 `{"status": "received", "request": n, "d", "token": "eventindex-remove-…", "instructions": "…"}`.
@@ -221,13 +240,18 @@ pages of `eventindex.space` make them through a browser extension (NIP-07).
 
 | Request | Does |
 |---|---|
-| `POST /calendars/native` with `{"city": "<city slug>"}` (optional) | files the calendar the key publishes on nostr: the index reads its relays and queues it for review if it finds NIP-52 events from it ([`indexer-rules.md`](indexer-rules.md) § 12) |
+| `POST /calendars/native` with `{"city": "<city slug>"}` (optional) | lists the calendar the key publishes on nostr at once, when its relays hold NIP-52 events from it, or, when it is listed, sets its city ([`indexer-rules.md`](indexer-rules.md) § 12) |
+| `POST /calendars/<local name>/remove-request`, signed with the key the calendar is published with | removes the calendar at the poll service's next tick, with no review |
 | `POST /calendars/<local name>/claim` with `{"mode": "own"}` or `{"mode": "delegated", "bunker": "bunker://…"}` | claims a mirrored calendar for the key ([`indexer-rules.md`](indexer-rules.md) § 13): `own` to publish it yourself, `delegated` to have the index publish it as you through the remote signer (NIP-46) at that address |
 | `POST /calendars/<local name>/claim/<claim>/nip05` with `{"nip05": "<name>@<domain>"}` | verifies the key's claim by NIP-05 at the calendar's own domain |
 | `POST /calendars/<local name>/signer` with `{"action": "disconnect"}` or `{"action": "connect", "bunker": "bunker://…"}` | for the calendar's organizer: stops or starts the index publishing it as them, without review |
 
-`/calendars/native` answers `202` with
-`{"status": "queued" | "already-queued", "submission": n, "d": "nostr:<hex key>", "name", "events": n, "message"}`.
+`/calendars/native` answers `201` with
+`{"status": "listed", "d": "nostr:<hex key>", "local_name", "name", "events": n, "message"}`,
+or `200` with `{"status": "updated", "d", "local_name", "location"}` for a
+calendar listed already. A signed remove request answers `202` with
+`{"status": "approved", "request": n, "d", "message"}`; signed with another key,
+`403` `not-owner`.
 
 `/claim` answers `202` with
 `{"status": "received", "claim": n, "d", "mode", "token": "eventindex-claim-…", "nip05_domains": [...], "instructions": "…"}`.
@@ -245,9 +269,9 @@ Errors are `{"error": "<code>", "message": "<text>"}` with an HTTP status:
 
 | Status | Codes |
 |---|---|
-| 400 | `invalid-url`, `unsupported-feed`, `private-feed-url`, `invalid-parameter`, `invalid-body`, `invalid-message`, `too-long`, `invalid-mode`, `invalid-signer`, `invalid-action` |
+| 400 | `invalid-url`, `unsupported-feed`, `private-feed-url`, `invalid-parameter`, `invalid-body`, `invalid-message`, `too-long`, `invalid-mode`, `invalid-signer`, `invalid-action`; a link that names no calendar: `meetup-page`, `luma-page`, `google-page`, `nip05` (names no key), `invalid-key` |
 | 401 | `unauthorized`, with `reason`: `missing`, `malformed`, `bad-signature`, `wrong-kind`, `expired`, `wrong-url`, `wrong-method`, `wrong-payload`, `used` |
-| 403 | `not-yours` (a claim made by another key), `not-owner` (a calendar its organizer does not publish, or another key's) |
+| 403 | `not-yours` (a claim made by another key), `not-owner` (a calendar its organizer does not publish, or another key's; or a remove request signed by a key other than the calendar's) |
 | 404 | `not-found` |
 | 405 | `method-not-allowed` |
 | 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request), `already-claimed`, `already-owner` (with `d` and `local_name`: the key publishes a listed calendar itself, or would, and so may own no other; [`indexer-rules.md`](indexer-rules.md) § 13), `not-a-calendar`, `not-pending`, `not-delegated`, `no-feed` |

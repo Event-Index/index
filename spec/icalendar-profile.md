@@ -112,7 +112,7 @@ On every VEVENT of a record:
 | `X-EVENTINDEX-SOURCE` | the entry's source (`luma`, `meetup`, `mobilizon`, `gancio`, `google`, `ics`, `nostr`) |
 | `X-EVENTINDEX-ID` | the public event id (§ 6) of the event, or of the occurrence an override stands for |
 | `X-EVENTINDEX-VENUE` | `hidden` when the source shows the venue only to registered guests ([`platform-adapters.md`](platform-adapters.md)). Such an event keeps no `LOCATION` or `GEO`, and no projection carries a place for it. |
-| `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL; on an old record of a calendar claimed to publish itself, the URL of the organizer's record that replaces it |
+| `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL (a co-host's copy; a copy of a more original event, [`indexer-rules.md`](indexer-rules.md) § 15); on an old record of a calendar claimed to publish itself, the URL of the organizer's record that replaces it |
 | `X-EVENTINDEX-NOSTR` | the `naddr` of the event's NIP-52 projection, once published; on a record read from its organizer's own key, the `naddr` of their event |
 | `X-EVENTINDEX-CLAIMED` | the date (`YYYY-MM-DD`) the calendar was claimed by its organizer, on its records since |
 

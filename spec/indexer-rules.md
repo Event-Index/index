@@ -14,7 +14,8 @@ Status: draft.
 - A calendar its organizer publishes from their own key (a native calendar,
   or one claimed to publish itself; [`directory.md`](directory.md)) is not
   polled: its organizer's events are read instead, on the same schedule
-  (§ 12).
+  (§ 12). A publisher the index listed from what it posts is not read on its
+  own either: its events come in with every other NIP-52 event (§ 14).
 
 ## 2. Discovery and seeding
 
@@ -199,6 +200,11 @@ creates the calendar key.
   or a link, which others may write), the request is marked verified, as
   proof that its author controls the calendar. A maintainer approves or
   rejects every request, verified or not.
+- **By the calendar's own key.** A remove request signed (NIP-98) with the
+  key a calendar is published with (an organizer's own key: a native
+  calendar, or a claimed one) is approved at once, without review, and
+  carried out at the next tick. A calendar key the index holds cannot sign
+  one, so a mirrored calendar's removal is always reviewed.
 - **Removal.** At its next tick after the approval, the poll service, with the
   calendar key:
   - deletes every upcoming projection (kind `5`, [`nip52-mapping.md`](nip52-mapping.md) § 4),
@@ -212,8 +218,10 @@ creates the calendar key.
   polled again. Past events stay on relays as they were published.
 
   A calendar its organizer publishes (§§ 12, 13) has no calendar key left to
-  sign with: its removal retires the entry and forgets any signer connection,
-  and its organizer's events stay theirs.
+  sign with: its removal retires the entry, forgets any signer connection,
+  drops the events the index kept of that key, and puts `nostr:<their key>`
+  on the do-not-index list, so the key is not listed again from what it
+  posts (§ 14). Its organizer's events stay theirs.
 
 ## 11. The poll service
 
@@ -222,10 +230,12 @@ creates the calendar key.
 - Every 30 seconds a tick carries out approved removals, then approved claims
   and organizers' own requests (§ 13), polls the entries that are due (at most
   20 per tick, the longest due first; a calendar its organizer publishes is
-  read instead, § 12), publishes the index key's events that changed (its
-  kind 0, 3 and 10002, the events list header, and every directory entry with
-  a key, or none for an aggregator; [`directory.md`](directory.md)), and
-  writes the dump once a day. One feed's failure does not stop the others.
+  read instead, § 12), reads what is new among public NIP-52 events and
+  builds the records of publishers whose events changed (§ 14), marks copies
+  (§ 15), publishes the index key's events that changed (its kind 0, 3 and
+  10002, the events list header, and every directory entry with a key, or
+  none for a feed aggregator; [`directory.md`](directory.md)), and writes the
+  dump once a day. One feed's failure does not stop the others.
 - Events go to the index's own relay; a publish it refuses fails the poll,
   which is retried. The relay accepts only the keys in the allowlist the
   service keeps ([`relay.md`](relay.md)): the index key, each calendar key
@@ -261,10 +271,12 @@ creates the calendar key.
 - The index key's kind 3 follows every key a listed entry names in `p` (`p`
   with the index relay as hint): the calendar keys it holds, organizers'
   own keys, and a claimed calendar's old key while events it signed are
-  still to come. It names at most 1,900 of them: relays keep a list of at
-  most 2,000 tags. Past that, the calendars filed first stay followed and
-  later ones are not added; the service logs, once a day, when the list is
-  within 10% of the cap or past it. A removed calendar is unfollowed.
+  still to come. A publisher listed from what it posts, or from a link
+  someone pasted, is not followed until its organizer proves the key (§ 12).
+  It names at most 1,900 keys: relays keep a list of at most 2,000 tags.
+  Past that, the calendars filed first stay followed and later ones are not
+  added; the service logs, once a day, when the list is within 10% of the cap
+  or past it. A removed calendar is unfollowed.
 - On SIGTERM the service stops after the poll in progress.
 
 ## 12. Calendars published by their organizers
@@ -296,13 +308,18 @@ its directory entry.
   profile has no name; its content as the description). A claimed calendar
   keeps its name and description from its feed. The entry's `calendar` names
   the organizer's newest kind 31924, when they have one.
-- **Filing.** An organizer files a native calendar by their key: a request
-  signed with it ([`api.md`](api.md), "Requests signed with your key"). The
-  index reads their relays at once and queues the calendar for a
-  maintainer's review only if it finds at least one 31922 or 31923 from them.
-  Its `d` is `nostr:<their hex key>`
+- **Listing.** No proof is needed to be listed: the index lists every
+  publisher it reads (§ 14), and anyone may paste a publisher's npub,
+  nprofile or NIP-05 address as a submission, which lists it at once when its
+  relays hold NIP-52 events from it. Its `d` is `nostr:<their hex key>`
   ([`icalendar-profile.md`](icalendar-profile.md) § 5), and no calendar key is
   made for it.
+- **The organizer's key.** Proof is needed to act on it: a request signed
+  with the publisher's key ([`api.md`](api.md), "Requests signed with your
+  key") lists it at once, or, when it is listed, sets its city; it is then
+  read from the organizer's own relays as well, and followed by the index key
+  (§ 11). Signed with that key, a remove request is carried out at once
+  (§ 10).
 
 ## 13. Claims
 
@@ -375,4 +392,77 @@ mirrors, so that its events are published from their own key.
   events the index signs as an organizer also go to its relay and name it as
   their relay hint. Otherwise they go to the organizer's write relays, or to
   the general relays when the organizer names none.
+
+## 14. Every public NIP-52 event
+
+When the operator turns it on (`INGEST_NOSTR`), the index reads every
+public NIP-52 calendar event (kinds 31922 and 31923) by kind, the bridge's
+other direction at full width.
+
+- **Where.** The search relays (by default those the index publishes to,
+  asked with the `include:spam` extension, as plain reads there need) and
+  the large public relays (by default `wss://relay.damus.io`, `wss://nos.lol`,
+  `wss://relay.primal.net` and `wss://relay.formstr.app`).
+- **How.** Each relay's history is read page by page (500 events, `until`
+  set to the oldest second of the last page, so events sharing a second are
+  not skipped; a page that does not get past it moves on), at most 8 pages
+  per relay per tick, a pause between pages. Then what is new is asked every
+  five minutes (`since` an hour before the newest event seen), and the whole
+  history again each week, for what a sync missed (events published late,
+  or dated back). A relay that does not answer is asked again at the next
+  tick.
+- **What is kept.** Every event whose signature checks, with a `d`, a title
+  (or the older `name`) and a readable start between 1990 and ten years
+  ahead. Trust is a reader's concern, so nothing else is judged. Left out:
+  what the index signs itself (its calendar keys' events, and any event of
+  a key that owns no listed calendar carrying the index's events header),
+  events of a key whose secret is public (the key of secret 1), and
+  publishers removed at their request. Each event is kept as it was signed,
+  the newest version of each address (later `created_at`, then the lower
+  id). The index never signs or sends these events: they already live on
+  nostr.
+- **Deletions.** The publishers' kind 5 events naming 31922 or 31923 in `k`
+  are read the same way. A deletion by its author removes the event it names
+  by id, and by address every version no newer than the deletion; it is
+  remembered, so an older copy read later, or the same event from another
+  relay, stays deleted. A deletion by anyone else does nothing.
+- **Listing.** Every key with an event kept is listed in the directory, filed
+  by the index key as curator, with no review: `d` `nostr:<key>`, `source`
+  `nostr`, `p` the publisher, named from its profile (`display_name`, else
+  `name`; checked weekly; else its npub, shortened), its `about`, `picture`
+  and `website` as description, image and page. A key in
+  `seeds/nostr-aggregators.json` (publishers of other organizers' events
+  under their own key, such as Club Orange) is listed with the role
+  `aggregator`; its events are kept and attributed to it. A key that owns a
+  listed calendar has its events read into that calendar instead (one it
+  claimed to publish itself, or filed by its key); a key the index publishes
+  as (`delegated`) is not listed from its events.
+- **Records.** A publisher's records are built from what is kept, whenever
+  its events change, all of them and not only the projection window, and the
+  API serves past ones too.
+- **Where its entry goes.** Entries listed this way, or from a pasted link,
+  stay on the index's relay until the operator sends them to the list and
+  search relays too (`PUBLISH_NOSTR_ENTRIES_OUTSIDE`).
+
+## 15. Copies and originals
+
+The same event can reach the index more than once: an organizer's own
+NIP-52 event, the same event in a feed the index mirrors, and an aggregator's
+copy. The more original one is canonical: an organizer's own event (a
+calendar published from its own key) over a feed's, and either over an
+aggregator's.
+
+- **The same event**: starts within half an hour of each other; the same
+  title, compared lowercased, without accents, punctuation or a
+  `Cancelled: ` prefix (or, for titles of 12 characters or more, one held
+  whole in the other); and, when both carry coordinates, in the same
+  5-character geohash cell (or the coarser one's cell). Events of one
+  calendar, or of two organizers' own calendars, are never copies.
+- **Which original**: the most original kind, then the closest start, then
+  the lowest public id. Deterministic.
+- **Marked** at each tick, among the events from 30 days ago on: the copy's
+  `canonical` in the API and its record's `X-EVENTINDEX-CANONICAL` name the
+  original; a mirrored projection that copies an organizer's own event names
+  it with `q` ([`nip52-mapping.md`](nip52-mapping.md) § 2). A copy whose
+  original is gone stands on its own again.
 

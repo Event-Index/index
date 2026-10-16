@@ -68,6 +68,7 @@ Tags the index adds, in this order after the tags above:
 ["t", …]                                                                  from CATEGORIES
 ["r", "<the event's page>"]                                               when there is one
 ["r", "https://api.eventindex.space/api/1.0/events/byid/<public id>.ics"]
+["q", "<kind>:<pubkey>:<d>", ""]                                          when the event copies an organizer's own (indexer-rules.md § 15)
 ["z", "39998:<index key>:events"]
 ["alt", "<calendar name>: <title>, <start date>"]
 ["client", "eventindex"]
@@ -75,7 +76,7 @@ Tags the index adds, in this order after the tags above:
 
 The tag order is fixed: `d`, `title`, `summary`, `image`, `start`, `end`,
 `start_tzid`, `end_tzid`, `D`…, `location`…, `g`, `p` (host, co-hosts,
-participants), `t`…, `r`…, `z`, `alt`, `client`. `alt`'s start date is
+participants), `t`…, `r`…, `q`, `z`, `alt`, `client`. `alt`'s start date is
 `YYYY-MM-DD` in `start_tzid`'s zone, UTC when there is none. No projection
 carries an `expiration` tag.
 

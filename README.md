@@ -13,12 +13,15 @@ iCalendar record. It serves each record as:
 - **NIP-52 calendar events** (kinds 31922 and 31923) on nostr relays, signed by
   one key per calendar, so each event shows its own organizer as host.
 
-The bridge runs both ways. An organizer who already publishes NIP-52 events
-from their own key can list their calendar by that key: the index reads
-their events and serves them as `.ics`, jCal and JSON-LD, and signs nothing
-for it. An organizer whose calendar the index mirrors can claim it, to
-publish its events from their own key: themselves, or by the index, as them,
-through a remote signer they connect (NIP-46).
+The bridge runs both ways. The index reads every public NIP-52 event by
+kind from the relays that carry them, keeps each as its publisher signed it,
+and serves it as `.ics`, jCal and JSON-LD, signing nothing; every publisher
+is listed in the directory, and the index marks an aggregator's copy of an
+organizer's own event as a copy. An organizer whose calendar the index
+mirrors can claim it, to publish its events from their own key: themselves,
+or by the index, as them, through a remote signer they connect (NIP-46).
+Anyone can add a calendar by pasting a link to it, to one of its events, or
+to its publisher on nostr.
 
 The directory itself is a decentralized list on nostr: a maintainer signs its
 header, and the index key, as its curator, signs one entry per calendar
@@ -28,9 +31,10 @@ Status: early. Implemented and tested against captured feeds and local
 relays: the normalizer, the platform adapters (Luma, Meetup, Mobilizon,
 Google), the projector (NIP-52, `.ics`, jCal, JSON-LD and the calendar keys'
 own events), the indexer rules (co-hosts, vanished events, quarantine,
-schedule, submission checks), calendars read from their organizers' own
-keys, claims with an organizer's own key (publishing themselves, or through
-their signer), the poll service (`indexer/src/main.ts`), which publishes the
+schedule, submission checks), every public NIP-52 event read by kind,
+publishers listed and copies marked, claims with an organizer's own key
+(publishing themselves, or through their signer), links resolved to the
+calendars they name, the poll service (`indexer/src/main.ts`), which publishes the
 directory and carries out removals and claims, the maintainer's commands
 (`indexer/src/admin.ts`), and the HTTP service (`api/src/main.ts`): the API,
 NIP-05 names and the pages of eventindex.space. Not implemented: discovery

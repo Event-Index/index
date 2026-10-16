@@ -20,8 +20,8 @@ The tags come in this order, and a tag with no value is left out:
 | `d` | the entry's `d`, e.g. `luma:cal-BvuRd9eaZnDGBwy` |
 | `z` | the header's coordinate |
 | `name` | the calendar's name ([`icalendar-profile.md`](icalendar-profile.md) § 4) |
-| `role` | `calendar`, or `aggregator` for a feed that only leads to calendars |
-| `p` | the key the calendar's events are signed with now (hex): the calendar key, or its organizer's own (below); none for an aggregator |
+| `role` | `calendar`; or `aggregator`, for a feed that only leads to calendars, or a nostr key that publishes other organizers' events under its own |
+| `p` | the key the calendar's events are signed with now (hex): the calendar key, or its organizer's own (below); for an aggregator on nostr, its key; none for a feed aggregator |
 | `p` | after a claim, the calendar key the index held, while events it signed are still to come (below) |
 | `index-name` | the calendar's local name: its page is `eventindex.space/calendar/<name>`, and, while the index holds its key, its NIP-05 name `<name>@eventindex.space` |
 | `feed` | the feed URL the calendar is read from; none when its events are read from nostr |
@@ -59,7 +59,18 @@ An entry's events are published in one of three ways:
   key in a second `p`, after the organizer's, so readers who find events
   through the directory still find those; then it is republished without it.
   The first `p` is always the calendar's current key.
-- The index key follows (kind 3) every key a listed entry names in `p`.
+- A **publisher listed from what it posts**: the index reads every public
+  NIP-52 event ([`indexer-rules.md`](indexer-rules.md) § 14) and lists every
+  key it keeps events of, filed by the index key as curator, with no review:
+  a native calendar like any other, named from the publisher's profile. A key
+  that publishes other organizers' events under its own (listed in
+  `seeds/nostr-aggregators.json`) is listed with the role `aggregator` and its
+  `p`. Proof of the key is needed only to act: to set the calendar's city, or
+  to remove it at once. These entries stay on the index's relay until the
+  operator sends them outside.
+- The index key follows (kind 3) every key a listed entry names in `p`,
+  except a publisher listed from what it posts (or from a pasted link) whose
+  organizer has not proved the key.
 
 ## Where it is published
 
