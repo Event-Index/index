@@ -3,6 +3,7 @@
 //
 //   node indexer/src/admin.ts status
 //   node indexer/src/admin.ts import-seeds seeds/luma/new-york.json ... [--cities seeds/cities.json]
+//     (a seed list, or seeds/communities.json)
 //   node indexer/src/admin.ts submissions
 //   node indexer/src/admin.ts approve-submission <id> [--city <slug>]
 //   node indexer/src/admin.ts reject-submission <id>
@@ -26,7 +27,7 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type AdminStores, type Cities } from './service/admin.ts';
+import { importSeeds, importCommunities, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 
@@ -88,9 +89,14 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
     case 'import-seeds': {
       const cities = readCities(option(args, '--cities'));
       if (args.length === 0) throw new UsageError('import-seeds needs at least one seed list');
-      const seeds = args.map((path) => JSON.parse(readFileSync(path, 'utf8')) as Seed);
-      const r = importSeeds(s, seeds, cities, now);
+      const files = args.map((path) => JSON.parse(readFileSync(path, 'utf8')) as Seed | Communities);
+      const r = { filed: [] as string[], existing: [] as string[], blocked: [] as string[], native: [] as string[] };
+      const seeds = files.filter((f): f is Seed => !('communities' in f));
+      const add = (x: Partial<typeof r>) => { for (const k of Object.keys(r) as Array<keyof typeof r>) r[k].push(...(x[k] ?? [])); };
+      add(importSeeds(s, seeds, cities, now));
+      for (const list of files.filter((f): f is Communities => 'communities' in f)) add(importCommunities(s, list, cities, now));
       for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
+      for (const name of r.native) out(`native publisher, not filed: ${name}`);
       out(`filed ${r.filed.length}, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
       return;
     }

@@ -4,6 +4,7 @@
 
 import { identify } from '../directory/id.ts';
 import { seedFeedUrl, type Seed } from '../directory/seed.ts';
+import type { Source } from '../types.ts';
 import { encodeGeohash } from '../project/geohash.ts';
 import type { IndexDb } from '../store/index-db.ts';
 import type { DirectoryStore } from '../store/directory.ts';
@@ -59,6 +60,51 @@ export function importSeeds(s: AdminStores, seeds: Seed[], cities: Cities, now: 
       });
       (added ? report.filed : report.existing).push(identity.d);
     }
+  }
+  return report;
+}
+
+// The hand-kept list of venues and communities (seeds/communities.json).
+export interface Community {
+  name: string;
+  // A city's slug in cities.json.
+  city: string;
+  source: Source;
+  // A platform id (a Luma calendar id, a Meetup group), or a feed URL.
+  id?: string;
+  feed?: string;
+  // For a native publisher (source nostr): its own key.
+  pubkey?: string;
+  organization?: string;
+  note?: string;
+  found_via: string;
+}
+
+export interface Communities {
+  communities: Community[];
+}
+
+// Files each community with a calendar feed under its city's area. A native
+// publisher is only listed: it publishes its own events and gets no key here.
+export function importCommunities(s: AdminStores, list: Communities, cities: Cities, now: number) {
+  const report = { filed: [] as string[], existing: [] as string[], blocked: [] as string[], native: [] as string[] };
+  for (const c of list.communities) {
+    if (c.source === 'nostr') {
+      report.native.push(c.name);
+      continue;
+    }
+    const city = cities.cities.find((x) => x.slug === c.city);
+    if (!city) throw new Error(`no city ${c.city} in cities.json (${c.name})`);
+    const identity = identify(c.feed ?? seedFeedUrl(c.source, c.id!));
+    if (s.dir.doNotIndex(identity.d)) {
+      report.blocked.push(identity.d);
+      continue;
+    }
+    const added = s.dir.add({
+      d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
+      name: null, description: null, image: null, ...area(city), foundVia: c.found_via, addedAt: now,
+    });
+    (added ? report.filed : report.existing).push(identity.d);
   }
   return report;
 }

@@ -8,7 +8,7 @@ import { openIndexDb } from '../src/store/index-db.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type Cities } from '../src/service/admin.ts';
+import { importSeeds, importCommunities, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
 import type { Seed } from '../src/directory/seed.ts';
 import { NOW } from './helpers.ts';
@@ -195,6 +195,54 @@ test('the admin command lists the approvals the index made itself', () => {
     const listed = run('approvals');
     assert.equal(listed.status, 0, listed.stderr);
     assert.match(listed.stdout, new RegExp(`^${sub.id}\\t\\S+\\tmeetup:auto\\tAuto Group\\thttps://www.meetup.com/auto/events/ical/$`, 'm'));
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+const communities = JSON.parse(readFileSync(join(repo, 'seeds/communities.json'), 'utf8')) as Communities;
+
+test('the hand-kept communities list names known cities and a way to read each one', () => {
+  assert.ok(communities.communities.length >= 7);
+  const slugs = new Set(cities.cities.map((c) => c.slug));
+  for (const c of communities.communities) {
+    assert.ok(c.name && slugs.has(c.city), `${c.name}: city ${c.city}`);
+    assert.equal(c.found_via, 'hand-kept');
+    if (c.source === 'nostr') assert.match(c.pubkey ?? '', /^[0-9a-f]{64}$/, c.name);
+    else assert.ok(c.id || c.feed, c.name);
+  }
+});
+
+test('importing the communities list files its feed calendars by their city, and only lists the native publishers', () => {
+  const s = stores();
+  const list: Communities = { communities: [
+    { name: 'Bitcoin Park Nashville', city: 'nashville', source: 'meetup', id: 'bitcoinpark', found_via: 'hand-kept' },
+    { name: 'PubKey', city: 'new-york', source: 'luma', id: 'cal-dlSUfDiWBlONmiQ', found_via: 'hand-kept' },
+    { name: 'A Feed Club', city: 'austin', source: 'ics', feed: 'https://example.org/club.ics', found_via: 'hand-kept' },
+    { name: 'Fork & Coin', city: 'chicago', source: 'nostr', pubkey: 'ab'.repeat(32), found_via: 'hand-kept' },
+  ] };
+  const report = importCommunities(s, list, cities, NOW);
+  assert.deepEqual(report.filed.sort(), ['luma:cal-dlSUfDiWBlONmiQ', 'meetup:bitcoinpark', s.dir.list().find((e) => e.source === 'ics')!.d].sort());
+  assert.deepEqual(report.native, ['Fork & Coin']);
+  const park = s.dir.get('meetup:bitcoinpark')!;
+  assert.equal(park.location, 'Nashville, US');
+  assert.equal(park.g, 'dn6m');
+  assert.equal(park.foundVia, 'hand-kept');
+  assert.equal(s.dir.get('luma:cal-dlSUfDiWBlONmiQ')!.location, 'New York, US');
+  assert.equal(s.dir.list().length, 3, 'no key is minted and nothing filed for a native publisher');
+  const again = importCommunities(s, list, cities, NOW + 60);
+  assert.deepEqual(again.filed, []);
+  assert.equal(again.existing.length, 3);
+});
+
+test('the admin command imports a communities list like a seed list', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const run = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', 'import-seeds', 'seeds/communities.json'],
+      { cwd: repo, env: { ...process.env, EVENTINDEX_DATA_DIR: dataDir }, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^native publisher, not filed: Fork & Coin$/m);
+    assert.match(run.stdout, /filed 6, already listed 0, on the do-not-index list 0/);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

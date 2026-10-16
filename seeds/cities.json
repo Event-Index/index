@@ -1,5 +1,5 @@
 {
-  "description": "US cities with more than 1,000,000 residents (US Census Bureau city population estimates, Vintage 2024), then US cities with a Luma Discover page (marked \"wave\": 2), and the seed lists for each. Coordinates and ids from GeoNames (CC BY 4.0).",
+  "description": "US cities with more than 1,000,000 residents (US Census Bureau city population estimates, Vintage 2024), then US cities with a Luma Discover page (marked \"wave\": 2), then cities of the hand-kept communities list, and the seed lists for each. Coordinates and ids from GeoNames (CC BY 4.0).",
   "cities": [
     {
       "name": "New York",
@@ -273,6 +273,18 @@
         "meetup/providence.json"
       ],
       "wave": 2
+    },
+    {
+      "name": "Nashville",
+      "slug": "nashville",
+      "country": "US",
+      "geonames_id": 4644585,
+      "latitude": 36.16589,
+      "longitude": -86.78444,
+      "timezone": "America/Chicago",
+      "seeds": [
+        "communities.json"
+      ]
     }
   ]
 }

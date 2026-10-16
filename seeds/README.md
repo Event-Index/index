@@ -61,3 +61,28 @@ outcome (`filed`, `skipped`, `refused` with its reason) goes to stderr.
 CALENDAR_KEY_SECRET=<64 hex digits> node scripts/seed-entries.ts seeds/luma/new-york.json \
   --index-pubkey <hex> --vault vault.db > entries.jsonl
 ```
+
+## The communities list
+
+`communities.json` is a hand-kept list of bitcoin venues and communities:
+
+```json
+{
+  "communities": [
+    { "name": "Bitcoin Park Nashville", "city": "nashville", "source": "meetup", "id": "bitcoinpark", "found_via": "hand-kept" },
+    { "name": "Fork & Coin", "city": "chicago", "source": "nostr", "pubkey": "8bcb…ddb1",
+      "organization": "Chicago Bitcoin Collective", "note": "…", "found_via": "hand-kept" }
+  ]
+}
+```
+
+- `name`: the organization's name, as it gives it; `city`: a slug from
+  `cities.json`, whose area the entry takes.
+- `source` and `id`: a Luma calendar id or a Meetup group, as in the seed
+  lists; or `feed`, a feed URL, for any other source.
+- `source` `nostr` with `pubkey`: a community that publishes its NIP-52 events
+  from its own key. It is listed here and filed once the index reads native
+  calendars; the index never holds a key for it.
+
+`eventindex-admin import-seeds seeds/communities.json` files the ones with a
+feed, like a seed list.

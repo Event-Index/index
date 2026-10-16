@@ -1,0 +1,57 @@
+{
+  "description": "Bitcoin venues and communities, kept by hand. Each is filed in the directory from its calendar feed; one that publishes NIP-52 events from its own key (source nostr) is listed by that key and filed once the index reads native calendars. Directory data, dedicated to the public domain under CC0 1.0 (LICENSE).",
+  "found_at": "2026-10-16",
+  "communities": [
+    {
+      "name": "Bitcoin Park Nashville",
+      "city": "nashville",
+      "source": "meetup",
+      "id": "bitcoinpark",
+      "found_via": "hand-kept"
+    },
+    {
+      "name": "Bitcoin Park Austin",
+      "city": "austin",
+      "source": "meetup",
+      "id": "bitcoin-park-austin",
+      "found_via": "hand-kept"
+    },
+    {
+      "name": "PubKey",
+      "city": "new-york",
+      "source": "luma",
+      "id": "cal-dlSUfDiWBlONmiQ",
+      "found_via": "hand-kept"
+    },
+    {
+      "name": "San Diego Bitcoiners",
+      "city": "san-diego",
+      "source": "meetup",
+      "id": "sdbitcoiners",
+      "found_via": "hand-kept"
+    },
+    {
+      "name": "Dallas Bitcoiners",
+      "city": "dallas",
+      "source": "meetup",
+      "id": "dallas-bitcoin-meetup-group",
+      "found_via": "hand-kept"
+    },
+    {
+      "name": "Rhode Island Bitcoin Meetup Group",
+      "city": "providence",
+      "source": "meetup",
+      "id": "ribitcoiners",
+      "found_via": "hand-kept"
+    },
+    {
+      "name": "Fork & Coin",
+      "city": "chicago",
+      "source": "nostr",
+      "pubkey": "8bcba26f8f648b834c4c60f1df55acbbf4df451434d7d600b9b9487c8aa3ddb1",
+      "organization": "Chicago Bitcoin Collective",
+      "note": "The Chicago Bitcoin Collective's venue. The Collective publishes its NIP-52 events from this key itself, with no feed; it is listed once the index reads native calendars. The index holds no key for it.",
+      "found_via": "hand-kept"
+    }
+  ]
+}
