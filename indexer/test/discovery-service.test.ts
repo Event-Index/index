@@ -87,3 +87,15 @@ test('the follow list stops at its cap, and the index says when it nears it', as
   assert.deepEqual(follows(s), [s.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey]);
   assert.ok(s.log.some((l) => l.includes('follow list: 2 calendar keys, the cap is 1; the 1 filed first are followed')), s.log.join('\n'));
 });
+
+test('publishers listed from what they post are not followed, so they leave discovery room under the cap', async () => {
+  const s = service({ EVENTINDEX_FOLLOW_CAP: '3' });
+  for (const n of [1, 2, 3]) {
+    const pubkey = String(n).repeat(64);
+    s.dir.add({ d: `nostr:${pubkey}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: null, description: null, image: null,
+      location: null, g: null, foundVia: 'ingest', addedAt: NOW - 3600, mode: 'own', owner: pubkey });
+  }
+  await s.indexer.tick();
+  assert.ok(s.dir.get('luma:cal-BvuRd9eaZnDGBwy'), s.log.join('\n'));
+  assert.ok(!s.log.some((l) => l.includes('the follow list is at its cap')), s.log.join('\n'));
+});

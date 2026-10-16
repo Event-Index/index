@@ -236,6 +236,7 @@ export function createIndexer(deps: IndexerDeps) {
     fetch: deps.fetch,
     log: deps.log,
     settings: { perRun: settings.discoveryPerRun, perDay: settings.discoveryPerDay, followCap: settings.followCap, checksPerStep: DISCOVERY_CHECKS_PER_TICK },
+    following: (now) => followKeys(now).length,
   });
 
   // The keys the index key follows: every key a listed entry names in `p`
@@ -243,7 +244,7 @@ export function createIndexer(deps: IndexerDeps) {
   // events it signed are to come), the earliest filed first, up to the cap.
   // Nearing or passing the cap is logged once a day.
   let followNoticeAt = -Infinity;
-  function follows(now: number): string[] {
+  function followKeys(now: number): Array<{ d: string; pubkey: string; addedAt: number }> {
     const byKey = new Map<string, { d: string; pubkey: string; addedAt: number }>();
     const add = (d: string, pubkey: string, addedAt: number) => {
       const known = byKey.get(pubkey);
@@ -258,7 +259,11 @@ export function createIndexer(deps: IndexerDeps) {
       const former = formerKeyOf(entry, now);
       if (former) add(entry.d, former, entry.addedAt);
     }
-    const keys = [...byKey.values()];
+    return [...byKey.values()];
+  }
+
+  function follows(now: number): string[] {
+    const keys = followKeys(now);
     const cap = settings.followCap;
     if (keys.length >= cap * FOLLOW_NEAR && now - followNoticeAt >= DAY) {
       followNoticeAt = now;

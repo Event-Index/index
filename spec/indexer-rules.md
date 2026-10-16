@@ -48,8 +48,9 @@ Status: draft.
     skipped.
   - Caps: one run of one page takes at most 25 new calendars (the rest wait
     for its next run); discovery files at most 300 calendars a day, and none
-    once the index holds as many calendars as its follow list may name
-    (§ 11). A tick checks at most 5 feeds.
+    once the index key follows as many keys as its follow list may name
+    (§ 11; publishers listed from what they post are not followed). A tick
+    checks at most 5 feeds.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
 - Filing many entries at once spreads their `created_at` so that no second
   holds more than 1,000 events.
