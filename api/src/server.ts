@@ -197,9 +197,12 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       const signer = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'signer';
       if (native || claim || nip05 || signer) {
         const text = await readText(req, limits.maxBodyBytes);
-        // The API's addresses; and on this machine, the one it was asked at.
+        // The API's addresses; and for a request made on this machine, not
+        // through the proxy, the loopback address it was asked at.
         const host = String(req.headers.host ?? '');
-        const loopback = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host) ? [`http://${host}${API}${path}`] : [];
+        const socket = req.socket.remoteAddress ?? '';
+        const direct = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(socket) && req.headers['x-real-ip'] === undefined;
+        const loopback = direct && /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host) ? [`http://${host}${API}${path}`] : [];
         const auth = checkAuth(req.headers['authorization'], {
           urls: [`${settings.apiBase}${path}`, `https://${settings.domain}${API}${path}`, ...loopback], method: 'POST', body: text, now,
         });
@@ -330,8 +333,10 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
     const indexPubkey = dir.fact('index_pubkey');
     if ((!name || name === '_') && indexPubkey) names['_'] = indexPubkey;
     if (name && name !== '_') {
-      const pubkey = dir.byLocalName(name)?.pubkey;
-      if (pubkey) names[name] = pubkey;
+      // Only a calendar key the index holds: a claimed calendar's old key is
+      // deleted, and an organizer's own key is theirs to name.
+      const entry = dir.byLocalName(name);
+      if (entry?.pubkey && entry.mode === 'mirrored') names[name] = entry.pubkey;
     }
     const keys = Object.values(names);
     return json(200, keys.length ? { names, relays: Object.fromEntries(keys.map((k) => [k, [settings.publicRelay]])) } : { names });

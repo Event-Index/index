@@ -276,7 +276,8 @@ its directory entry.
 - **Where.** The organizer's relay list (their newest kind 10002) is read
   from the index's usual relays: its own relay, the general relays and the
   profile relays. Their events are then read from their write relays (those
-  marked `write` or unmarked, at most 4) and the usual relays. A relay the
+  marked `write` or unmarked, at most 4, the usual ones among them included)
+  and the usual relays, each relay asked once. A relay the
   organizer names is used only when it is `wss` on a host that resolves only
   to public addresses (§ 4's ranges), so an organizer cannot point the index
   at its own network.

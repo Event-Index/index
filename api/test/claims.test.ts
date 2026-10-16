@@ -22,7 +22,7 @@ const local = (d: string) => h.dir.get(d)!.localName;
 // A request signed with NIP-98 for its URL, method and body. The clock moves
 // a second each time, as the same request signed in the same second is the
 // same proof, which is used once.
-async function signed(path: string, body: unknown, key = organizerKey, options: { url?: string; at?: number } = {}) {
+async function signed(path: string, body: unknown, key = organizerKey, options: { url?: string; at?: number; direct?: boolean } = {}) {
   h.clock.now += 1;
   const text = JSON.stringify(body);
   const event = finalizeEvent({
@@ -30,7 +30,8 @@ async function signed(path: string, body: unknown, key = organizerKey, options: 
     tags: [['u', options.url ?? `https://api.eventindex.space${path}`], ['method', 'POST'], ['payload', createHash('sha256').update(text).digest('hex')]],
   }, key);
   // Each from an address of its own, below the hourly limit.
-  const response = await h.post(path, text, { authorization: `Nostr ${Buffer.from(JSON.stringify(event)).toString('base64')}`, 'content-type': 'application/json', 'x-real-ip': `203.0.113.${(ip += 1)}` });
+  const proxied: Record<string, string> = options.direct ? {} : { 'x-real-ip': `203.0.113.${(ip += 1)}` };
+  const response = await h.post(path, text, { authorization: `Nostr ${Buffer.from(JSON.stringify(event)).toString('base64')}`, 'content-type': 'application/json', ...proxied });
   return { status: response.status, body: await response.json() as any };
 }
 let ip = 0;
@@ -161,8 +162,10 @@ test('a calendar already published by its organizer cannot be claimed again; its
 
 test('a proof may name the address the request was made to on this machine, for running the site locally', async () => {
   const path = `${API}/calendars/${local('meetup:pythonsd')}/claim`;
-  const local1 = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `${h.base}${path}` });
+  const local1 = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `${h.base}${path}`, direct: true });
   assert.equal(local1.status, 202);
+  const proxied = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `${h.base}${path}` });
+  assert.equal(proxied.body.reason, 'wrong-url', 'not for a request that came through the proxy');
   const spoofed = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `http://evil.example${path}` });
   assert.equal(spoofed.body.reason, 'wrong-url');
 });

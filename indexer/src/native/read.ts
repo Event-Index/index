@@ -146,14 +146,14 @@ export async function readAuthor(reader: RelayReader, pubkey: string, usual: str
   };
 
   const lists = await reader.query(usual, { kinds: [10002], authors: [pubkey], limit: 10 });
-  const named = writeRelaysOf(newest(lists.found.filter(genuine), 10002)?.event ?? null).filter((r) => !usual.includes(r));
+  const named = writeRelaysOf(newest(lists.found.filter(genuine), 10002)?.event ?? null);
   const writeRelays: string[] = [];
   for (const relay of named) {
     if (writeRelays.length >= MAX_WRITE_RELAYS) break;
     if (await allowed(relay)) writeRelays.push(relay);
   }
 
-  const read = await reader.query([...usual, ...writeRelays], { kinds: KINDS, authors: [pubkey], limit: READ_LIMIT });
+  const read = await reader.query([...new Set([...usual, ...writeRelays])], { kinds: KINDS, authors: [pubkey], limit: READ_LIMIT });
   const found = read.found.filter(genuine);
   const deletions = found.filter((f) => f.event.kind === 5).map((f) => f.event);
   const deletedIds = new Set(deletions.flatMap((d) => d.tags.filter((t) => t[0] === 'e').map((t) => t[1])));

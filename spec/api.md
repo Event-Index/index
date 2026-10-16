@@ -211,7 +211,9 @@ The pages of `eventindex.space` post the same requests as forms
 Organizers already on nostr act with their own key. Each of these requests
 carries `Authorization: Nostr <base64 of a NIP-98 event>`: a kind `27235`
 event signed by the organizer's key, with `["u", "<the request's URL>"]`
-(the API's address, or the same path on `https://eventindex.space`),
+(the API's address, or the same path on `https://eventindex.space`; for a
+request made on the server itself, not through its proxy, also its loopback
+address, so the site can be run locally),
 `["method", "POST"]` and `["payload", "<hex SHA-256 of the body>"]`, made
 within 60 seconds of the request. Each proof is used once. They are limited to
 20 an hour per client address, take a JSON object of at most 16 KiB, and the

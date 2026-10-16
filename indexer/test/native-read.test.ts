@@ -100,3 +100,11 @@ test('an outside relay is a wss address on a public host', async () => {
   assert.equal(await outsideRelay('wss://user:pw@relay.example.org', resolve), false);
   assert.equal(await outsideRelay('not a url', resolve), false);
 });
+
+test('a write relay that is also one of the index\'s usual relays is still the author\'s, and asked once', async () => {
+  const list = sign(10002, [['r', 'wss://general.test'], ['r', 'wss://home.test']]);
+  const reader = relays({ 'wss://own.test': [list], 'wss://general.test': [], 'wss://home.test': [] });
+  const read = await readAuthor(reader, pubkey, USUAL, { relayAllowed: allowAll });
+  assert.deepEqual(read.writeRelays, ['wss://general.test', 'wss://home.test']);
+  assert.deepEqual(reader.asked[1], ['wss://own.test', 'wss://general.test', 'wss://home.test']);
+});

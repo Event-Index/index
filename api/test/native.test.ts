@@ -55,3 +55,15 @@ test('NIP-05 names only the keys the index holds', async () => {
   const name = h.dir.get(h.native!.d)!.localName;
   assert.deepEqual((await json(`/.well-known/nostr.json?name=${name}`)).body, { names: {} });
 });
+
+test('a claimed calendar\'s retired key has no NIP-05 name', async () => {
+  const d = 'meetup:pythonsd';
+  const name = h.dir.get(d)!.localName;
+  assert.deepEqual(Object.keys((await json(`/.well-known/nostr.json?name=${name}`)).body.names), [name]);
+  h.dir.setOwnership(d, { mode: 'own', owner: 'a0'.repeat(32), claimedAt: 1, nativeCalendar: null });
+  try {
+    assert.deepEqual((await json(`/.well-known/nostr.json?name=${name}`)).body, { names: {} });
+  } finally {
+    h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
+  }
+});
