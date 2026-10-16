@@ -30,7 +30,7 @@ import { setsFor, type RelaySet } from './routing.ts';
 import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
 import { followed, FOLLOW_NEAR } from './follows.ts';
-import { readAuthor, type RelayReader } from '../native/read.ts';
+import { outsideRelay, readAuthor, type RelayReader } from '../native/read.ts';
 import { nativeFeed } from '../native/record.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
 import { expand, cancelledCopy } from '../project/projector.ts';
@@ -230,6 +230,16 @@ export function createIndexer(deps: IndexerDeps) {
         : `follow list: ${keys.length} calendar keys, ${cap - keys.length} short of the cap of ${cap}`);
     }
     return followed(keys, cap);
+  }
+
+  // Organizers the relay hosts: those of calendars the index publishes as,
+  // while the operator has it host them.
+  function rehost(): void {
+    allowed.hosted.clear();
+    if (settings.hostClaimants) {
+      for (const entry of dir.list()) if (entry.mode === 'delegated' && entry.owner) allowed.hosted.add(entry.owner);
+    }
+    writeAllowlist();
   }
 
   // The co-host plan needs every calendar's events; until a calendar polls,
@@ -556,8 +566,9 @@ export function createIndexer(deps: IndexerDeps) {
       pointer = null;
     }
     if (!pointer) return { failed: 'the signer\'s address could not be read' };
+    const allowedRelay = deps.relayAllowed ?? ((url: string) => outsideRelay(url));
     const reachable: string[] = [];
-    for (const relay of pointer.relays) if (!deps.relayAllowed || await deps.relayAllowed(relay)) reachable.push(relay);
+    for (const relay of pointer.relays) if (await allowedRelay(relay)) reachable.push(relay);
     if (!reachable.length) return { failed: 'the signer\'s relays are not reachable by the index' };
     let paired;
     try {
@@ -623,10 +634,7 @@ export function createIndexer(deps: IndexerDeps) {
       copyOf: (_template, kind, d) => `${kind}:${owner}:${d}`,
     });
     dir.setOwnership(entry.d, { mode: 'delegated', owner, claimedAt: now, nativeCalendar: `31924:${owner}:${entry.d}` });
-    if (settings.hostClaimants) {
-      allowed.hosted.add(owner);
-      writeAllowlist();
-    }
+    rehost();
     // Its events go out as the organizer's at this tick's poll.
     db.savePollState(entry.d, { ...db.pollState(entry.d), nextPollAt: 0 });
     return 'done';
@@ -643,9 +651,8 @@ export function createIndexer(deps: IndexerDeps) {
     if (claim.kind === 'disconnect') {
       if (entry.mode !== 'delegated') return 'done';
       vault.forgetConnection(entry.d);
-      allowed.hosted.delete(entry.owner);
-      writeAllowlist();
       dir.setOwnership(entry.d, { mode: 'own', owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar: null });
+      rehost();
       feeds.delete(entry.d);
       if (deps.reader) {
         const read = await readOwner(entry.owner);
@@ -659,10 +666,7 @@ export function createIndexer(deps: IndexerDeps) {
     if ('failed' in connection) return connection;
     vault.saveConnection(entry.d, entry.owner, connection);
     dir.setOwnership(entry.d, { mode: 'delegated', owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar: `31924:${entry.owner}:${entry.d}` });
-    if (settings.hostClaimants) {
-      allowed.hosted.add(entry.owner);
-      writeAllowlist();
-    }
+    rehost();
     db.savePollState(entry.d, { ...db.pollState(entry.d), nextPollAt: 0 });
     deps.log(`${entry.d}: its organizer connected a signer`);
     return 'done';
@@ -742,7 +746,9 @@ export function createIndexer(deps: IndexerDeps) {
     // A calendar its organizer publishes keeps its events, which are theirs;
     // the index stops reading them and forgets any signer of theirs.
     const pubkey = entry.mode === 'mirrored' ? entry.pubkey : null;
-    if (entry.mode !== 'mirrored') vault.forgetConnection(entry.d);
+    if (entry.mode !== 'mirrored') {
+      vault.forgetConnection(entry.d);
+    }
     let published = 0;
     if (pubkey) {
       const live = db.liveProjections(pubkey);
@@ -780,6 +786,7 @@ export function createIndexer(deps: IndexerDeps) {
       deps.log(`removed ${entry.d}: ${upcoming.length} upcoming events deleted, calendar key deleted`);
     }
     dir.retire(entry.d, REMOVED, now);
+    if (entry.mode === 'delegated') rehost();
     events.removeCalendar(entry.d);
     feeds.delete(entry.d);
     return published;

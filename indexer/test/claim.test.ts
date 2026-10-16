@@ -61,7 +61,7 @@ function fakeSigners(holds: Map<string, Uint8Array>) {
   return { signers, asked, state };
 }
 
-function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?: Map<string, Uint8Array> } = {}) {
+function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?: Map<string, Uint8Array>; strictRelays?: boolean; host?: boolean } = {}) {
   // Feed texts by URL, in place of the fixture.
   const texts: Record<string, string> = {};
   const dataDir = mkdtempSync(join(tmpdir(), 'claim-'));
@@ -78,7 +78,8 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
   const rsvps = new Set<string>();
   const clock = { now: NOW };
   const fake = fakeSigners(options.holds ?? new Map());
-  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_RELAY_URL: OWN, EVENTINDEX_GENERAL_RELAYS: 'wss://general.test', EVENTINDEX_PROFILE_RELAYS: 'none' });
+  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_RELAY_URL: OWN, EVENTINDEX_GENERAL_RELAYS: 'wss://general.test', EVENTINDEX_PROFILE_RELAYS: 'none',
+    ...(options.host ? { EVENTINDEX_RELAY_HOSTS_CLAIMANTS: '1' } : {}) });
   const indexer = createIndexer({
     db, dir, queues, events, vault, indexKey, settings,
     now: () => clock.now,
@@ -104,7 +105,7 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
         return { answered, found: answered.flatMap((relay) => held[relay]!.filter((e) => matchFilter(filter, e)).map((event) => ({ event, relay }))) };
       },
     },
-    relayAllowed: async () => true,
+    ...(options.strictRelays ? {} : { relayAllowed: async () => true }),
     signers: fake.signers,
     log: () => {},
   });
@@ -123,7 +124,7 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
   return {
     db, dir, queues, events, vault, indexer, settings, sent, fetched, rsvps, clock, held, fake, dataDir, texts, tickAt, by, approve,
     indexPubkey: getPublicKey(indexKey),
-    allowlist: () => JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')) as { live: string[]; removed: string[] },
+    allowlist: () => JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')) as { live: string[]; removed: string[]; hosted: string[] },
     close() { vault.close(); db.close(); rmSync(dataDir, { recursive: true, force: true }); },
   };
 }
@@ -316,5 +317,54 @@ test('the organizer disconnects their signer: the index forgets it and reads the
   assert.equal(h.queues.claim(on)!.status, 'done');
   assert.equal(h.dir.get(D)!.mode, 'delegated');
   assert.equal(h.vault.connection(D)!.owner, organizer);
+  h.close();
+});
+
+test('a signer on a relay the index will not connect to (not wss, or not public) is refused', async () => {
+  const organizerKey = generateSecretKey();
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), strictRelays: true });
+  await h.tickAt(NOW);
+  const claim = h.queues.requestClaim({ d: D, pubkey: getPublicKey(organizerKey), mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=ws%3A%2F%2F127.0.0.1%3A7777`), at: NOW });
+  h.approve(claim);
+  await h.tickAt(NOW + 60);
+  assert.deepEqual([h.queues.claim(claim.id)!.status, h.queues.claim(claim.id)!.note], ['failed', 'the signer\'s relays are not reachable by the index']);
+  assert.equal(h.dir.get(D)!.mode, 'mirrored');
+  h.close();
+});
+
+test('removing a calendar its organizer publishes forgets their signer and signs nothing', async () => {
+  const organizerKey = generateSecretKey();
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]) });
+  await h.tickAt(NOW);
+  h.approve(h.queues.requestClaim({ d: D, pubkey: getPublicKey(organizerKey), mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test`), at: NOW }));
+  await h.tickAt(NOW + 60);
+  const { id } = h.queues.requestRemoval({ d: D, message: null, at: NOW + 70 });
+  h.queues.resolveRemoval(id, 'approved', NOW + 70);
+  const before = h.sent.length;
+  await h.tickAt(NOW + 120);
+  assert.equal(h.dir.get(D)!.removed, 'organizer request');
+  assert.equal(h.vault.connection(D), null);
+  assert.ok(h.sent.slice(before).every((s) => s.event.pubkey === h.indexPubkey), 'the organizer\'s events are theirs; nothing is signed as them');
+  h.close();
+});
+
+test('when the operator has the relay host claimants, an organizer the index publishes as is on its allowlist, and its events go there too', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), host: true });
+  await h.tickAt(NOW);
+  h.approve(h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test`), at: NOW }));
+  const before = h.sent.length;
+  await h.tickAt(NOW + 60);
+  assert.deepEqual(h.allowlist().hosted, [organizer]);
+  const theirs = h.sent.slice(before).filter((s) => s.event.pubkey === organizer);
+  assert.ok(theirs.some((s) => s.audience === 'own'), 'on the index\'s relay');
+  assert.deepEqual(theirs.find((s) => s.event.kind === 31923)!.event.tags.find((t) => t[0] === 'p'), ['p', organizer, 'wss://relay.eventindex.space', 'host']);
+  h.queues.ownerRequest({ d: D, pubkey: organizer, kind: 'disconnect', signer: null, at: NOW + 70 });
+  await h.tickAt(NOW + 120);
+  assert.deepEqual(h.allowlist().hosted, [], 'no longer once they publish themselves');
   h.close();
 });
