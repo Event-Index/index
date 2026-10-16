@@ -109,7 +109,8 @@ export function openVault(path: string, secret: Uint8Array): Vault {
 
   return {
     raw: db,
-    createKey: (d) => create(d),
+    // Reads, then writes: the write lock is taken first (see nostr-events.ts).
+    createKey: (d) => create.immediate(d),
     pubkeyFor: (d) => select.get(d)?.pubkey ?? null,
     sign: (d, template) => withKey(d, (sk) => finalizeEvent(template, sk)),
     exportNcryptsec: (d, password, logn = 16) => withKey(d, (sk) => nip49Encrypt(sk, password, logn, 0x02)),

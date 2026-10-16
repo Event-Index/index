@@ -123,8 +123,10 @@ export function nostrStore(index: IndexDb) {
   });
 
   return {
-    put: (found: Found, now: number) => put(found, now),
-    applyDeletion: (deletion: NostrEvent, now: number) => applyDeletion(deletion, now),
+    // Each reads, then writes: it takes the write lock first (BEGIN IMMEDIATE),
+    // so a commit by another process in between cannot fail it.
+    put: (found: Found, now: number) => put.immediate(found, now),
+    applyDeletion: (deletion: NostrEvent, now: number) => applyDeletion.immediate(deletion, now),
     eventsOf: (pubkey: string): StoredNostrEvent[] => db.prepare<[string], { event: string; relay: string | null }>(
       'SELECT event, relay FROM nostr_events WHERE pubkey = ? ORDER BY address',
     ).all(pubkey).map((r) => ({ event: JSON.parse(r.event) as NostrEvent, relay: r.relay })),

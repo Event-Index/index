@@ -204,7 +204,8 @@ export function openIndexDb(path: string): IndexDb {
       return row ? { ...NEW_POLL_STATE, ...(JSON.parse(row.state) as Partial<PollState>) } : { ...NEW_POLL_STATE };
     },
     savePollState: (calendarD, state) => void putPoll.run(calendarD, JSON.stringify(state)),
-    localNameFor: (calendarD) => assignName(calendarD),
+    // Reads, then writes: the write lock is taken first (see nostr-events.ts).
+    localNameFor: (calendarD) => assignName.immediate(calendarD),
     calendarForLocalName: (name) => calendarOf.get(name)?.calendar_d ?? null,
     putRecord: ({ calendarD, uid, id, ics, now }) => {
       const existing = getRecord.get(calendarD, uid);
