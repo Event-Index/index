@@ -30,9 +30,12 @@ Deletions are checked against the relay itself (`EVENTINDEX_RELAY_URL`,
 default `ws://127.0.0.1:7777`). Events the operator loads with `strfry
 import`, `sync` or `stream` are not filtered.
 
-Limits are strfry's defaults (`maxEventSize` 65,536 bytes, `maxNumTags` 2,000),
-the same order as general relays, so an event accepted here is accepted there.
-The projector keeps kind 31924 calendar lists under that size.
+The relay takes events of up to 512 KB (`maxEventSize` 524,288 bytes, in
+websocket frames of up to 1 MiB) with up to 2,000 tags (`maxNumTags`), more
+than general relays take, so its own limit is never the tightest. What the
+index publishes stays within what the other relays take: kind 31924 calendar
+lists stay under 65,536 bytes, and the index key's kind 3 within the 2,000-tag
+cap of the search relay and of purplepag.es.
 
 The database lives in `/var/lib/strfry/db/` and is backed up like any strfry
 database; it is history, because feeds drop past events.

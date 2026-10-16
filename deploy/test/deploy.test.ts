@@ -141,3 +141,11 @@ test('strfry runs the write policy from the checked-out code, with the allowlist
   assert.match(services, /install -m 644 "\$APP_DIR\/relay\/strfry\.conf" \/etc\/strfry\.conf/);
   assert.match(services, /systemctl restart strfry\.service/);
 });
+
+test('the index relay takes events of 512 KB, so its own limit is never the tightest', () => {
+  const conf = readFileSync(`${repo}relay/strfry.conf`, 'utf8');
+  const value = (name: string) => Number(new RegExp(`^\\s*${name} = (\\d+)$`, 'm').exec(conf)![1]);
+  assert.equal(value('maxEventSize'), 524288);
+  assert.ok(value('maxWebsocketPayloadSize') > value('maxEventSize'), 'a frame holds the largest event and its envelope');
+  assert.ok(value('maxNumTags') >= 2000);
+});
