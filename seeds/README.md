@@ -8,7 +8,8 @@ Seed lists are directory data, dedicated to the public domain under CC0 1.0
 
 `cities.json` lists the cities the seed lists cover (US cities with more than
 1,000,000 residents; then, marked `"wave": 2`, US cities with a Luma Discover
-page), each with its GeoNames id, coordinates, IANA time zone, Luma Discover
+page; then, marked `"wave": 3`, every other place with a Luma Discover page,
+worldwide, each by the GeoNames populated place of its name), each with its GeoNames id, coordinates, IANA time zone, Luma Discover
 page when it has one (`luma_discover`, the place's `luma:discplace-…` id, and
 `luma_slug`, the page's address at `https://luma.com/<slug>`) and seed files.
 
