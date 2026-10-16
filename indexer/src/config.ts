@@ -123,7 +123,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
     hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',
-    ingestNip52: env['EVENTINDEX_INGEST_NIP52'] === '1',
+    ingestNip52: env['EVENTINDEX_INGEST_NOSTR'] === '1',
     ingestRelays: relays(env['EVENTINDEX_INGEST_RELAYS'], INGEST_RELAYS, 'EVENTINDEX_INGEST_RELAYS'),
     // The search relays unless set.
     ingestSearchRelays: relays(env['EVENTINDEX_INGEST_SEARCH_RELAYS'], searchRelays, 'EVENTINDEX_INGEST_SEARCH_RELAYS'),
