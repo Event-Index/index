@@ -137,3 +137,61 @@ test('main.ts stops cleanly on SIGTERM', { skip }, async () => {
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test('turning outside publishing on fills each set of relays with its kinds, from the index\'s relay', { skip }, async () => {
+  const relays: Record<string, { url: string; proc: ChildProcess }> = {};
+  for (const name of ['search', 'lists', 'profiles', 'general']) {
+    const port = await freePort();
+    relays[name] = { url: `ws://127.0.0.1:${port}`, proc: spawn('nak', ['serve', '--hostname', '127.0.0.1', '--port', String(port), '-qq'], { stdio: 'ignore' }) };
+    await waitForPort(port);
+  }
+  try {
+    const env = {
+      EVENTINDEX_DATA_DIR: '/nonexistent', EVENTINDEX_RELAY_URL: url,
+      EVENTINDEX_SEARCH_RELAYS: relays['search']!.url, EVENTINDEX_LIST_RELAYS: relays['lists']!.url,
+      EVENTINDEX_PROFILE_RELAYS: relays['profiles']!.url, EVENTINDEX_GENERAL_RELAYS: relays['general']!.url,
+    };
+    const db = openIndexDb(':memory:');
+    const dir = directoryStore(db);
+    const vault = openVault(':memory:', new Uint8Array(randomBytes(32)));
+    const indexKey = generateSecretKey();
+    const id = identify(feedUrlFor('luma-calendar-craftnook.ics'));
+    dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null, location: 'New York, US', g: 'dr5r', foundVia: 'maintainer', addedAt: NOW });
+    const fast = { search: 500, lists: 500, profiles: 500, general: 500 };
+    const run = async (publish: boolean, now: number) => {
+      const settings = { ...loadSettings(env), publishToGeneralRelays: publish };
+      const publisher = relayPublisher(settings, () => {}, fast);
+      const indexer = createIndexer({
+        db, dir, queues: queueStore(db), events: eventStore(db), vault, indexKey, settings, publisher, now: () => now,
+        fetch: async (u) => ({ status: 'ok', text: readFixture('luma-calendar-craftnook.ics'), etag: null, lastModified: null, finalUrl: u }),
+        log: () => {},
+      });
+      await indexer.tick();
+      for (let i = 0; i < 400 && (publisher.pending?.() ?? 0) > 0; i += 1) await new Promise((r) => setTimeout(r, 10));
+      await indexer.tick();
+      publisher.close();
+    };
+    await run(false, NOW);
+    const calendar = dir.get(id.d)!.pubkey!;
+    const indexPubkey = getPublicKey(indexKey);
+    const kinds = async (name: string, authors: string[]) =>
+      (await pool.querySync([relays[name]!.url], { authors })).map((e) => e.kind).sort((a, b) => a - b);
+    assert.deepEqual(await kinds('search', [indexPubkey, calendar]), [], 'off: nothing to the search relays');
+    assert.deepEqual(await kinds('profiles', [indexPubkey]), [0, 10002], 'off: the index key\'s profile still goes out');
+
+    await run(true, NOW + 60);
+    assert.equal(dir.fact('outside_backfill'), '1');
+    // craftnook at NOW: four events in the window, one of them past.
+    assert.deepEqual(await kinds('search', [calendar]), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+    assert.deepEqual(await kinds('search', [indexPubkey]), [0, 3, 10002, 39998, 39998, 39999]);
+    assert.deepEqual(await kinds('lists', [indexPubkey, calendar]), [39998, 39998, 39999]);
+    assert.deepEqual(await kinds('profiles', [calendar]), [0, 10002]);
+    assert.deepEqual(await kinds('profiles', [indexPubkey]), [0, 3, 10002]);
+    assert.deepEqual(await kinds('general', [calendar]), [0, 10002, 31923, 31923, 31923, 31924], 'upcoming events only');
+    assert.deepEqual(await kinds('general', [indexPubkey]), [0, 3, 10002]);
+    vault.close();
+    db.close();
+  } finally {
+    for (const r of Object.values(relays)) { pool.close([r.url]); r.proc.kill(); }
+  }
+});

@@ -27,6 +27,11 @@ test('settings come from the environment the deploy unit sets, with safe default
   const on = loadSettings({ EVENTINDEX_DATA_DIR: '/d', EVENTINDEX_PUBLISH_TO_GENERAL_RELAYS: '1', EVENTINDEX_LIST_RELAYS: 'wss://a.example, wss://b.example' });
   assert.equal(on.publishToGeneralRelays, true);
   assert.deepEqual(on.listRelays, ['wss://a.example', 'wss://b.example']);
+  assert.deepEqual(s.searchRelays, []);
+  assert.deepEqual(s.profileRelays, ['wss://purplepag.es']);
+  const none = loadSettings({ EVENTINDEX_PROFILE_RELAYS: 'none', EVENTINDEX_SEARCH_RELAYS: 'wss://search.example' });
+  assert.deepEqual(none.profileRelays, []);
+  assert.deepEqual(none.searchRelays, ['wss://search.example']);
 });
 
 test('settings refuse a relay URL that is not ws or wss', () => {

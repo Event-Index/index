@@ -24,17 +24,23 @@ import type { Vault } from '../store/vault-db.ts';
 import type { DirectoryStore, StoredEntry } from '../store/directory.ts';
 import type { QueueStore } from '../store/queues.ts';
 import type { EventRow, EventStore } from '../store/events.ts';
+import type { Filter } from 'nostr-tools/filter';
+import { setsFor, type RelaySet } from './routing.ts';
 
-// Where an event goes: the index's own relay (always), general relays (when
-// publishing to them is on), or relays that take only list kinds.
-export type Audience = 'own' | 'general' | 'lists';
+// Where an event goes: the index's own relay (always), or a set of outside
+// relays (service/routing.ts).
+export type Audience = 'own' | RelaySet;
 
 export interface Publisher {
-  // Resolves once the relays of the audience took the events; for `own`, a
-  // rejection fails the poll so it is retried.
+  // For `own`, resolves once the relay took the events, and a rejection fails
+  // the poll so it is retried; outside sets are queued.
   publish(events: VerifiedEvent[], audience: Audience): Promise<void>;
   // Addresses of the calendar key's events that have RSVPs.
   rsvps(pubkey: string): Promise<Set<string>>;
+  // What the index's own relay holds, for re-sending to outside relays.
+  fetchOwn?(filter: Filter): Promise<VerifiedEvent[]>;
+  // Events still queued for outside relays.
+  pending?(): number;
   close(): void;
 }
 
@@ -62,18 +68,12 @@ export interface TickReport {
   published: number;
 }
 
-const LIST_KINDS = new Set([39998, 39999]);
-const PROFILE_KINDS = new Set([0, 10002, 31924, 5]);
 const DAY = 86400;
 const REMOVED = 'organizer request';
-
-function startOf(event: VerifiedEvent): number | null {
-  const start = event.tags.find((t) => t[0] === 'start')?.[1];
-  if (!start) return null;
-  if (/^\d+$/.test(start)) return Number(start);
-  const date = Date.parse(`${start}T00:00:00Z`);
-  return Number.isNaN(date) ? null : date / 1000 + DAY;
-}
+// Kinds re-sent from the index's relay when outside publishing starts.
+const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924, 39998, 39999];
+// Bumped when what the backfill sends changes, so it runs again.
+const BACKFILL_VERSION = '1';
 
 function identityOf(entry: StoredEntry): DirectoryIdentity {
   return { d: entry.d, role: entry.role, source: entry.source, feedUrl: entry.feedUrl, pageUrl: entry.pageUrl };
@@ -176,14 +176,45 @@ export function createIndexer(deps: IndexerDeps) {
       writeAllowlist();
     }
     await publisher.publish(signed, 'own');
-    if (!settings.publishToGeneralRelays) return;
-    const lists = signed.filter((e) => LIST_KINDS.has(e.kind));
-    const general = signed.filter((e) => PROFILE_KINDS.has(e.kind) || ((e.kind === 31922 || e.kind === 31923) && (startOf(e) ?? 0) >= now));
-    const results = await Promise.allSettled([
-      lists.length ? publisher.publish(lists, 'lists') : Promise.resolve(),
-      general.length ? publisher.publish(general, 'general') : Promise.resolve(),
-    ]);
-    for (const r of results) if (r.status === 'rejected') deps.log(`general relays: ${(r.reason as Error).message}`);
+    await sendOutside(signed, { indexPubkey, now, outside: settings.publishToGeneralRelays });
+  }
+
+  async function sendOutside(signed: VerifiedEvent[], ctx: Parameters<typeof setsFor>[1]): Promise<void> {
+    const bySet = new Map<RelaySet, VerifiedEvent[]>();
+    for (const event of signed) {
+      for (const set of setsFor(event, ctx)) {
+        if (!bySet.has(set)) bySet.set(set, []);
+        bySet.get(set)!.push(event);
+      }
+    }
+    const results = await Promise.allSettled([...bySet].map(([set, events]) => publisher.publish(events, set)));
+    for (const r of results) if (r.status === 'rejected') deps.log(`outside relays: ${(r.reason as Error).message}`);
+  }
+
+  // When outside publishing starts, what the index's relay already holds goes
+  // out once, through the same routing (no deletions). Done once the queues
+  // have drained; a restart before that sends it again.
+  let backfill: 'idle' | 'queued' = 'idle';
+  async function maybeBackfill(now: number): Promise<void> {
+    if (!settings.publishToGeneralRelays || !publisher.fetchOwn) return;
+    if (backfill === 'queued') {
+      if ((publisher.pending?.() ?? 0) === 0) {
+        dir.setFact('outside_backfill', BACKFILL_VERSION);
+        backfill = 'idle';
+        deps.log('outside relays: backfill sent');
+      }
+      return;
+    }
+    if (dir.fact('outside_backfill') === BACKFILL_VERSION) return;
+    const authors = [indexPubkey, ...allowed.live, ...allowed.removed];
+    let count = 0;
+    for (const author of authors) {
+      const events = await publisher.fetchOwn({ authors: [author], kinds: BACKFILL_KINDS, limit: 500 });
+      await sendOutside(events, { indexPubkey, now, outside: true, backfill: true });
+      count += events.length;
+    }
+    backfill = 'queued';
+    deps.log(`outside relays: backfill of ${count} events from ${authors.length} keys queued`);
   }
 
   // Signs templates (hash-tracked unless `always`) with created_at moving
@@ -226,6 +257,8 @@ export function createIndexer(deps: IndexerDeps) {
         start: now,
       },
       { template: { kind: 10002, tags: [['r', settings.publicRelay], ...generalRelays.map((r) => ['r', r, 'write'])], content: '' }, d: '', start: now },
+      // Follows every calendar key it holds.
+      { template: { kind: 3, tags: [...allowed.live].sort().map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
       { template: eventCalendarsHeader(), d: 'event-calendars', start: now },
       { template: eventsHeader(), d: 'events', start: now },
     ];
@@ -387,6 +420,11 @@ export function createIndexer(deps: IndexerDeps) {
         report.published += await publishDirectory(now);
       } catch (error) {
         deps.log(`directory: ${(error as Error).message}`);
+      }
+      try {
+        await maybeBackfill(now);
+      } catch (error) {
+        deps.log(`outside relays: backfill: ${(error as Error).message}`);
       }
       maybeDump(now);
       return report;

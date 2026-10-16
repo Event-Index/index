@@ -20,15 +20,24 @@ export interface Settings {
   apiPort: number;
   apiBase: string;
   domain: string;
-  // Off unless set: publish to relays other than the index's own.
+  // Off unless set: publish beyond the index's own relay, to the four sets
+  // below (service/routing.ts says what goes where).
   publishToGeneralRelays: boolean;
   generalRelays: string[];
   // Relays that take only list kinds; they get the directory and headers.
   listRelays: string[];
+  // Relays that index events for search.
+  searchRelays: string[];
+  // Relays that keep profiles and relay lists.
+  profileRelays: string[];
 }
 
+export const PROFILE_RELAYS = ['wss://purplepag.es'];
+
+// A comma-separated list; empty for the default, `none` for no relays.
 function relays(value: string | undefined, fallback: string[], name: string): string[] {
   if (value === undefined || value.trim() === '') return fallback;
+  if (value.trim() === 'none') return [];
   const list = value.split(',').map((r) => r.trim()).filter(Boolean);
   for (const r of list) if (!/^wss?:\/\//.test(r)) throw new Error(`${name}: not a relay URL: ${r}`);
   return list;
@@ -55,5 +64,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     publishToGeneralRelays: env['EVENTINDEX_PUBLISH_TO_GENERAL_RELAYS'] === '1',
     generalRelays: relays(env['EVENTINDEX_GENERAL_RELAYS'], GENERAL_RELAYS, 'EVENTINDEX_GENERAL_RELAYS'),
     listRelays: relays(env['EVENTINDEX_LIST_RELAYS'], [], 'EVENTINDEX_LIST_RELAYS'),
+    searchRelays: relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS'),
+    profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
   };
 }

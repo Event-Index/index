@@ -10,7 +10,7 @@ import { openVault } from '../src/store/vault-db.ts';
 import { directoryStore, type Entry } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { createIndexer, type Audience } from '../src/service/indexer.ts';
+import { createIndexer, type Audience, type Publisher } from '../src/service/indexer.ts';
 import { loadSettings } from '../src/config.ts';
 import { identify } from '../src/directory/id.ts';
 import { nostrD } from '../src/project/ids.ts';
@@ -26,7 +26,8 @@ function entryFor(fixture: string, extra: Partial<Entry> = {}): Entry {
 }
 
 function harness(options: { fixtures: string[]; texts?: Record<string, string>; failing?: string[]; publishGeneral?: boolean; rsvps?: Set<string>; dataDir?: string;
-  onPublish?: (list: VerifiedEvent[], audience: Audience) => void; db?: ReturnType<typeof openIndexDb>; vault?: ReturnType<typeof openVault>; indexKey?: Uint8Array }) {
+  onPublish?: (list: VerifiedEvent[], audience: Audience) => void; db?: ReturnType<typeof openIndexDb>; vault?: ReturnType<typeof openVault>; indexKey?: Uint8Array;
+  fetchOwn?: Publisher['fetchOwn']; pending?: () => number }) {
   const db = options.db ?? openIndexDb(':memory:');
   const dir = directoryStore(db);
   const queues = queueStore(db);
@@ -53,6 +54,8 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
         sent.push(...list.map((event) => ({ audience, event })));
       },
       rsvps: async () => options.rsvps ?? new Set(),
+      ...(options.fetchOwn ? { fetchOwn: options.fetchOwn } : {}),
+      ...(options.pending ? { pending: options.pending } : {}),
       close: () => {},
     },
     log: () => {},
@@ -79,8 +82,8 @@ test('a tick polls the due calendars, publishes their events, and stores their k
 test('the index key publishes its profile, both headers and the directory entries', async () => {
   const h = harness({ fixtures: ['meetup-pythonsd.ics'] });
   await h.indexer.tick();
-  const own = h.sent.filter((s) => s.event.pubkey === h.indexPubkey).map((s) => s.event);
-  assert.deepEqual(own.map((e) => e.kind).sort(), [0, 10002, 39998, 39998, 39999]);
+  const own = h.sent.filter((s) => s.audience === 'own' && s.event.pubkey === h.indexPubkey).map((s) => s.event);
+  assert.deepEqual(own.map((e) => e.kind).sort((a, b) => a - b), [0, 3, 10002, 39998, 39998, 39999]);
   const entry = own.find((e) => e.kind === 39999)!;
   assert.deepEqual(entry.tags.find((t) => t[0] === 'p'), ['p', h.dir.get('meetup:pythonsd')!.pubkey]);
   assert.deepEqual(JSON.parse(own.find((e) => e.kind === 0)!.content), {
@@ -94,18 +97,73 @@ test('the index key publishes its profile, both headers and the directory entrie
   assert.ok(calendarProfiles.length > 0);
   for (const s of calendarProfiles) assert.ok(!s.event.content.includes('/brand/'), 'a calendar never carries the mark');
   await h.indexer.tick();
-  assert.equal(h.sent.filter((s) => s.event.pubkey === h.indexPubkey).length, own.length, 'unchanged events are not sent again');
+  assert.equal(h.sent.filter((s) => s.audience === 'own' && s.event.pubkey === h.indexPubkey).length, own.length, 'unchanged events are not sent again');
 });
 
-test('nothing goes to general relays unless publishing to them is on', async () => {
+const outside = (sent: Array<{ audience: Audience; event: VerifiedEvent }>, audience: Audience, pubkey?: string) =>
+  sent.filter((s) => s.audience === audience && (!pubkey || s.event.pubkey === pubkey)).map((s) => s.event.kind).sort((a, b) => a - b);
+
+test('with outside publishing off, only the index key\'s profile and relay list leave its relay', async () => {
   const off = harness({ fixtures: ['meetup-pythonsd.ics'] });
   await off.indexer.tick();
-  assert.deepEqual([...new Set(off.sent.map((s) => s.audience))], ['own']);
+  assert.deepEqual(outside(off.sent, 'profiles'), [0, 10002]);
+  assert.deepEqual(outside(off.sent, 'general'), [0, 10002]);
+  assert.ok(off.sent.filter((s) => s.audience !== 'own').every((s) => s.event.pubkey === off.indexPubkey));
+  assert.deepEqual(outside(off.sent, 'search'), []);
+  assert.deepEqual(outside(off.sent, 'lists'), []);
+});
+
+test('with it on, each set of relays gets its kinds', async () => {
   const on = harness({ fixtures: ['meetup-pythonsd.ics'], publishGeneral: true });
   await on.indexer.tick();
-  assert.ok(on.sent.some((s) => s.audience === 'general' && s.event.kind === 31923));
-  assert.ok(on.sent.some((s) => s.audience === 'lists' && s.event.kind === 39999));
-  assert.ok(!on.sent.some((s) => s.audience === 'lists' && s.event.kind === 31923), 'list relays get list kinds only');
+  const calendar = on.dir.get('meetup:pythonsd')!.pubkey!;
+  assert.deepEqual(outside(on.sent, 'search', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+  assert.deepEqual(outside(on.sent, 'search', on.indexPubkey), [0, 3, 10002, 39998, 39998, 39999]);
+  assert.deepEqual(outside(on.sent, 'lists'), [39998, 39998, 39999]);
+  assert.deepEqual(outside(on.sent, 'profiles', calendar), [0, 10002]);
+  assert.deepEqual(outside(on.sent, 'profiles', on.indexPubkey), [0, 3, 10002]);
+  assert.deepEqual(outside(on.sent, 'general', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924], 'upcoming events');
+  assert.deepEqual(outside(on.sent, 'general', on.indexPubkey), [0, 3, 10002]);
+});
+
+test('the index key follows every calendar key it holds', async () => {
+  const h = harness({ fixtures: ['meetup-pythonsd.ics', 'luma-calendar-craftnook.ics'] });
+  await h.indexer.tick();
+  const follows = h.sent.filter((s) => s.audience === 'own' && s.event.kind === 3).at(-1)!.event;
+  assert.equal(follows.pubkey, h.indexPubkey);
+  const keys = [h.dir.get('meetup:pythonsd')!.pubkey!, h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!].sort();
+  assert.deepEqual(follows.tags, keys.map((pk) => ['p', pk, 'wss://relay.eventindex.space']));
+  const { id } = h.queues.requestRemoval({ d: 'meetup:pythonsd', message: null, at: NOW });
+  h.queues.resolveRemoval(id, 'approved', NOW);
+  h.clock.now = NOW + 60;
+  await h.indexer.tick();
+  const after = h.sent.filter((s) => s.audience === 'own' && s.event.kind === 3).at(-1)!.event;
+  assert.deepEqual(after.tags, [['p', h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!, 'wss://relay.eventindex.space']], 'a removed calendar is unfollowed');
+});
+
+test('turning outside publishing on sends what the index\'s relay holds once, through the same routing', async () => {
+  const first = harness({ fixtures: ['meetup-pythonsd.ics'] });
+  await first.indexer.tick();
+  const held = first.sent.filter((s) => s.audience === 'own').map((s) => s.event);
+  let pending = 5;
+  const fetched: string[][] = [];
+  const h = harness({ fixtures: [], publishGeneral: true, db: first.db, vault: first.vault, indexKey: first.indexKey,
+    fetchOwn: async (filter) => { fetched.push(filter.authors ?? []); return held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)); },
+    pending: () => pending });
+  await h.indexer.tick();
+  const calendar = first.dir.get('meetup:pythonsd')!.pubkey!;
+  assert.deepEqual(fetched.flat().sort(), [first.indexPubkey, calendar].sort());
+  assert.deepEqual(outside(h.sent, 'search', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+  assert.deepEqual(outside(h.sent, 'lists'), [39998, 39998, 39999]);
+  assert.equal(h.dir.fact('outside_backfill'), null, 'not done while events wait in the queues');
+  pending = 0;
+  h.clock.now = NOW + 30;
+  await h.indexer.tick();
+  assert.equal(h.dir.fact('outside_backfill'), '1');
+  const before = h.sent.length;
+  h.clock.now = NOW + 60;
+  await h.indexer.tick();
+  assert.equal(h.sent.filter((s) => s.audience === 'search').length, outside(h.sent.slice(0, before), 'search').length, 'sent once');
 });
 
 test('a calendar is polled again only when it is due', async () => {

@@ -169,15 +169,32 @@ creates the calendar key.
   to start.
 - Every 30 seconds a tick carries out approved removals, polls the entries
   that are due (at most 20 per tick, the longest due first), publishes the
-  index key's events that changed (its kind 0 and 10002, both list headers and
+  index key's events that changed (its kind 0, 3 and 10002, both list headers and
   every directory entry with a calendar key, or none for an aggregator), and
   writes the dump once a day. One feed's failure does not stop the others.
 - Events go to the index's own relay; a publish it refuses fails the poll,
   which is retried. The relay accepts only the keys in the allowlist the
   service keeps ([`relay.md`](relay.md)): the index key, each calendar key
-  (named before its first events go out) and removed calendars' keys. Publishing to other relays is off unless the operator
-  turns it on: then the calendar keys' kinds 0, 10002, 31924 and 5 and their
-  upcoming events go to the general relays, and the list kinds (39998, 39999)
-  to the general relays and any relays that take only lists, rate-limited and
-  never backfilled.
+  (named before its first events go out) and removed calendars' keys.
+- Publishing beyond the index's own relay is off unless the operator turns it
+  on. Then each event also goes to the sets of relays its kind calls for,
+  each set from a queue of its own at a bounded rate:
+
+  | Kind | Search relays | List relays | Profile relays | General relays |
+  |---|---|---|---|---|
+  | 39998, 39999 (the directory) | yes | yes | | |
+  | 0, 10002 (any key) | yes | | yes | yes |
+  | 3 (the index key's follow list) | yes | | yes | yes |
+  | 31924 | yes | | | yes |
+  | 31922, 31923 | yes, in the window | | | while upcoming |
+  | 5 | yes | | | yes |
+
+  When it goes on, what the index's relay holds of those kinds (deletions
+  excepted) is sent once through the same table, so past events reach the
+  search relays and never the general relays. A relay that answers
+  `rate-limited` gets the event again later, more slowly; other refusals are
+  logged. The index key's kind 0 and 10002 go to the profile and general
+  relays even while outside publishing is off.
+- The index key's kind 3 follows every calendar key the index holds (`p` with
+  the index relay as hint); a removed calendar is unfollowed.
 - On SIGTERM the service stops after the poll in progress.
