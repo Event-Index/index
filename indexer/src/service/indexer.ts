@@ -31,6 +31,12 @@ import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
 import { followed, FOLLOW_NEAR } from './follows.ts';
 import { outsideRelay, readAuthor, type RelayReader } from '../native/read.ts';
+import { ingest, acceptable, type IngestSource } from '../native/ingest.ts';
+import { loadAggregators, PUBLIC_SECRET_KEYS, shortNpub } from '../native/publishers.ts';
+import { nostrStore } from '../store/nostr-events.ts';
+import { nativeD } from '../directory/id.ts';
+import { occurrences, type Occurrence } from '../project/window.ts';
+import type { NostrEvent } from '../native/record.ts';
 import { nativeFeed } from '../native/record.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
 import { expand, cancelledCopy } from '../project/projector.ts';
@@ -87,6 +93,11 @@ export interface IndexerDeps {
   relayAllowed?: (url: string) => Promise<boolean>;
   // Connects to organizers' remote signers (NIP-46).
   signers?: RemoteSigners;
+  // Keys that publish other organizers' events (default:
+  // seeds/nostr-aggregators.json).
+  aggregators?: Set<string>;
+  // A pause between pages read from a relay (none by default).
+  pause?: () => Promise<void>;
   // The most events signed through a remote signer in one poll.
   signBatch?: number;
   maxPollsPerTick?: number;
@@ -138,31 +149,43 @@ function metaOf(entry: StoredEntry, stored: unknown): CalendarMeta {
 
 // The events table's rows for one calendar's projectable occurrences.
 export function eventRows(feed: NormalizedFeed, plan: CohostPlan, now: number): EventRow[] {
+  return projectable(feed, now).map((o) => rowOf(feed, o, plan));
+}
+
+// Every occurrence a native calendar's records have, at any time: the
+// index projects none of them, so no window or cap applies.
+const ALL_TIME = { from: 0, to: 4102444800 };
+export function nativeRows(feed: NormalizedFeed): EventRow[] {
+  return feed.records
+    .flatMap((record) => occurrences(record, ALL_TIME, { calendarD: feed.context.d }).items)
+    .filter((o) => String(o.event.getFirstPropertyValue('summary') ?? '').trim())
+    .map((o) => rowOf(feed, o, NO_PLAN));
+}
+
+function rowOf(feed: NormalizedFeed, o: Occurrence, plan: CohostPlan): EventRow {
   const adapter = adapterFor(feed.context.source);
-  return projectable(feed, now).map((o) => {
-    const hidden = venueHidden(o.event);
-    const geo = hidden ? null : geoOf(o.event);
-    return {
-      id: o.id,
-      calendarD: feed.context.d,
-      recordId: o.record.id,
-      uid: o.record.uid,
-      d: o.d,
-      kind: o.allDay ? 31922 : 31923,
-      start: o.start,
-      end: o.end,
-      tzid: o.startTzid,
-      title: String(o.event.getFirstPropertyValue('summary') ?? '').trim(),
-      summary: summaryOf(o.event, adapter) || null,
-      location: hidden ? null : locationsOf(o.event)[0] ?? null,
-      g: geo ? encodeGeohash(geo[0], geo[1], 9) : null,
-      tags: [...new Set(o.event.getAllProperties('categories').flatMap((p) => p.getValues()).map((v) => String(v).trim().toLowerCase()).filter(Boolean))],
-      url: (o.event.getFirstPropertyValue('url') as string | null) ?? null,
-      cancelled: o.cancelled,
-      canonical: plan.canonicalOf.get(o.id)?.split('/').pop() ?? null,
-      cohosts: cohostsIn(plan, feed.context.d, o.d),
-    };
-  });
+  const hidden = venueHidden(o.event);
+  const geo = hidden ? null : geoOf(o.event);
+  return {
+    id: o.id,
+    calendarD: feed.context.d,
+    recordId: o.record.id,
+    uid: o.record.uid,
+    d: o.d,
+    kind: o.allDay ? 31922 : 31923,
+    start: o.start,
+    end: o.end,
+    tzid: o.startTzid,
+    title: String(o.event.getFirstPropertyValue('summary') ?? '').trim(),
+    summary: summaryOf(o.event, adapter) || null,
+    location: hidden ? null : locationsOf(o.event)[0] ?? null,
+    g: geo ? encodeGeohash(geo[0], geo[1], 9) : null,
+    tags: [...new Set(o.event.getAllProperties('categories').flatMap((p) => p.getValues()).map((v) => String(v).trim().toLowerCase()).filter(Boolean))],
+    url: (o.event.getFirstPropertyValue('url') as string | null) ?? null,
+    cancelled: o.cancelled,
+    canonical: plan.canonicalOf.get(o.id)?.split('/').pop() ?? null,
+    cohosts: cohostsIn(plan, feed.context.d, o.d),
+  };
 }
 
 export function createIndexer(deps: IndexerDeps) {
@@ -172,6 +195,10 @@ export function createIndexer(deps: IndexerDeps) {
   // What organizers seal their signer's connection to (claim/seal.ts).
   dir.setFact('intake_pubkey', vault.intakePubkey);
   const feeds = new Map<string, NormalizedFeed>();
+  // The NIP-52 events read from relays, as their publishers signed them.
+  const store = nostrStore(db);
+  const aggregators = deps.aggregators ?? loadAggregators();
+  const eventsHeaderAddress = `39998:${indexPubkey}:events`;
   // A relay list names only relays that hold the events: the general relays
   // while outside publishing is on, and for the curator, the list relays once
   // the directory goes outside.
@@ -221,6 +248,8 @@ export function createIndexer(deps: IndexerDeps) {
       if (!known || addedAt < known.addedAt) byKey.set(pubkey, { d, pubkey, addedAt });
     };
     for (const entry of dir.list()) {
+      // Publishers the index lists from what they post are not followed.
+      if (entry.foundVia === 'ingest') continue;
       const key = currentKey(entry);
       if (key && entry.role === 'calendar') add(entry.d, key, entry.addedAt);
       const former = formerKeyOf(entry, now);
@@ -269,7 +298,7 @@ export function createIndexer(deps: IndexerDeps) {
   // Sends signed events: to the index's relay, or, for events signed as an
   // organizer, to their own relays (`home`) and to the index's relay only
   // when it hosts claimants; then to the outside relays their kinds call for.
-  async function send(signed: VerifiedEvent[], now: number, home?: string[]): Promise<void> {
+  async function send(signed: VerifiedEvent[], now: number, home?: string[], ownOnly = false): Promise<void> {
     if (signed.length === 0) return;
     if (home) {
       if (!publisher.publishTo) throw new Error('the publisher cannot send to an organizer\'s relays');
@@ -284,6 +313,7 @@ export function createIndexer(deps: IndexerDeps) {
       }
       await publisher.publish(signed, 'own');
     }
+    if (ownOnly) return;
     await sendOutside(signed, { indexPubkey, now, outside: settings.publishToGeneralRelays, directory: settings.publishDirectoryOutside });
   }
 
@@ -342,6 +372,7 @@ export function createIndexer(deps: IndexerDeps) {
       const events = await publisher.fetchOwn({ authors: [author], kinds, limit: 500 });
       const bySet = new Map<string, { set: RelaySet; relays: string[]; events: VerifiedEvent[] }>();
       for (const event of events) {
+        if (event.kind === 39999 && !nostrEntriesGoOutside(event.tags.find((t) => t[0] === 'd')?.[1] ?? '')) continue;
         for (const set of setsFor(event, ctx)) {
           const entry = plan.get(set);
           if (!entry) continue;
@@ -367,6 +398,7 @@ export function createIndexer(deps: IndexerDeps) {
     items: Array<{ template: EventTemplate; d: string; start: number; always?: boolean }>,
     now: number,
     perSecond?: number,
+    ownOnly = false,
   ): Promise<number> {
     const due = items
       .map((i) => ({ ...i, hash: projectionHash(i.template) }))
@@ -374,7 +406,7 @@ export function createIndexer(deps: IndexerDeps) {
     if (due.length === 0) return 0;
     const times = spreadCreatedAt(due.map((i) => ({ key: `${i.template.kind}:${i.d}`, last: i.always ? null : db.lastCreatedAt(pubkey, i.template.kind, i.d) })), now, perSecond);
     const signed = due.map((i) => ({ i, event: sign({ ...i.template, created_at: times.get(`${i.template.kind}:${i.d}`)! }) }));
-    await send(signed.map((s) => s.event), now);
+    await send(signed.map((s) => s.event), now, undefined, ownOnly);
     for (const { i, event } of signed) {
       if (!i.always) db.markPublished({ pubkey, kind: i.template.kind, d: i.d, hash: i.hash, eventId: event.id, createdAt: event.created_at, start: i.start, template: i.template });
     }
@@ -449,18 +481,141 @@ export function createIndexer(deps: IndexerDeps) {
         image: read.profile?.picture ?? null,
       });
     }
-    const fresh = dir.get(entry.d)!;
-    const feed = nativeFeed(read.events, {
-      d: entry.d, source: 'nostr', role: 'calendar', feedUrl: '', pageUrl: fresh.pageUrl, entryName: fresh.name,
-      calendarName: fresh.name, calendarAddress: `39999:${indexPubkey}:${entry.d}`, claimedAt: fresh.claimedAt,
-    });
-    for (const record of feed.records) {
-      db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+    // What was read joins what ingestion keeps, and the calendar is built
+    // from all of it.
+    for (const deletion of read.deletions) store.applyDeletion(deletion, now);
+    for (const found of read.events) if (!skipEvent(found.event) && !acceptable(found.event, now)) store.put(found, now);
+    if (entry.owner) {
+      store.markDirty(entry.owner, now);
+      rebuildAuthor(entry.owner, now);
     }
-    events.replaceCalendar(entry.d, eventRows(feed, NO_PLAN, now));
-    const nextEventStart = expand(feed, now).map((o) => o.start).filter((t) => t >= now).sort((a, b) => a - b)[0] ?? null;
+    const nextEventStart = events.byCalendar(entry.d, now, now + 400 * DAY, 1)[0]?.start ?? null;
     db.savePollState(entry.d, { ...state, failures: 0, firstFailureAt: null, lastSuccessAt: now, stale: false, refreshInterval: null, nextEventStart,
       nextPollAt: nextPollAt({ now, refreshInterval: null, nextEventStart, failures: 0, retryAfter: null }) });
+  }
+
+  // Events never read into the index: what it signs itself (its calendar
+  // keys, and any other key's event that carries its events header, unless
+  // that key's organizer owns a listed calendar: what the index signed as
+  // them is theirs), keys whose secret is public, and publishers removed at
+  // their request.
+  function skipEvent(event: NostrEvent): boolean {
+    return allowed.live.has(event.pubkey) || allowed.removed.has(event.pubkey) || event.pubkey === indexPubkey
+      || PUBLIC_SECRET_KEYS.has(event.pubkey) || dir.doNotIndex(nativeD(event.pubkey))
+      || (event.tags.some((t) => t[0] === 'z' && t[1] === eventsHeaderAddress) && !dir.isOwner(event.pubkey));
+  }
+
+  // The directory entry a publisher's events belong to: the calendar it
+  // publishes itself (filed by its key, or claimed), else its own entry,
+  // listed now when it has events to show. None for a key the index
+  // publishes as, or one it leaves out.
+  function entryFor(pubkey: string, now: number, list: boolean): StoredEntry | null {
+    const owned = dir.byOwner(pubkey).filter((e) => !e.removed);
+    const own = owned.find((e) => e.mode === 'own');
+    if (own) return own;
+    if (owned.length || allowed.live.has(pubkey) || allowed.removed.has(pubkey) || PUBLIC_SECRET_KEYS.has(pubkey)) return null;
+    const d = nativeD(pubkey);
+    if (dir.doNotIndex(d)) return null;
+    const existing = dir.get(d);
+    if (existing) return existing.removed ? null : existing;
+    if (!list || !settings.ingestNip52) return null;
+    const profile = store.profile(pubkey);
+    dir.add({
+      d, role: aggregators.has(pubkey) ? 'aggregator' : 'calendar', source: 'nostr', feedUrl: '', pageUrl: profile?.website ?? null,
+      name: profile?.name ?? shortNpub(pubkey), description: profile?.about ?? null, image: profile?.picture ?? null,
+      location: null, g: null, foundVia: 'ingest', addedAt: now, mode: 'own', owner: pubkey,
+    });
+    deps.log(`listed ${d}${aggregators.has(pubkey) ? ' (aggregator)' : ''}`);
+    return dir.get(d);
+  }
+
+  // Builds a publisher's records and events from what the store keeps.
+  function rebuildAuthor(pubkey: string, now: number): void {
+    const stored = store.eventsOf(pubkey);
+    const entry = entryFor(pubkey, now, stored.length > 0);
+    if (entry) {
+      const feed = nativeFeed(stored, {
+        d: entry.d, source: 'nostr', role: 'calendar', feedUrl: '', pageUrl: entry.pageUrl, entryName: entry.name,
+        calendarName: entry.name, calendarAddress: `39999:${indexPubkey}:${entry.d}`, claimedAt: entry.claimedAt,
+      });
+      for (const record of feed.records) {
+        db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+      }
+      events.replaceCalendar(entry.d, nativeRows(feed));
+      if (entry.foundVia === 'ingest') db.savePollState(entry.d, { ...db.pollState(entry.d), lastSuccessAt: now, failures: 0, firstFailureAt: null, stale: false });
+    }
+    store.built(pubkey);
+  }
+
+  const ingestSources = (): IngestSource[] => {
+    const search = new Set(settings.ingestSearchRelays);
+    return [...settings.ingestSearchRelays.map((url) => ({ url, search: true })), ...settings.ingestRelays.filter((u) => !search.has(u)).map((url) => ({ url, search: false }))];
+  };
+
+  // Reads what is new on the relays that carry NIP-52 events.
+  async function ingestStep(now: number): Promise<void> {
+    if (!settings.ingestNip52 || !deps.reader) return;
+    const report = await ingest(ingestSources(), { reader: deps.reader, store, now, skip: skipEvent, log: deps.log, ...(deps.pause ? { pause: deps.pause } : {}) });
+    if (report.read) {
+      const dropped = Object.entries(report.dropped).map(([k, v]) => `${k} ${v}`).join(', ');
+      deps.log(`ingest: read ${report.read}, kept ${report.kept}, deletions ${report.deletions}${dropped ? `, left out: ${dropped}` : ''}`);
+    }
+  }
+
+  // Builds the records of publishers whose events changed, a share at a time.
+  const BUILD_BUDGET_MS = 20_000;
+  function rebuildDirty(now: number): void {
+    const until = Date.now() + BUILD_BUDGET_MS;
+    for (const pubkey of store.dirty(500)) {
+      if (Date.now() > until) break;
+      try {
+        rebuildAuthor(pubkey, now);
+      } catch (error) {
+        deps.log(`build ${pubkey}: ${(error as Error).message}`);
+        store.built(pubkey);
+      }
+    }
+  }
+
+  // Names listed publishers from their profiles (kind 0), checked weekly,
+  // a batch at a time.
+  const PROFILE_BATCH = 100;
+  const PROFILE_EVERY = 7 * DAY;
+  async function refreshProfiles(now: number): Promise<void> {
+    if (!settings.ingestNip52 || !deps.reader) return;
+    const due = dir.list().filter((e) => e.foundVia === 'ingest' && e.owner && now - (store.profile(e.owner)?.checkedAt ?? 0) >= PROFILE_EVERY)
+      .slice(0, PROFILE_BATCH);
+    if (!due.length) return;
+    const authors = due.map((e) => e.owner!);
+    const plain = [...new Set([...settings.profileRelays, ...settings.generalRelays, ...settings.ingestRelays])].filter((u) => !settings.ingestSearchRelays.includes(u));
+    const found = [
+      ...(plain.length ? (await deps.reader.query(plain, { kinds: [0], authors })).found : []),
+      ...(settings.ingestSearchRelays.length ? (await deps.reader.query(settings.ingestSearchRelays, { kinds: [0], authors, search: 'include:spam' })).found : []),
+    ];
+    for (const entry of due) {
+      const newest = found.filter((f) => f.event.pubkey === entry.owner && f.event.kind === 0)
+        .sort((a, b) => b.event.created_at - a.event.created_at)[0];
+      let profile: Record<string, unknown> | null = null;
+      try {
+        profile = newest ? JSON.parse(newest.event.content) as Record<string, unknown> : null;
+      } catch {
+        profile = null;
+      }
+      if (!profile) {
+        store.checkedProfile(entry.owner!, now);
+        continue;
+      }
+      const text = (key: string) => (typeof profile![key] === 'string' && (profile![key] as string).trim() ? (profile![key] as string).trim().slice(0, 500) : null);
+      const p = { name: text('display_name') ?? text('name'), about: text('about'), picture: text('picture'), website: text('website'), createdAt: newest!.event.created_at };
+      store.setProfile(entry.owner!, p, now);
+      dir.setMeta(entry.d, { name: p.name ?? shortNpub(entry.owner!), description: p.about, url: p.website, image: p.picture });
+    }
+  }
+
+  // Whether a directory entry may go to the list and search relays: one the
+  // index listed from what publishers post waits for the operator.
+  function nostrEntriesGoOutside(d: string): boolean {
+    return settings.publishNostrEntriesOutside || dir.get(d)?.foundVia !== 'ingest';
   }
 
   // The key each calendar signs with, for co-host tags: a mirrored
@@ -750,10 +905,13 @@ export function createIndexer(deps: IndexerDeps) {
       { template: { kind: 3, tags: follows(now).map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
       { template: eventsHeader(), d: 'events', start: now },
     ];
+    // Entries listed from what publishers post stay on the index's relay
+    // until the operator sends them outside.
+    const held: typeof items = [];
     for (const entry of dir.list({ includeRemoved: true })) {
       const key = currentKey(entry);
       if (entry.role === 'calendar' && !key) continue;
-      items.push({
+      (nostrEntriesGoOutside(entry.d) ? items : held).push({
         template: directoryEntry({
           identity: identityOf(entry),
           calendar: metaOf(entry, dir.calendarMeta(entry.d)),
@@ -774,7 +932,8 @@ export function createIndexer(deps: IndexerDeps) {
     }
     await retireOwnHeader();
     // One second each, so a list relay reads them in order.
-    return publishAs(indexPubkey, (t) => finalizeEvent(t, deps.indexKey), items, now, 1);
+    const sign = (t: EventTemplate & { created_at: number }) => finalizeEvent(t, deps.indexKey);
+    return await publishAs(indexPubkey, sign, items, now, 1) + await publishAs(indexPubkey, sign, held, now, 1, true);
   }
 
   // Returns how many events it published.
@@ -784,6 +943,11 @@ export function createIndexer(deps: IndexerDeps) {
     const pubkey = entry.mode === 'mirrored' ? entry.pubkey : null;
     if (entry.mode !== 'mirrored') {
       vault.forgetConnection(entry.d);
+      // The organizer is not listed again from what they post.
+      if (entry.owner) {
+        dir.block(nativeD(entry.owner), REMOVED, now);
+        store.forget(entry.owner);
+      }
     }
     let published = 0;
     if (pubkey) {
@@ -936,7 +1100,8 @@ export function createIndexer(deps: IndexerDeps) {
       await carryOutClaims(now);
 
       const due = dir.list()
-        .filter((e) => !dir.doNotIndex(e.d))
+        // Publishers listed from what they post are read by ingestion.
+        .filter((e) => !dir.doNotIndex(e.d) && e.foundVia !== 'ingest')
         .map((e) => ({ e, at: db.pollState(e.d).nextPollAt }))
         .filter(({ at }) => at <= now)
         .sort((a, b) => a.at - b.at || (a.e.d < b.e.d ? -1 : 1))
@@ -960,6 +1125,13 @@ export function createIndexer(deps: IndexerDeps) {
         }
       }
 
+      try {
+        await ingestStep(now);
+        rebuildDirty(now);
+        await refreshProfiles(now);
+      } catch (error) {
+        deps.log(`ingest: ${(error as Error).stack ?? error}`);
+      }
       try {
         report.published += await publishDirectory(now);
       } catch (error) {

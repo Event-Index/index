@@ -38,6 +38,13 @@ test('settings come from the environment the deploy unit sets, with safe default
   assert.throws(() => loadSettings({ EVENTINDEX_DIRECTORY_HEADER: '39999:nope:x' }), /not a list header coordinate/);
 });
 
+test('ingestion reads the search relays unless told otherwise, and no search relay is named in the code', () => {
+  assert.deepEqual(loadSettings({ EVENTINDEX_SEARCH_RELAYS: 'wss://search.example' }).ingestSearchRelays, ['wss://search.example']);
+  assert.deepEqual(loadSettings({}).ingestSearchRelays, []);
+  assert.deepEqual(loadSettings({ EVENTINDEX_SEARCH_RELAYS: 'wss://search.example', EVENTINDEX_INGEST_SEARCH_RELAYS: 'none' }).ingestSearchRelays, []);
+  assert.deepEqual(loadSettings({ EVENTINDEX_INGEST_SEARCH_RELAYS: 'wss://other.example' }).ingestSearchRelays, ['wss://other.example']);
+});
+
 test('settings refuse a relay URL that is not ws or wss', () => {
   assert.throws(() => loadSettings({ EVENTINDEX_DATA_DIR: '/d', EVENTINDEX_RELAY_URL: 'http://x' }), /EVENTINDEX_RELAY_URL/);
 });

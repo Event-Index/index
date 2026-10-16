@@ -106,7 +106,7 @@ test('main.ts --once runs one tick, publishes the index key\'s events, and relea
   try {
     const run = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: serviceEnv(dataDir), encoding: 'utf8', timeout: 30_000 });
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    assert.match(run.stdout, /indexer started as npub1.*general relays off; claimants not hosted on the relay/);
+    assert.match(run.stdout, /indexer started as npub1.*general relays off; claimants not hosted on the relay; NIP-52 ingestion off/);
     assert.match(run.stdout, /stopped/);
     assert.equal(existsSync(join(dataDir, 'indexer.lock')), false);
     assert.ok(existsSync(join(dataDir, 'index.db')) && existsSync(join(dataDir, 'vault.db')));

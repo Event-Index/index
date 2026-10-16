@@ -50,7 +50,9 @@ export function directoryEntry(input: EntryInput): EventTemplate {
     ['z', input.header],
     ['name', calendar.name ?? identity.d],
     ['role', identity.role],
-    ['p', identity.role === 'calendar' ? input.pubkey : null],
+    // An aggregator on nostr is a publisher too; a feed that only leads to
+    // calendars has no key.
+    ['p', identity.role === 'calendar' || identity.source === 'nostr' ? input.pubkey : null],
     ['p', identity.role === 'calendar' && input.formerKey !== input.pubkey ? input.formerKey : null],
     ['index-name', input.localName],
     ['feed', source === 'nostr' ? null : identity.feedUrl],

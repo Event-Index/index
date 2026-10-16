@@ -156,6 +156,8 @@ export function directoryStore(index: IndexDb) {
     },
     get: (d: string) => toEntry(byD.get(d)),
     byFeedUrl: (url: string) => (url ? toEntry(db.prepare<[string], Row>('SELECT * FROM directory WHERE feed_url = ?').get(url)) : null),
+    // Whether a key owns a listed calendar.
+    isOwner: (pubkey: string) => !!db.prepare<[string], { d: string }>('SELECT d FROM directory WHERE owner = ? AND removed IS NULL LIMIT 1').get(pubkey),
     // Entries an organizer's own key owns.
     byOwner: (pubkey: string) => db.prepare<[string], Row>('SELECT * FROM directory WHERE owner = ? ORDER BY d').all(pubkey).map((r) => toEntry(r)!),
     byLocalName(name: string): StoredEntry | null {

@@ -74,10 +74,12 @@ async function main(): Promise<void> {
     publisher,
     reader: poolReader(readPool),
     signers: nip46Signers(readPool),
+    // Between pages read from one relay.
+    pause: () => new Promise((resolve) => setTimeout(resolve, 300)),
     log,
     signal: controller.signal,
   });
-  log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}; claimants ${settings.hostClaimants ? 'hosted' : 'not hosted'} on the relay`);
+  log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}; claimants ${settings.hostClaimants ? 'hosted' : 'not hosted'} on the relay; NIP-52 ingestion ${settings.ingestNip52 ? 'on' : 'off'}`);
 
   try {
     while (!controller.signal.aborted) {

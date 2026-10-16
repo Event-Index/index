@@ -61,6 +61,8 @@ export interface AuthorRead {
   calendars: NostrEvent[];
   // Their 31922 and 31923 events, the newest version of each address.
   events: Found[];
+  // Their deletions (kind 5), for a store that keeps what was read before.
+  deletions: NostrEvent[];
 }
 
 // The most write relays of an author the index reads from or writes to.
@@ -179,5 +181,6 @@ export async function readAuthor(reader: RelayReader, pubkey: string, usual: str
     profile: profileOf(newest(found, 0)?.event ?? null),
     calendars: standing.filter((f) => f.event.kind === 31924).map((f) => f.event).sort((a, b) => b.created_at - a.created_at),
     events: standing.filter((f) => f.event.kind !== 31924).sort((a, b) => (address(a.event) < address(b.event) ? -1 : 1)),
+    deletions,
   };
 }

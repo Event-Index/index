@@ -49,7 +49,18 @@ export interface Settings {
   // Off unless set: the index's relay also takes the events of organizers
   // the index publishes as (kinds 31922, 31923, 31924 and 5).
   hostClaimants: boolean;
+  // Off unless set: read every public NIP-52 event by kind (native/ingest.ts)
+  // from these relays, and from these search relays with their include:spam
+  // extension, and list each publisher in the directory.
+  ingestNip52: boolean;
+  ingestRelays: string[];
+  ingestSearchRelays: string[];
+  // Off unless set: the directory entries of publishers listed that way go
+  // to the list and search relays too; until then they stay on the index's.
+  publishNostrEntriesOutside: boolean;
 }
+
+export const INGEST_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.formstr.app'];
 
 export const PROFILE_RELAYS = ['wss://purplepag.es'];
 
@@ -84,6 +95,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
   const dataDir = env['EVENTINDEX_DATA_DIR'] ?? '/var/lib/eventindex';
   const relayUrl = env['EVENTINDEX_RELAY_URL'] ?? 'ws://127.0.0.1:7777';
   if (!/^wss?:\/\//.test(relayUrl)) throw new Error(`EVENTINDEX_RELAY_URL: not a relay URL: ${relayUrl}`);
+  const searchRelays = relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS');
   return {
     dataDir,
     indexDb: env['EVENTINDEX_INDEX_DB'] ?? join(dataDir, 'index.db'),
@@ -103,7 +115,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     listRelays: relays(env['EVENTINDEX_LIST_RELAYS'], [], 'EVENTINDEX_LIST_RELAYS'),
     publishDirectoryOutside: env['EVENTINDEX_PUBLISH_DIRECTORY_OUTSIDE'] === '1',
     directoryHeader: header(env['EVENTINDEX_DIRECTORY_HEADER']),
-    searchRelays: relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS'),
+    searchRelays,
     profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
     discoveryPerRun: count(env['EVENTINDEX_DISCOVERY_PER_RUN'], 25, 'EVENTINDEX_DISCOVERY_PER_RUN'),
     discoveryPerDay: count(env['EVENTINDEX_DISCOVERY_PER_DAY'], 300, 'EVENTINDEX_DISCOVERY_PER_DAY'),
@@ -111,5 +123,10 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
     hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',
+    ingestNip52: env['EVENTINDEX_INGEST_NIP52'] === '1',
+    ingestRelays: relays(env['EVENTINDEX_INGEST_RELAYS'], INGEST_RELAYS, 'EVENTINDEX_INGEST_RELAYS'),
+    // The search relays unless set.
+    ingestSearchRelays: relays(env['EVENTINDEX_INGEST_SEARCH_RELAYS'], searchRelays, 'EVENTINDEX_INGEST_SEARCH_RELAYS'),
+    publishNostrEntriesOutside: env['EVENTINDEX_PUBLISH_NOSTR_ENTRIES_OUTSIDE'] === '1',
   };
 }

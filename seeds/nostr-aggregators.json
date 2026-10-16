@@ -1,0 +1,11 @@
+{
+  "description": "nostr keys that publish other organizers' events under their own key. Event Index lists each with the role aggregator: its events are kept and attributed to it, and an organizer's own original of one of them is the canonical one.",
+  "aggregators": [
+    {
+      "pubkey": "664e070fe25e76ddcefa54929c0de42ecad0810093507e24de46220751cdb7aa",
+      "name": "Club Orange",
+      "url": "https://cluborange.org",
+      "note": "Publishes bitcoin meetups from many organizers under one key."
+    }
+  ]
+}

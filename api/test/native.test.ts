@@ -67,3 +67,15 @@ test('a claimed calendar\'s retired key has no NIP-05 name', async () => {
     h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
   }
 });
+
+test('a native calendar\'s past events stay served, however long ago', async () => {
+  const native = h.native!;
+  const long = native.sign(31923, [['d', 'spring'], ['title', 'Spring meetup'], ['start', String(h.clock.now - 200 * 86400)]]);
+  h.relay.get('ws://native.test')!.push(long);
+  h.db.savePollState(native.d, { ...h.db.pollState(native.d), nextPollAt: 0 });
+  await h.indexer.tick();
+  const { body } = await json(`${API}/events/bycalendar/${h.dir.get(native.d)!.localName}?from=${h.clock.now - 365 * 86400}`);
+  const spring = body.events.find((e: any) => JSON.stringify(e.jcal).includes('Spring meetup'));
+  assert.ok(spring, 'listed');
+  assert.equal((await h.get(`${API}/events/byid/${spring.eventindex.id}.ics`)).status, 200);
+});

@@ -23,6 +23,7 @@ export interface ViewDeps {
 }
 
 const DAY = 86400;
+const ALL_TIME = { from: 0, to: 4102444800 };
 const PRODID = '-//Event Index//eventindex.space//EN';
 
 // How a calendar's events reach nostr: mirrored by the index with a key it
@@ -112,7 +113,9 @@ export function loadRecord(deps: ViewDeps, recordId: string, now: number, cache:
         apiBase: deps.settings.apiBase,
         changedAt: stored.changedAt,
       },
-      occurrences: occurrences(record, projectionWindow(now), { calendarD: entry.d, floatingZone: meta?.timezone ?? null }).items,
+      // A calendar read from its organizer's key keeps all its events; a feed
+      // is served in the projection window.
+      occurrences: occurrences(record, entry.mode === 'own' ? ALL_TIME : projectionWindow(now), { calendarD: entry.d, floatingZone: meta?.timezone ?? null }).items,
     };
   }
   cache.set(recordId, loaded);

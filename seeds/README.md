@@ -99,3 +99,12 @@ events never projected. The poll service reads each page every six hours and
 files the named public calendars of its events, found via the page's `d`
 (`../spec/indexer-rules.md` § 2); `eventindex-admin discoveries [--hours <n>]`
 lists what it filed, skipped and refused.
+
+## nostr aggregators
+
+`nostr-aggregators.json` lists nostr keys that publish other organizers'
+events under their own key. When the index lists the publishers of NIP-52
+events ([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 14), each of
+these keys gets an entry with the role `aggregator`: its events are kept and
+attributed to it, and an organizer's own original of one of them is the
+canonical one (§ 15 there).
