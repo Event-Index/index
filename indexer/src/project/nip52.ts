@@ -34,6 +34,9 @@ export interface ProjectionContext {
   adapter: Adapter;
   relay: string;
   apiBase: string;
+  // The address of an organizer's own event an occurrence copies, by the
+  // occurrence's public id.
+  originalOf?: (id: string) => string | null;
 }
 
 export function projectionContext(
@@ -204,6 +207,9 @@ export function projectOccurrence(o: Occurrence, ctx: ProjectionContext): Projec
   const page = text(vevent, 'url') ?? ctx.calendarUrl;
   if (page) tags.push(['r', page]);
   tags.push(['r', recordUrl(ctx.apiBase, o.id)]);
+  // A copy names the organizer's own event it yields to.
+  const original = ctx.originalOf?.(o.id);
+  if (original) tags.push(['q', original, '']);
   tags.push(['z', `39998:${ctx.indexPubkey}:events`]);
   const when = o.allDay ? o.startDate! : localDate(o.start, o.startTzid);
   tags.push(['alt', `${ctx.calendarName}: ${title}, ${when}`]);

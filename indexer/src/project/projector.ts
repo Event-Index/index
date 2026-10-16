@@ -94,6 +94,8 @@ export interface ProjectorInput {
   // are left alone, the calendar's d is the entry's, and events name the
   // relay they are on.
   delegated?: { relay: string; calendarD: string };
+  // The address of an organizer's own event an occurrence copies.
+  originalOf?: (id: string) => string | null;
 }
 
 export interface Planned {
@@ -133,7 +135,11 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
 
   const kept = projectable(feed, now, log);
 
-  const context = { ...projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey }), ...(input.delegated ? { relay: input.delegated.relay } : {}) };
+  const context = {
+    ...projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey }),
+    ...(input.delegated ? { relay: input.delegated.relay } : {}),
+    ...(input.originalOf ? { originalOf: input.originalOf } : {}),
+  };
   const projected: Array<{ o: Occurrence; template: EventTemplate }> = [];
   const yielded = new Set<string>();
   const yieldedTo = new Map<string, { uid: string; signer: string }>();

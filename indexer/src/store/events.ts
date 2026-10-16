@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_calendar ON events(calendar_d, start);
 CREATE INDEX IF NOT EXISTS events_start ON events(start);
+CREATE TABLE IF NOT EXISTS copies (
+  copy_id TEXT PRIMARY KEY,
+  original_id TEXT NOT NULL,
+  original_address TEXT
+);
 `;
 
 export interface EventRow {
@@ -134,6 +139,19 @@ export function eventStore(index: IndexDb) {
     calendarsWithTag: (tag: string) => db.prepare<[string], { d: string }>("SELECT DISTINCT calendar_d AS d FROM events WHERE tags LIKE ? ESCAPE '\\'")
       .all(`%${escape(JSON.stringify(tag.toLowerCase()))}%`).map((r) => r.d),
     count: () => db.prepare<[], { n: number }>('SELECT count(*) AS n FROM events').get()!.n,
+    // Occurrences from a time on, for finding copies.
+    from: (start: number) => db.prepare<[number], Record<string, unknown>>('SELECT * FROM events WHERE start >= ? ORDER BY start, id').all(start).map(of),
+    setCanonical: (id: string, canonical: string | null) => void db.prepare('UPDATE events SET canonical = ? WHERE id = ?').run(canonical, id),
+    // Copies and the originals they yield to (rules/copies.ts), as last found.
+    copies: () => new Map(db.prepare<[], { copy_id: string; original_id: string; original_address: string | null }>('SELECT * FROM copies').all()
+      .map((r) => [r.copy_id, { originalId: r.original_id, originalAddress: r.original_address }])),
+    setCopies: db.transaction((copies: Map<string, { originalId: string; originalAddress: string | null }>) => {
+      db.prepare('DELETE FROM copies').run();
+      const insert = db.prepare('INSERT INTO copies (copy_id, original_id, original_address) VALUES (?, ?, ?)');
+      for (const [copy, original] of copies) insert.run(copy, original.originalId, original.originalAddress);
+    }),
+    // The address of the organizer's own event an occurrence copies, if any.
+    originalAddressOf: (id: string) => db.prepare<[string], { original_address: string | null }>('SELECT original_address FROM copies WHERE copy_id = ?').get(id)?.original_address ?? null,
   };
 }
 

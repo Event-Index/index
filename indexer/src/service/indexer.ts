@@ -44,6 +44,8 @@ import { API_BASE } from '../project/nip52.ts';
 import { claimDate } from '../project/annotate.ts';
 import { publicEventId, nostrD } from '../project/ids.ts';
 import { nativeUid, type Found } from '../native/record.ts';
+import { findCopies, AGGREGATOR, FEED, ORGANIZER, type Candidate } from '../rules/copies.ts';
+import { WINDOW_PAST } from '../project/window.ts';
 import type { AuthorRead } from '../native/read.ts';
 import { limited, PERMISSIONS, vaultSigner, type RemoteSession, type RemoteSigners } from '../claim/signer.ts';
 import { authoredText, parseBunkerUrl } from '../claim/proof.ts';
@@ -612,6 +614,67 @@ export function createIndexer(deps: IndexerDeps) {
     }
   }
 
+  // Marks copies (rules/copies.ts) among the events from 30 days ago on: in
+  // the events table, in each copy's record, and, for a mirrored feed's copy
+  // of an organizer's own event, by polling its calendar again so its
+  // projection names the original.
+  function markCopies(now: number): void {
+    const entries = new Map(dir.list().map((e) => [e.d, e]));
+    const rankOf = (entry: StoredEntry): Candidate['rank'] => (entry.role === 'aggregator' ? AGGREGATOR : entry.mode === 'own' ? ORGANIZER : FEED);
+    const rows = events.from(now - WINDOW_PAST).filter((r) => entries.has(r.calendarD));
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const found = findCopies(rows.map((r) => ({ id: r.id, calendarD: r.calendarD, rank: rankOf(entries.get(r.calendarD)!), start: r.start, title: r.title, g: r.g })));
+    const before = events.copies();
+    const current = new Map<string, { originalId: string; originalAddress: string | null }>();
+    const repoll = new Set<string>();
+    for (const [copyId, originalId] of found) {
+      const original = byId.get(originalId)!;
+      const organizer = rankOf(entries.get(original.calendarD)!) === ORGANIZER;
+      // A native record's UID is its event's address.
+      current.set(copyId, { originalId, originalAddress: organizer ? original.uid : null });
+    }
+    for (const [copyId, original] of current) {
+      const row = byId.get(copyId)!;
+      if (row.canonical !== original.originalId) {
+        events.setCanonical(copyId, original.originalId);
+        markRecord(row, original.originalId, now);
+      }
+      const was = before.get(copyId);
+      if (rankOf(entries.get(row.calendarD)!) === FEED && was?.originalAddress !== original.originalAddress) repoll.add(row.calendarD);
+    }
+    for (const [copyId, was] of before) {
+      if (current.has(copyId)) continue;
+      const row = byId.get(copyId) ?? events.byId(copyId);
+      if (!row) continue;
+      const entry = entries.get(row.calendarD);
+      if (entry && rankOf(entry) === FEED) {
+        // Its co-host facts and projection come back with a poll.
+        repoll.add(row.calendarD);
+        continue;
+      }
+      if (row.canonical === was.originalId) {
+        events.setCanonical(copyId, null);
+        markRecord(row, null, now);
+      }
+    }
+    events.setCopies(current);
+    for (const d of repoll) db.savePollState(d, { ...db.pollState(d), etag: null, lastModified: null, nextPollAt: 0 });
+  }
+
+  // Writes (or clears) X-EVENTINDEX-CANONICAL on a copy's record.
+  function markRecord(row: EventRow, originalId: string | null, now: number): void {
+    const stored = db.record(row.recordId);
+    if (!stored) return;
+    const record = recordFromText(stored.ics, stored.uid, row.recordId);
+    for (const vevent of record.component.getAllSubcomponents('vevent')) {
+      const id = String(vevent.getFirstPropertyValue('x-eventindex-id') ?? '');
+      if (id !== row.id && !(id === row.recordId && record.overrides.length === 0)) continue;
+      vevent.removeAllProperties('x-eventindex-canonical');
+      if (originalId) vevent.addPropertyWithValue('x-eventindex-canonical', `${API_BASE}/events/byid/${originalId}`);
+    }
+    db.putRecord({ calendarD: row.calendarD, uid: stored.uid, id: row.recordId, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+  }
+
   // Whether a directory entry may go to the list and search relays: one the
   // index listed from what publishers post waits for the operator.
   function nostrEntriesGoOutside(d: string): boolean {
@@ -1055,6 +1118,7 @@ export function createIndexer(deps: IndexerDeps) {
           generalRelays,
           signer: () => openSigner(entry, sessions),
           keyOf,
+          originalOf: (id) => events.originalAddressOf(id),
           ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
         },
       );
@@ -1129,6 +1193,7 @@ export function createIndexer(deps: IndexerDeps) {
         await ingestStep(now);
         rebuildDirty(now);
         await refreshProfiles(now);
+        markCopies(now);
       } catch (error) {
         deps.log(`ingest: ${(error as Error).stack ?? error}`);
       }

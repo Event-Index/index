@@ -36,6 +36,8 @@ export interface PollDeps {
   signer?: () => Promise<Signer>;
   // The key each other calendar signs with, for co-host tags.
   keyOf?: (calendarD: string) => string;
+  // The address of an organizer's own event an occurrence copies.
+  originalOf?: (id: string) => string | null;
   // A calendar published as its organizer: no profile or relay list of
   // theirs is written, its calendar's d is the entry's d, and its events
   // name the relay they are on.
@@ -142,6 +144,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     plan: effectivePlan,
     generalRelays: deps.generalRelays ?? [],
     ...(deps.delegated ? { delegated: { relay, calendarD: entry.d } } : {}),
+    ...(deps.originalOf ? { originalOf: deps.originalOf } : {}),
   });
 
   // Everything in a batch is signed before anything is sent, so a signer

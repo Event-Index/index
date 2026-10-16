@@ -164,3 +164,46 @@ test('an event its publisher deletes leaves the index', async () => {
   await h.indexer.tick();
   assert.deepEqual(h.events.byCalendar(nativeD(a.pubkey), NOW, NOW + 30 * 86400).map((r) => r.title), ['November meetup']);
 });
+
+test('an aggregator\'s copy points at the organizer\'s own event, in the events table and in its record, until the original is gone', async () => {
+  const club = publisher();
+  const org = publisher();
+  const h = harness({ aggregators: [club.pubkey] });
+  const start = NOW + 5 * 86400;
+  const original = org.event('fb62', 'Fort Bitcoin #62 Panther City BBQ', start);
+  h.held[SEARCH]!.push(original, club.event('co-1', 'Fort Bitcoin #62 Panther City BBQ', start, [['g', '9vff1rf1x']]),
+    club.event('co-2', 'Bitcoin & Coffee', start));
+  await h.indexer.tick();
+  const copy = h.events.byCalendar(nativeD(club.pubkey), NOW, NOW + 30 * 86400).find((r) => r.title.startsWith('Fort'))!;
+  const own = h.events.byCalendar(nativeD(org.pubkey), NOW, NOW + 30 * 86400)[0]!;
+  assert.equal(copy.canonical, own.id);
+  assert.equal(own.canonical, null);
+  assert.equal(h.events.byCalendar(nativeD(club.pubkey), NOW, NOW + 30 * 86400).find((r) => r.title.startsWith('Bitcoin'))!.canonical, null);
+  assert.match(h.db.record(copy.recordId)!.ics.replace(/\r\n /g, ''), new RegExp(`X-EVENTINDEX-CANONICAL:https://api.eventindex.space/api/1.0/events/byid/${own.id}`));
+
+  h.held[SEARCH]!.push(org.sign(5, [['e', original.id], ['k', '31923']], '', NOW + 30));
+  h.clock.now = NOW + 3600;
+  await h.indexer.tick();
+  const after = h.events.byCalendar(nativeD(club.pubkey), NOW, NOW + 30 * 86400).find((r) => r.title.startsWith('Fort'))!;
+  assert.equal(after.canonical, null, 'with the original deleted, the copy stands on its own');
+  assert.ok(!h.db.record(after.recordId)!.ics.includes('X-EVENTINDEX-CANONICAL'));
+});
+
+test('a mirrored feed\'s event yields to the organizer\'s own on nostr: the copy names it with q', async () => {
+  const h = harness();
+  const org = publisher();
+  const id = identify(feedUrlFor('meetup-pythonsd.ics'));
+  h.dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null,
+    location: null, g: null, foundVia: 'maintainer', addedAt: NOW });
+  // The meetup's own event on nostr: the same title and start as in the feed.
+  h.held[SEARCH]!.push(org.event('sdpy-oct', 'SDPy Monthly Meetup', 1792720800));
+  await h.indexer.tick();
+  h.clock.now = NOW + 60;
+  await h.indexer.tick();
+  const mirrored = h.events.byCalendar(id.d, NOW, NOW + 30 * 86400).find((r) => r.title === 'SDPy Monthly Meetup')!;
+  const own = h.events.byCalendar(nativeD(org.pubkey), NOW, NOW + 30 * 86400)[0]!;
+  assert.equal(mirrored.canonical, own.id);
+  const key = h.dir.get(id.d)!.pubkey!;
+  const projection = h.sent.filter((s) => s.event.pubkey === key && s.event.kind === 31923 && s.event.tags.find((t) => t[0] === 'd')![1] === mirrored.d).at(-1)!.event;
+  assert.deepEqual(projection.tags.find((t) => t[0] === 'q'), ['q', `31923:${org.pubkey}:sdpy-oct`, '']);
+});
