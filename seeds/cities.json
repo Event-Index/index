@@ -260,6 +260,19 @@
         "meetup/denver.json"
       ],
       "wave": 2
+    },
+    {
+      "name": "Providence",
+      "slug": "providence",
+      "country": "US",
+      "geonames_id": 5224151,
+      "latitude": 41.82399,
+      "longitude": -71.41283,
+      "timezone": "America/New_York",
+      "seeds": [
+        "meetup/providence.json"
+      ],
+      "wave": 2
     }
   ]
 }

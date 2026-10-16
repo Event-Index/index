@@ -1,0 +1,14 @@
+{
+  "city": "Providence",
+  "country": "US",
+  "geonames_id": 5224151,
+  "source": "meetup",
+  "found_at": "2026-10-16",
+  "calendars": [
+    {
+      "id": "ribitcoiners",
+      "found_via": "submission"
+    }
+  ],
+  "skipped": []
+}

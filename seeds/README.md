@@ -44,7 +44,8 @@ One JSON file per platform and city, `seeds/<source>/<city-slug>.json`:
     names the calendar of each event it shows;
   - `btcmap:<area id>`: a BTC Map community (btcmap.org) named for the city or
     within 50 km of it, by its `contact:luma` or `contact:meetup` link;
-  - `maintainer`: added by a maintainer.
+  - `maintainer`: added by a maintainer;
+  - `submission`: submitted through the index and approved.
 
 City identifiers are GeoNames ids (geonames.org, CC BY 4.0).
 
