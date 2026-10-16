@@ -597,6 +597,20 @@ export function createIndexer(deps: IndexerDeps) {
     return paired.connection;
   }
 
+  // The connection a claim made, when it is tried again (a signer's
+  // one-time secret works once), else a new one.
+  async function connectionFor(claim: Claim, entry: StoredEntry): Promise<SignerConnection | { failed: string }> {
+    const saved = vault.connection(entry.d);
+    if (saved && saved.owner === claim.pubkey && entry.mode !== 'delegated') {
+      const { owner: _, ...connection } = saved;
+      return connection;
+    }
+    const connection = await pair(claim);
+    if ('failed' in connection) return connection;
+    vault.saveConnection(entry.d, claim.pubkey, connection);
+    return connection;
+  }
+
   // "I publish myself": the index reads the organizer's own events.
   async function claimOwn(claim: Claim, entry: StoredEntry, now: number): Promise<Outcome> {
     if (!deps.reader) return { failed: 'the index cannot read relays' };
@@ -632,14 +646,13 @@ export function createIndexer(deps: IndexerDeps) {
   // "Publish for me, as me": the index signs with the organizer's key,
   // through their signer.
   async function claimDelegated(claim: Claim, entry: StoredEntry, now: number): Promise<Outcome> {
-    const connection = await pair(claim);
+    const connection = await connectionFor(claim, entry);
     if ('failed' in connection) return connection;
     const owner = claim.pubkey;
     if (deps.reader) {
       const read = await readOwner(owner);
       if (read.ok) dir.setOwnerRelays(entry.d, read.writeRelays);
     }
-    vault.saveConnection(entry.d, owner, connection);
     const home = homeOf(dir.get(entry.d)!);
     await retireKey(entry, owner, now, {
       ownerCalendar: `31924:${owner}:${entry.d}`,
@@ -675,9 +688,8 @@ export function createIndexer(deps: IndexerDeps) {
       return 'done';
     }
     if (!entry.feedUrl || entry.source === 'nostr') return { failed: 'the calendar has no feed to publish from' };
-    const connection = await pair(claim);
+    const connection = await connectionFor(claim, entry);
     if ('failed' in connection) return connection;
-    vault.saveConnection(entry.d, entry.owner, connection);
     dir.setOwnership(entry.d, { mode: 'delegated', owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar: `31924:${entry.owner}:${entry.d}` });
     rehost();
     pollAgain(entry.d);
@@ -703,6 +715,9 @@ export function createIndexer(deps: IndexerDeps) {
       }
       if (outcome === 'done') queues.resolveClaim(claim.id, 'done', now);
       else {
+        // A connection made for a claim that did not go through is forgotten.
+        const entry = dir.get(claim.d);
+        if (claim.mode === 'delegated' && claim.kind !== 'disconnect' && entry && entry.mode !== 'delegated') vault.forgetConnection(claim.d);
         queues.resolveClaim(claim.id, 'failed', now, outcome.failed);
         deps.log(`claim ${claim.id} for ${claim.d}: ${outcome.failed}`);
       }

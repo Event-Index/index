@@ -36,7 +36,7 @@ const STUDY = nostrD('event_316721984@meetup.com');
 // A remote signer per bunker key, signing as the key it holds.
 function fakeSigners(holds: Map<string, Uint8Array>) {
   const asked: number[] = [];
-  const state = { down: false };
+  const state = { down: false, pairs: 0 };
   const session = (sk: Uint8Array): RemoteSession => ({
     pubkey: getPublicKey(sk),
     async sign(template) {
@@ -48,6 +48,7 @@ function fakeSigners(holds: Map<string, Uint8Array>) {
   });
   const signers: RemoteSigners = {
     async pair(pointer) {
+      state.pairs += 1;
       const sk = holds.get(pointer.pubkey);
       if (!sk || state.down) throw new Error('the signer did not answer');
       return { connection: { clientSecret: 'cc'.repeat(32), bunker: pointer }, session: session(sk) };
@@ -77,6 +78,8 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
   const fetched: string[] = [];
   const rsvps = new Set<string>();
   const clock = { now: NOW };
+  // How many publishes to the index's relay fail before it takes them again.
+  const outage = { own: 0 };
   const fake = fakeSigners(options.holds ?? new Map());
   const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_RELAY_URL: OWN, EVENTINDEX_GENERAL_RELAYS: 'wss://general.test', EVENTINDEX_PROFILE_RELAYS: 'none',
     ...(options.host ? { EVENTINDEX_RELAY_HOSTS_CLAIMANTS: '1' } : {}) });
@@ -93,6 +96,10 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
     },
     publisher: {
       publish: async (list, audience) => {
+        if (audience === 'own' && outage.own > 0) {
+          outage.own -= 1;
+          throw new Error('the relay did not answer');
+        }
         sent.push(...list.map((event) => ({ audience, event })));
         if (audience === 'own') held[OWN]!.push(...list);
       },
@@ -127,7 +134,7 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
     queues.resolveClaim(claim.id, 'approved', clock.now);
   };
   return {
-    db, dir, queues, events, vault, indexer, settings, sent, fetched, rsvps, clock, held, fake, dataDir, texts, tickAt, by, approve,
+    db, dir, queues, events, vault, indexer, settings, sent, fetched, rsvps, clock, held, fake, dataDir, texts, outage, tickAt, by, approve,
     indexPubkey: getPublicKey(indexKey),
     allowlist: () => JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')) as { live: string[]; removed: string[]; hosted: string[] },
     close() { vault.close(); db.close(); rmSync(dataDir, { recursive: true, force: true }); },
@@ -426,4 +433,34 @@ test('a feed that answers 304 is read again in full when its calendar starts bei
   await h.tickAt(h.db.pollState(D).nextPollAt);
   assert.deepEqual(h.by(organizer, before).map((s) => s.event.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'and the rest');
   h.close();
+});
+
+test('a claim retried after the index\'s relay failed keeps the connection it made, and a claim that fails keeps none', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]) });
+  await h.tickAt(NOW);
+  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test&secret=one-time`), at: NOW });
+  h.approve(claim);
+  h.outage.own = 1;
+  await h.tickAt(NOW + 60);
+  assert.equal(h.queues.claim(claim.id)!.status, 'approved', 'tried again at the next tick');
+  assert.equal(h.fake.state.pairs, 1);
+  await h.tickAt(NOW + 90);
+  assert.equal(h.queues.claim(claim.id)!.status, 'done');
+  assert.equal(h.fake.state.pairs, 1, 'the one-time secret is not used twice');
+  assert.equal(h.dir.get(D)!.mode, 'delegated');
+  h.close();
+
+  const g = claimHarness({ holds: new Map([[bunker, organizerKey]]) });
+  await g.tickAt(NOW);
+  const failing = g.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(g.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test`), at: NOW });
+  g.approve(failing);
+  g.outage.own = 1000;
+  await g.tickAt(NOW + 60);
+  await g.tickAt(NOW + 86400 + 120);
+  assert.equal(g.queues.claim(failing.id)!.status, 'failed');
+  assert.equal(g.vault.connection(D), null, 'a failed claim leaves no connection');
+  g.close();
 });
