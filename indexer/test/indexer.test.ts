@@ -27,7 +27,7 @@ function entryFor(fixture: string, extra: Partial<Entry> = {}): Entry {
 
 function harness(options: { fixtures: string[]; texts?: Record<string, string>; failing?: string[]; publishGeneral?: boolean; rsvps?: Set<string>; dataDir?: string;
   onPublish?: (list: VerifiedEvent[], audience: Audience) => void; db?: ReturnType<typeof openIndexDb>; vault?: ReturnType<typeof openVault>; indexKey?: Uint8Array;
-  fetchOwn?: Publisher['fetchOwn']; pending?: () => number }) {
+  fetchOwn?: Publisher['fetchOwn']; pending?: () => number; publishDirectory?: boolean }) {
   const db = options.db ?? openIndexDb(':memory:');
   const dir = directoryStore(db);
   const queues = queueStore(db);
@@ -38,7 +38,7 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
   const fetched: string[] = [];
   const clock = { now: NOW };
   const urls = new Map(options.fixtures.map((f) => [identify(feedUrlFor(f)).feedUrl, f]));
-  const settings = { ...loadSettings({ EVENTINDEX_DATA_DIR: options.dataDir ?? '/nonexistent' }), publishToGeneralRelays: options.publishGeneral ?? false };
+  const settings = { ...loadSettings({ EVENTINDEX_DATA_DIR: options.dataDir ?? '/nonexistent' }), publishToGeneralRelays: options.publishGeneral ?? false, publishDirectoryOutside: options.publishDirectory ?? false };
   const indexer = createIndexer({
     db, dir, queues, events, vault, indexKey, settings,
     now: () => clock.now,
@@ -114,7 +114,7 @@ test('with outside publishing off, only the index key\'s profile and relay list 
 });
 
 test('with it on, each set of relays gets its kinds', async () => {
-  const on = harness({ fixtures: ['meetup-pythonsd.ics'], publishGeneral: true });
+  const on = harness({ fixtures: ['meetup-pythonsd.ics'], publishGeneral: true, publishDirectory: true });
   await on.indexer.tick();
   const calendar = on.dir.get('meetup:pythonsd')!.pubkey!;
   assert.deepEqual(outside(on.sent, 'search', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
@@ -154,7 +154,11 @@ test('turning outside publishing on sends what the index\'s relay holds once, th
   const calendar = first.dir.get('meetup:pythonsd')!.pubkey!;
   assert.deepEqual(fetched.flat().sort(), [first.indexPubkey, calendar].sort());
   assert.deepEqual(outside(h.sent, 'search', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-  assert.deepEqual(outside(h.sent, 'lists'), [39998, 39998, 39999]);
+  // The relay list changes as outside publishing goes on (it names the general
+  // relays now): the new one is published, and this test's stand-in for the
+  // index's relay still hands out the old one too.
+  assert.deepEqual(outside(h.sent, 'search', first.indexPubkey), [0, 3, 10002, 10002], 'the directory is held');
+  assert.deepEqual(outside(h.sent, 'lists'), []);
   assert.equal(h.dir.fact('outside_backfill'), null, 'not done while events wait in the queues');
   pending = 0;
   h.clock.now = NOW + 30;
@@ -313,4 +317,23 @@ test('the relay allowlist names every key before its first events go out, and re
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }
+});
+
+test('the directory stays on the index\'s relay until publishing it outside is on, then goes out once', async () => {
+  const first = harness({ fixtures: ['meetup-pythonsd.ics'], publishGeneral: true });
+  await first.indexer.tick();
+  assert.deepEqual(outside(first.sent, 'lists'), []);
+  assert.ok(!first.sent.some((s) => s.audience !== 'own' && (s.event.kind === 39998 || s.event.kind === 39999)));
+  assert.ok(first.sent.some((s) => s.audience === 'search' && s.event.kind === 31923), 'everything else goes out');
+  const held = first.sent.filter((s) => s.audience === 'own').map((s) => s.event);
+  const h = harness({ fixtures: [], publishGeneral: true, publishDirectory: true, db: first.db, vault: first.vault, indexKey: first.indexKey,
+    fetchOwn: async (filter) => held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)), pending: () => 0 });
+  first.dir.setFact('outside_backfill', '1');
+  h.clock.now = NOW + 60;
+  await h.indexer.tick();
+  assert.deepEqual(outside(h.sent, 'lists'), [39998, 39998, 39999]);
+  assert.deepEqual(outside(h.sent, 'search'), [39998, 39998, 39999], 'only the directory is backfilled');
+  h.clock.now = NOW + 90;
+  await h.indexer.tick();
+  assert.equal(h.dir.fact('outside_backfill_directory'), '1');
 });

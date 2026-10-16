@@ -183,8 +183,8 @@ test('turning outside publishing on fills each set of relays with its kinds, fro
     assert.equal(dir.fact('outside_backfill'), '1');
     // craftnook at NOW: four events in the window, one of them past.
     assert.deepEqual(await kinds('search', [calendar]), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-    assert.deepEqual(await kinds('search', [indexPubkey]), [0, 3, 10002, 39998, 39998, 39999]);
-    assert.deepEqual(await kinds('lists', [indexPubkey, calendar]), [39998, 39998, 39999]);
+    assert.deepEqual(await kinds('search', [indexPubkey]), [0, 3, 10002], 'the directory is held');
+    assert.deepEqual(await kinds('lists', [indexPubkey, calendar]), []);
     assert.deepEqual(await kinds('profiles', [calendar]), [0, 10002]);
     assert.deepEqual(await kinds('profiles', [indexPubkey]), [0, 3, 10002]);
     assert.deepEqual(await kinds('general', [calendar]), [0, 10002, 31923, 31923, 31923, 31924], 'upcoming events only');

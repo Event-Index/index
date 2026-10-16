@@ -26,6 +26,8 @@ export interface Settings {
   generalRelays: string[];
   // Relays that take only list kinds; they get the directory and headers.
   listRelays: string[];
+  // Off unless set: the directory (kinds 39998, 39999) goes outside too.
+  publishDirectoryOutside: boolean;
   // Relays that index events for search.
   searchRelays: string[];
   // Relays that keep profiles and relay lists.
@@ -64,6 +66,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     publishToGeneralRelays: env['EVENTINDEX_PUBLISH_TO_GENERAL_RELAYS'] === '1',
     generalRelays: relays(env['EVENTINDEX_GENERAL_RELAYS'], GENERAL_RELAYS, 'EVENTINDEX_GENERAL_RELAYS'),
     listRelays: relays(env['EVENTINDEX_LIST_RELAYS'], [], 'EVENTINDEX_LIST_RELAYS'),
+    publishDirectoryOutside: env['EVENTINDEX_PUBLISH_DIRECTORY_OUTSIDE'] === '1',
     searchRelays: relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS'),
     profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
   };

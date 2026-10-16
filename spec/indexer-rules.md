@@ -182,15 +182,19 @@ creates the calendar key.
 
   | Kind | Search relays | List relays | Profile relays | General relays |
   |---|---|---|---|---|
-  | 39998, 39999 (the directory) | yes | yes | | |
+  | 39998, 39999 (the directory)¹ | yes | yes | | |
   | 0, 10002 (any key) | yes | | yes | yes |
   | 3 (the index key's follow list) | yes | | yes | yes |
   | 31924 | yes | | | yes |
   | 31922, 31923 | yes, in the window | | | while upcoming |
   | 5 | yes | | | yes |
 
+  ¹ Only once publishing the directory outside is turned on of its own;
+  until then the directory stays on the index's relay.
+
   When it goes on, what the index's relay holds of those kinds (deletions
-  excepted) is sent once through the same table, so past events reach the
+  excepted) is sent once through the same table (the directory's kinds when
+  the directory goes outside), so past events reach the
   search relays and never the general relays. A relay that answers
   `rate-limited` gets the event again later, more slowly; other refusals are
   logged. The index key's kind 0 and 10002 go to the profile and general

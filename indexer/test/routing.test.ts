@@ -5,14 +5,16 @@ import { setsFor, type RouteContext } from '../src/service/routing.ts';
 const INDEX = 'a'.repeat(64);
 const CAL = 'b'.repeat(64);
 const NOW = 1792108800;
-const on: RouteContext = { indexPubkey: INDEX, now: NOW, outside: true };
+const on: RouteContext = { indexPubkey: INDEX, now: NOW, outside: true, directory: true };
 const off: RouteContext = { ...on, outside: false };
 const event = (pubkey: string, kind: number, tags: string[][] = []) => ({ pubkey, kind, tags });
 const timed = (start: number) => event(CAL, 31923, [['d', 'x'], ['start', String(start)]]);
 const dated = (date: string) => event(CAL, 31922, [['d', 'y'], ['start', date]]);
 
-test('the directory goes to the search and list relays', () => {
+test('the directory goes to the search and list relays, once publishing it outside is on', () => {
   for (const kind of [39998, 39999]) assert.deepEqual(setsFor(event(INDEX, kind), on), ['search', 'lists']);
+  for (const kind of [39998, 39999]) assert.deepEqual(setsFor(event(INDEX, kind), { ...on, directory: false }), [], 'held on the index\'s relay');
+  assert.deepEqual(setsFor(event(CAL, 31924), { ...on, directory: false }), ['search', 'general'], 'the hold is for the directory only');
 });
 
 test('profiles and relay lists go to the search, profile and general relays', () => {

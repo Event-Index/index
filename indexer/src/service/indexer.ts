@@ -70,8 +70,10 @@ export interface TickReport {
 
 const DAY = 86400;
 const REMOVED = 'organizer request';
-// Kinds re-sent from the index's relay when outside publishing starts.
-const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924, 39998, 39999];
+// Kinds re-sent from the index's relay when outside publishing starts, and
+// the directory's, re-sent when it goes outside.
+const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924];
+const DIRECTORY_KINDS = [39998, 39999];
 // Bumped when what the backfill sends changes, so it runs again.
 const BACKFILL_VERSION = '1';
 
@@ -176,7 +178,7 @@ export function createIndexer(deps: IndexerDeps) {
       writeAllowlist();
     }
     await publisher.publish(signed, 'own');
-    await sendOutside(signed, { indexPubkey, now, outside: settings.publishToGeneralRelays });
+    await sendOutside(signed, { indexPubkey, now, outside: settings.publishToGeneralRelays, directory: settings.publishDirectoryOutside });
   }
 
   async function sendOutside(signed: VerifiedEvent[], ctx: Parameters<typeof setsFor>[1]): Promise<void> {
@@ -192,28 +194,37 @@ export function createIndexer(deps: IndexerDeps) {
   }
 
   // When outside publishing starts, what the index's relay already holds goes
-  // out once, through the same routing (no deletions). Done once the queues
+  // out once, through the same routing (no deletions); the directory's kinds
+  // go once the directory goes outside. Each part is done once the queues
   // have drained; a restart before that sends it again.
-  let backfill: 'idle' | 'queued' = 'idle';
+  let queued: string[] = [];
   async function maybeBackfill(now: number): Promise<void> {
     if (!settings.publishToGeneralRelays || !publisher.fetchOwn) return;
-    if (backfill === 'queued') {
+    if (queued.length) {
       if ((publisher.pending?.() ?? 0) === 0) {
-        dir.setFact('outside_backfill', BACKFILL_VERSION);
-        backfill = 'idle';
-        deps.log('outside relays: backfill sent');
+        for (const fact of queued) dir.setFact(fact, BACKFILL_VERSION);
+        deps.log(`outside relays: backfill sent (${queued.join(', ')})`);
+        queued = [];
       }
       return;
     }
-    if (dir.fact('outside_backfill') === BACKFILL_VERSION) return;
+    const kinds: number[] = [];
+    if (dir.fact('outside_backfill') !== BACKFILL_VERSION) {
+      kinds.push(...BACKFILL_KINDS);
+      queued.push('outside_backfill');
+    }
+    if (settings.publishDirectoryOutside && dir.fact('outside_backfill_directory') !== BACKFILL_VERSION) {
+      kinds.push(...DIRECTORY_KINDS);
+      queued.push('outside_backfill_directory');
+    }
+    if (kinds.length === 0) return;
     const authors = [indexPubkey, ...allowed.live, ...allowed.removed];
     let count = 0;
     for (const author of authors) {
-      const events = await publisher.fetchOwn({ authors: [author], kinds: BACKFILL_KINDS, limit: 500 });
-      await sendOutside(events, { indexPubkey, now, outside: true, backfill: true });
+      const events = await publisher.fetchOwn({ authors: [author], kinds, limit: 500 });
+      await sendOutside(events, { indexPubkey, now, outside: true, directory: settings.publishDirectoryOutside, backfill: true });
       count += events.length;
     }
-    backfill = 'queued';
     deps.log(`outside relays: backfill of ${count} events from ${authors.length} keys queued`);
   }
 

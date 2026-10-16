@@ -8,6 +8,7 @@
 //             calendars, and upcoming events only
 // The index key's profile and relay list always go to the profile and
 // general relays, so a change to them never stays on the index's relay alone.
+// The directory goes outside only once that is turned on of its own.
 
 import { WINDOW_PAST } from '../project/window.ts';
 
@@ -18,6 +19,9 @@ export interface RouteContext {
   now: number;
   // Publishing beyond the index's own relay is on.
   outside: boolean;
+  // The directory (39998, 39999) goes outside too; until then it stays on
+  // the index's relay.
+  directory?: boolean;
   // Re-sending what the index's relay already holds: no deletions.
   backfill?: boolean;
 }
@@ -47,7 +51,7 @@ export function setsFor(event: Routable, ctx: RouteContext): RelaySet[] {
   switch (kind) {
     case 39998:
     case 39999:
-      return ['search', 'lists'];
+      return ctx.directory ? ['search', 'lists'] : [];
     case 0:
     case 10002:
       return ['search', 'profiles', 'general'];
