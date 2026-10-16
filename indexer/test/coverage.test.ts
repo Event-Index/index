@@ -118,3 +118,11 @@ test('a publisher\'s upcoming events are read page by page, the newest version o
   assert.ok(refs.some((r) => r.title === 'Event 11'));
   assert.ok(!refs.some((r) => r.title === 'Event 0' || r.title === 'Event 3'));
 });
+
+test('the publisher\'s own events in the index do not count as held', () => {
+  const own = row({ calendarD: `nostr:${'ab'.repeat(32)}` });
+  const near = () => [own];
+  assert.equal(coverage([ref()], [NYC], near, () => null).cities[0]!.held, 1);
+  const report = coverage([ref()], [NYC], near, () => null, { ignore: (r) => r.calendarD === `nostr:${'ab'.repeat(32)}` });
+  assert.equal(report.cities[0]!.held, 0);
+});

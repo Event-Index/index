@@ -102,12 +102,14 @@ function cityOf(ref: Reference, cities: City[]): City | null {
 }
 
 // `near` gives the index's events that overlap a span; `areaOf` a calendar's
-// area, for an event that carries no coordinates.
+// area, for an event that carries no coordinates; `ignore` the index's events
+// that do not count, such as the publisher's own, which the index also reads.
 export function coverage(
   refs: Reference[],
   cities: City[],
   near: (from: number, to: number) => EventRow[],
   areaOf: (calendarD: string) => [number, number] | null,
+  options: { ignore?: (row: EventRow) => boolean } = {},
 ): CoverageReport {
   const report: CoverageReport = { total: refs.length, cities: [], elsewhere: 0, unplaced: 0 };
   const byCity = new Map<string, CityCoverage>();
@@ -125,7 +127,7 @@ export function coverage(
     byCity.set(city.slug, entry);
     entry.total += 1;
     const held = near(ref.start - MATCH_WINDOW, ref.start + MATCH_WINDOW).some((row) => {
-      if (Math.abs(row.start - ref.start) > MATCH_WINDOW) return false;
+      if (Math.abs(row.start - ref.start) > MATCH_WINDOW || options.ignore?.(row)) return false;
       const point = (row.g ? decodeGeohash(row.g) : null) ?? areaOf(row.calendarD);
       if (point && distanceKm(point[0], point[1], ref.lat!, ref.lon!) > CITY_RADIUS_KM) return false;
       return titlesMatch(ref.title, row.title) || venuesMatch(ref, row);
