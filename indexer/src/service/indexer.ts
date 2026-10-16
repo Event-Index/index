@@ -35,6 +35,7 @@ import { nativeFeed } from '../native/record.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
 import { expand, cancelledCopy } from '../project/projector.ts';
 import { API_BASE } from '../project/nip52.ts';
+import { claimDate } from '../project/annotate.ts';
 import { publicEventId, nostrD } from '../project/ids.ts';
 import { nativeUid, type Found } from '../native/record.ts';
 import type { AuthorRead } from '../native/read.ts';
@@ -447,7 +448,7 @@ export function createIndexer(deps: IndexerDeps) {
     const fresh = dir.get(entry.d)!;
     const feed = nativeFeed(read.events, {
       d: entry.d, source: 'nostr', role: 'calendar', feedUrl: '', pageUrl: fresh.pageUrl, entryName: fresh.name,
-      calendarName: fresh.name, calendarAddress: `39999:${indexPubkey}:${entry.d}`,
+      calendarName: fresh.name, calendarAddress: `39999:${indexPubkey}:${entry.d}`, claimedAt: fresh.claimedAt,
     });
     for (const record of feed.records) {
       db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
@@ -548,7 +549,9 @@ export function createIndexer(deps: IndexerDeps) {
     const record = recordFromText(stored.ics, stored.uid, publicEventId(entry.d, oldD));
     for (const vevent of record.component.getAllSubcomponents('vevent')) {
       vevent.removeAllProperties('x-eventindex-canonical');
+      vevent.removeAllProperties('x-eventindex-claimed');
       vevent.addPropertyWithValue('x-eventindex-canonical', `${API_BASE}/events/byid/${replacement}`);
+      vevent.addPropertyWithValue('x-eventindex-claimed', claimDate(now)!);
     }
     db.putRecord({ calendarD: entry.d, uid: stored.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
   }
@@ -854,7 +857,7 @@ export function createIndexer(deps: IndexerDeps) {
           generalRelays,
           signer: () => openSigner(entry, sessions),
           keyOf,
-          ...(home ? { delegated: { relay: home.hint } } : {}),
+          ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt } } : {}),
         },
       );
     } finally {

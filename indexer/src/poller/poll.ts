@@ -6,7 +6,7 @@ import type { VerifiedEvent } from 'nostr-tools/pure';
 import type { DirectoryIdentity } from '../directory/id.ts';
 import { normalizeFeed, FeedParseError, type NormalizedFeed } from '../normalize/normalize.ts';
 import { projectFeed, cohostPlan, expand, type CohostPlan } from '../project/projector.ts';
-import { annotate, naddrFor, type Annotation } from '../project/annotate.ts';
+import { annotate, claimDate, naddrFor, type Annotation } from '../project/annotate.ts';
 import { INDEX_RELAY } from '../project/nip52.ts';
 import { nostrD } from '../project/ids.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
@@ -39,7 +39,7 @@ export interface PollDeps {
   // A calendar published as its organizer: no profile or relay list of
   // theirs is written, its calendar's d is the entry's d, and its events
   // name the relay they are on.
-  delegated?: { relay: string };
+  delegated?: { relay: string; claimedAt?: number | null };
 }
 
 export type PollReport =
@@ -151,13 +151,15 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   for (const w of result.withdrawn) if (w.status === 'deleted') deps.db.markWithdrawn(pubkey, w.kind, w.d, 'deleted');
   deps.db.savePresence(entry.d, result.presence);
 
+  const claimed = claimDate(deps.delegated?.claimedAt);
   for (const record of feed.records) {
     const notes = new Map<string, Annotation>();
+    if (claimed) for (const vevent of record.component.getAllSubcomponents('vevent')) notes.set(String(vevent.getFirstPropertyValue('x-eventindex-id') ?? ''), { claimed });
     const single = record.master && !record.master.hasProperty('rrule') && !record.master.hasProperty('rdate');
     if (single) {
       const kind = (record.master!.getFirstPropertyValue('dtstart') as ICAL.Time).isDate ? 31922 : 31923;
       const d = nostrD(record.uid);
-      if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { nostr: naddrFor(pubkey, kind, d, relay ? [relay] : []) });
+      if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { ...notes.get(record.id), nostr: naddrFor(pubkey, kind, d, relay ? [relay] : []) });
     }
     const canonical = effectivePlan.canonicalOf.get(record.id);
     if (canonical) notes.set(record.id, { ...notes.get(record.id), canonical });

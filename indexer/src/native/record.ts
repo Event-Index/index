@@ -7,7 +7,7 @@
 import ICAL from 'ical.js';
 import '../ical/design.ts';
 import { normalizeFeed, PRODID, type FeedContext, type LogEntry, type NormalizedFeed } from '../normalize/normalize.ts';
-import { annotate, naddrFor, type Annotation } from '../project/annotate.ts';
+import { annotate, claimDate, naddrFor, type Annotation } from '../project/annotate.ts';
 import { CANCELLED_PREFIX } from '../project/nip52.ts';
 import { decodeGeohash } from '../project/geohash.ts';
 import { canonicalZone } from '../ical/zones.ts';
@@ -32,6 +32,8 @@ export interface Found {
 export interface NativeContext extends FeedContext {
   // The calendar's name, written as the feed's NAME.
   calendarName: string | null;
+  // When its organizer claimed it, for a calendar the index mirrored before.
+  claimedAt?: number | null;
 }
 
 const tag = (event: NostrEvent, name: string): string | undefined => event.tags.find((t) => t[0] === name)?.[1];
@@ -164,7 +166,11 @@ export function nativeFeed(found: Found[], ctx: NativeContext): NormalizedFeed {
   for (const record of feed.records) {
     const f = hints.get(record.uid);
     if (!f) continue;
-    const notes = new Map<string, Annotation>([[record.id, { nostr: naddrFor(f.event.pubkey, f.event.kind, tag(f.event, 'd') ?? '', f.relay ? [f.relay] : []) }]]);
+    const claimed = claimDate(ctx.claimedAt);
+    const notes = new Map<string, Annotation>([[record.id, {
+      nostr: naddrFor(f.event.pubkey, f.event.kind, tag(f.event, 'd') ?? '', f.relay ? [f.relay] : []),
+      ...(claimed ? { claimed } : {}),
+    }]]);
     annotate(record, notes);
   }
   feed.log.push(...skipped);

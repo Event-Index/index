@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent, type VerifiedEvent } from 'nostr-tools/pure';
-import { npubEncode } from 'nostr-tools/nip19';
+import { naddrEncode, npubEncode } from 'nostr-tools/nip19';
 import { matchFilter, type Filter } from 'nostr-tools/filter';
 import { openIndexDb } from '../src/store/index-db.ts';
 import { openVault } from '../src/store/vault-db.ts';
@@ -184,6 +184,8 @@ test('"I publish myself": the calendar key withdraws its events, says where the 
   assert.deepEqual(h.events.byCalendar(D, NOW, NOW + 365 * 86400).map((r) => r.title), ['SDPy Monthly Meetup'], 'the organizer\'s own events are served');
   const oldRecord = h.db.record(h.db.recordsOf(D).find((r) => r.uid === 'event_312775793@meetup.com')!.id)!;
   assert.match(oldRecord.ics.replace(/\r\n /g, ''), /X-EVENTINDEX-CANONICAL:https:\/\/api\.eventindex\.space\/api\/1\.0\/events\/byid\/[a-z2-7]{32}/);
+  const ownRecord = h.db.recordsOf(D).find((r) => r.uid === `31923:${organizer}:sdpy-nov`)!;
+  assert.match(ownRecord.ics, /X-EVENTINDEX-CLAIMED:2026-10-15/, 'a claimed calendar\'s records say when it was claimed');
 
   const fetchedBefore = h.fetched.length;
   h.db.savePollState(D, { ...h.db.pollState(D), nextPollAt: 0 });
@@ -230,6 +232,9 @@ test('"publish for me, as me": the index connects to the organizer\'s signer and
 
   const entry = h.dir.get(D)!;
   assert.deepEqual([entry.mode, entry.owner, entry.nativeCalendar], ['delegated', organizer, `31924:${organizer}:${D}`]);
+  const record = h.db.recordsOf(D).find((r) => r.uid === 'event_312775793@meetup.com')!;
+  assert.match(record.ics, /X-EVENTINDEX-CLAIMED:2026-10-15/);
+  assert.match(record.ics.replace(/\r\n /g, ''), new RegExp(`X-EVENTINDEX-NOSTR:${naddrEncode({ kind: 31923, pubkey: organizer, identifier: MONTHLY, relays: [HOME] })}`), 'the record names its event under the organizer\'s key');
   const listed = h.by(h.indexPubkey, before).filter((s) => s.event.kind === 39999).at(-1)!.event;
   assert.deepEqual(listed.tags.filter((t) => t[0] === 'p'), [['p', organizer]]);
   assert.equal(tag(listed, 'feed'), 'https://www.meetup.com/pythonsd/events/ical/');
