@@ -195,7 +195,9 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   }
 
   success(feed.calendar.refreshInterval, nextEventStart, validators);
-  if (unfinished) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), nextPollAt: now + RESUME_AFTER });
+  // The rest is signed at the next poll, which reads the feed in full even
+  // if it has not changed.
+  if (unfinished) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), etag: null, lastModified: null, nextPollAt: now + RESUME_AFTER });
   return {
     status: 'published',
     published: signed.length,

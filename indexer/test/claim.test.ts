@@ -61,7 +61,7 @@ function fakeSigners(holds: Map<string, Uint8Array>) {
   return { signers, asked, state };
 }
 
-function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?: Map<string, Uint8Array>; strictRelays?: boolean; host?: boolean; batch?: number } = {}) {
+function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?: Map<string, Uint8Array>; strictRelays?: boolean; host?: boolean; batch?: number; etag?: boolean } = {}) {
   // Feed texts by URL, in place of the fixture.
   const texts: Record<string, string> = {};
   const dataDir = mkdtempSync(join(tmpdir(), 'claim-'));
@@ -83,9 +83,13 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
   const indexer = createIndexer({
     db, dir, queues, events, vault, indexKey, settings,
     now: () => clock.now,
-    fetch: async (url): Promise<FetchResult> => {
+    fetch: async (url, validators): Promise<FetchResult> => {
       fetched.push(url);
-      return { status: 'ok', text: texts[url] ?? readFixture('meetup-pythonsd.ics'), etag: null, lastModified: null, finalUrl: url };
+      const text = texts[url] ?? readFixture('meetup-pythonsd.ics');
+      // A feed with an ETag answers 304 while it has not changed.
+      const etag = `"${text.length}"`;
+      if (options.etag && validators.etag === etag) return { status: 'not-modified' };
+      return { status: 'ok', text, etag: options.etag ? etag : null, lastModified: null, finalUrl: url };
     },
     publisher: {
       publish: async (list, audience) => {
@@ -405,5 +409,21 @@ test('a claim to publish itself waits while no relay answers for the organizer, 
   await h.tickAt(NOW + 86400 + 60);
   assert.deepEqual([h.queues.claim(claim.id)!.status, h.queues.claim(claim.id)!.note], ['failed', 'no relay answered for the organizer for a day']);
   assert.equal(h.dir.get(D)!.mode, 'mirrored');
+  h.close();
+});
+
+test('a feed that answers 304 is read again in full when its calendar starts being published as its organizer, and for each batch', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), etag: true, batch: 3 });
+  await h.tickAt(NOW);
+  assert.ok(h.db.pollState(D).etag, 'the feed has an ETag');
+  h.approve(h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test`), at: NOW }));
+  const before = h.sent.length;
+  await h.tickAt(NOW + 60);
+  assert.equal(h.by(organizer, before).length, 3, 'the first batch goes out though the feed did not change');
+  await h.tickAt(h.db.pollState(D).nextPollAt);
+  assert.deepEqual(h.by(organizer, before).map((s) => s.event.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'and the rest');
   h.close();
 });

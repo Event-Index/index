@@ -562,6 +562,12 @@ export function createIndexer(deps: IndexerDeps) {
 
   type Outcome = 'done' | 'retry' | { failed: string };
 
+  // A calendar whose events are now signed by another key is polled at once,
+  // its feed read in full: nothing it holds has been signed by that key yet.
+  function pollAgain(d: string): void {
+    db.savePollState(d, { ...db.pollState(d), etag: null, lastModified: null, nextPollAt: 0 });
+  }
+
   // Connects to the signer a claimant sealed for the index, and checks it
   // signs as them.
   async function pair(claim: Claim): Promise<SignerConnection | { failed: string }> {
@@ -643,7 +649,7 @@ export function createIndexer(deps: IndexerDeps) {
     dir.setOwnership(entry.d, { mode: 'delegated', owner, claimedAt: now, nativeCalendar: `31924:${owner}:${entry.d}` });
     rehost();
     // Its events go out as the organizer's at this tick's poll.
-    db.savePollState(entry.d, { ...db.pollState(entry.d), nextPollAt: 0 });
+    pollAgain(entry.d);
     return 'done';
   }
 
@@ -674,7 +680,7 @@ export function createIndexer(deps: IndexerDeps) {
     vault.saveConnection(entry.d, entry.owner, connection);
     dir.setOwnership(entry.d, { mode: 'delegated', owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar: `31924:${entry.owner}:${entry.d}` });
     rehost();
-    db.savePollState(entry.d, { ...db.pollState(entry.d), nextPollAt: 0 });
+    pollAgain(entry.d);
     deps.log(`${entry.d}: its organizer connected a signer`);
     return 'done';
   }
