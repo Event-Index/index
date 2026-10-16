@@ -392,10 +392,12 @@ mirrors, so that its events are published from their own key.
   the feed as them again, for a calendar that has a feed). These are signed
   with their key and need no review.
 - **Hosting.** While the operator has the index's relay host claimants
-  (`RELAY_HOSTS_CLAIMANTS`, off by default; [`relay.md`](relay.md)), the
-  events the index signs as an organizer also go to its relay and name it as
-  their relay hint. Otherwise they go to the organizer's write relays, or to
-  the general relays when the organizer names none.
+  (`RELAY_HOSTS_CLAIMANTS=1`, as `relay.eventindex.space` does;
+  [`relay.md`](relay.md)), the events the index signs as an organizer go to
+  its relay as well as to the organizer's write relays, and name it as their
+  relay hint. Otherwise they go to the organizer's write relays, or to the
+  general relays when the organizer names none. An organizer who publishes
+  from their own key themselves is never hosted.
 
 ## 14. Every public NIP-52 event
 

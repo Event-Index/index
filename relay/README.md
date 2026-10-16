@@ -11,9 +11,12 @@ accepts:
   and 39999;
 - from each calendar key the index holds: kinds 0, 5, 10002, 31922, 31923 and
   31924; from a removed or claimed calendar's old key, kinds 0 and 5 only;
-- only while the operator has the relay host claimants
-  (`RELAY_HOSTS_CLAIMANTS=1`, off by default): from an organizer the index
-  publishes as, kinds 5, 31922, 31923 and 31924;
+- from an organizer the index publishes as, through the signer they
+  connected when they claimed their calendar: kinds 5, 31922, 31923 and
+  31924, while the operator has the relay host them
+  (`RELAY_HOSTS_CLAIMANTS=1`, as `relay.eventindex.space` does). Never their
+  kinds 0 or 10002, and nothing from an organizer who publishes from their
+  own key themselves;
 - from anyone: an RSVP (kind 31925) whose `a` names an event of one of those
   keys, a comment (kind 1111) whose root `A` names one, and a deletion (kind 5)
   of the author's own events stored here.

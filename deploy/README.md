@@ -261,7 +261,7 @@ service withdraws the calendar key's upcoming events, says where the calendar
 now publishes, and deletes the key from `vault.db`. It cannot be undone from
 here; the organizer can still have the calendar removed. Whether the index's
 relay also takes the events of organizers it publishes as is
-`RELAY_HOSTS_CLAIMANTS` in `deploy.env` (off).
+`RELAY_HOSTS_CLAIMANTS` in `deploy.env` (1 in the example: it does).
 
 ## Every public NIP-52 event
 
