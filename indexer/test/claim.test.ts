@@ -478,3 +478,18 @@ test('a token is found in a description however the feed folds it, and never in 
   assert.equal(h.queues.claim(attendee.id)!.verifiedBy, null);
   h.close();
 });
+
+test('the poll service does not hand a calendar to a key that already publishes another itself', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const h = claimHarness({ held: { [OWN]: [], 'wss://general.test': [] } });
+  await h.tickAt(NOW);
+  h.dir.add({ d: `nostr:${organizer}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: 'Lakeside', description: null, image: null,
+    location: null, g: null, foundVia: 'owner', addedAt: NOW, mode: 'own', owner: organizer });
+  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'own', signer: null, at: NOW });
+  h.approve(claim);
+  await h.tickAt(NOW + 60);
+  assert.deepEqual([h.queues.claim(claim.id)!.status, h.queues.claim(claim.id)!.note], ['failed', 'the organizer\'s key already publishes another calendar listed here']);
+  assert.equal(h.dir.get(D)!.mode, 'mirrored');
+  h.close();
+});

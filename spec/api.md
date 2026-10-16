@@ -248,7 +248,7 @@ Errors are `{"error": "<code>", "message": "<text>"}` with an HTTP status:
 | 403 | `not-yours` (a claim made by another key), `not-owner` (a calendar its organizer does not publish, or another key's) |
 | 404 | `not-found` |
 | 405 | `method-not-allowed` |
-| 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request), `already-claimed`, `already-owner` (the key already publishes a listed calendar), `not-a-calendar`, `not-pending`, `not-delegated`, `no-feed` |
+| 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request), `already-claimed`, `already-owner` (with `d` and `local_name`: the key publishes a listed calendar itself, or would, and so may own no other; [`indexer-rules.md`](indexer-rules.md) § 13), `not-a-calendar`, `not-pending`, `not-delegated`, `no-feed` |
 | 410 | `removed` |
 | 413 | `too-large` (the request body) |
 | 422 | the feed could not be used: `private-address`, `too-large`, `not-icalendar`, `empty`, `dns`, `timeout`, `too-many-redirects`, `http-<status>`; a key with nothing to file: `no-relay-answered`, `no-events`; NIP-05: `nip05-invalid`, `nip05-domain` (with `nip05_domains`), `nip05-unreachable`, `nip05-mismatch` |

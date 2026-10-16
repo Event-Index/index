@@ -7,7 +7,7 @@ import { seedFeedUrl, type Seed } from '../directory/seed.ts';
 import type { Source } from '../types.ts';
 import { encodeGeohash } from '../project/geohash.ts';
 import type { IndexDb } from '../store/index-db.ts';
-import type { DirectoryStore } from '../store/directory.ts';
+import { ownershipClash, type DirectoryStore } from '../store/directory.ts';
 import type { QueueStore } from '../store/queues.ts';
 import type { EventStore } from '../store/events.ts';
 
@@ -152,6 +152,8 @@ export function approveSubmission(s: AdminStores, id: number, options: { city?: 
   if (submission.source === 'nostr') {
     // A calendar its organizer publishes on nostr, filed by its key.
     const owner = submission.d.slice('nostr:'.length);
+    const clash = ownershipClash(s.dir.byOwner(owner), submission.d, 'own');
+    if (clash) throw new Error(`submission ${id}: the key already publishes ${clash.d}, listed here`);
     s.dir.add({
       d: submission.d, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: submission.name, description: null, image: null,
       ...place, foundVia: 'owner', addedAt: now, mode: 'own', owner,
@@ -225,6 +227,8 @@ export function approveClaim(s: AdminStores, id: number, now: number): void {
   if (!claim.verifiedAt) throw new Error(`claim ${id}: its organizer has not shown control of the calendar yet`);
   const entry = s.dir.get(claim.d);
   if (!entry || entry.removed || entry.mode !== 'mirrored') throw new Error(`claim ${id}: ${claim.d} is no longer a mirrored calendar`);
+  const clash = ownershipClash(s.dir.byOwner(claim.pubkey), claim.d, claim.mode ?? 'own');
+  if (clash) throw new Error(`claim ${id}: the key already publishes ${clash.d}, listed here`);
   s.queues.resolveClaim(id, 'approved', now);
 }
 

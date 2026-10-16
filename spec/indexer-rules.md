@@ -319,6 +319,13 @@ mirrors, so that its events are published from their own key.
     feed's host for a feed on the organizer's own site, or the host of the
     calendar's page, never a platform's (Luma, Meetup, Google, nor the
     instance of a Mobilizon or Gancio group). A leading `www.` is ignored.
+- **One key, which calendars.** A key that publishes a calendar itself (a
+  native calendar, or one claimed in `own` mode) owns no other listed
+  calendar, since the index reads every event of that key as that calendar's.
+  A key the index publishes as (`delegated`) may have several calendars. A
+  removed calendar does not count. This is checked when a calendar is filed
+  or claimed, when a maintainer approves it, and when the poll service
+  carries it out.
 - **Review.** A maintainer approves a claim only once it is verified, and may
   reject any. The poll service carries out an approved claim at its next
   tick; one it cannot carry out yet (no relay answers for the organizer) is

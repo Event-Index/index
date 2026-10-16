@@ -107,6 +107,15 @@ export function currentKey(entry: StoredEntry): string | null {
   return entry.mode === 'mirrored' ? entry.pubkey : entry.owner;
 }
 
+// Who may own what: a key that publishes a calendar itself owns no other
+// listed calendar, since the index reads every event of that key as that
+// calendar's; a key the index publishes as may have several such calendars.
+// Returns the listed entry a key taking `d` in `mode` would clash with.
+export function ownershipClash(owned: StoredEntry[], d: string, mode: 'own' | 'delegated'): StoredEntry | null {
+  const others = owned.filter((e) => !e.removed && e.d !== d);
+  return (mode === 'own' ? others[0] : others.find((e) => e.mode === 'own')) ?? null;
+}
+
 interface Row {
   d: string; role: Role; source: Source; feed_url: string; page_url: string | null; name: string | null;
   description: string | null; image: string | null; location: string | null; g: string | null; found_via: string | null;

@@ -166,3 +166,20 @@ test('a proof may name the address the request was made to on this machine, for 
   const spoofed = await signed(path, { mode: 'own' }, generateSecretKey(), { url: `http://evil.example${path}` });
   assert.equal(spoofed.body.reason, 'wrong-url');
 });
+
+test('a key whose claimed calendar was removed can still file its own; one that publishes a calendar itself cannot claim another', async () => {
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  const d = 'google:calendar@kubernetes.io';
+  h.dir.setOwnership(d, { mode: 'own', owner: pubkey, claimedAt: NOW, nativeCalendar: null });
+  const blocked = await signed(`${API}/calendars/${local('meetup:pythonsd')}/claim`, { mode: 'delegated', bunker: `bunker://${'ef'.repeat(32)}?relay=wss%3A%2F%2Fb.example.org` }, key);
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.body.error, 'already-owner');
+  const raw = h.db.raw;
+  raw.prepare('UPDATE directory SET removed = ? WHERE d = ?').run('organizer request', d);
+  h.relay.get(NATIVE_RELAY)!.push(finalizeEvent({ kind: 31923, tags: [['d', 'x'], ['title', 'Open night'], ['start', String(NOW + 86400)]], content: '', created_at: NOW }, key));
+  const filed = await signed(`${API}/calendars/native`, {}, key);
+  assert.equal(filed.status, 202);
+  raw.prepare('UPDATE directory SET removed = NULL WHERE d = ?').run(d);
+  h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
+});

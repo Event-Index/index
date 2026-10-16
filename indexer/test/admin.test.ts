@@ -332,3 +332,21 @@ test('a claim is approved only once its organizer has shown control of the calen
   rejectClaim(s, other.id, NOW + 200);
   assert.equal(s.queues.claim(other.id)!.status, 'rejected');
 });
+
+test('a key that publishes a calendar itself owns no other; one the index publishes as may have several', () => {
+  const s = stores();
+  importSeeds(s, [seedFile('meetup/san-diego.json')], cities, NOW);
+  const key = 'a0'.repeat(32);
+  const native = s.queues.submit({ d: `nostr:${key}`, feedUrl: '', source: 'nostr', role: 'calendar', name: 'Lakeside', at: NOW }, 10) as { id: number };
+  const own = s.queues.requestClaim({ d: 'meetup:pythonsd', pubkey: key, mode: 'own', signer: null, at: NOW });
+  s.queues.markClaimVerified(own.id, 'token', null, NOW);
+  approveClaim(s, own.id, NOW);
+  s.dir.setOwnership('meetup:pythonsd', { mode: 'own', owner: key, claimedAt: NOW, nativeCalendar: null });
+  assert.throws(() => approveSubmission(s, native.id, {}, cities, NOW), /already publishes/);
+  const delegated = s.queues.requestClaim({ d: 'meetup:sdbitcoiners', pubkey: key, mode: 'delegated', signer: null, at: NOW });
+  s.queues.markClaimVerified(delegated.id, 'token', null, NOW);
+  assert.throws(() => approveClaim(s, delegated.id, NOW), /already publishes/);
+  s.dir.retire('meetup:pythonsd', 'organizer request', NOW);
+  approveClaim(s, delegated.id, NOW);
+  assert.equal(s.queues.claim(delegated.id)!.status, 'approved', 'a removed calendar does not count');
+});

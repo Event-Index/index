@@ -12,7 +12,7 @@ import { calendarDomains, checkNip05, parseBunkerUrl } from '../../indexer/src/c
 import { sealFor } from '../../indexer/src/claim/seal.ts';
 import { PLATFORMS } from '../../indexer/src/project/profile.ts';
 import type { Cities } from '../../indexer/src/service/admin.ts';
-import type { StoredEntry } from '../../indexer/src/store/directory.ts';
+import { ownershipClash, type StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { ClaimMode } from '../../indexer/src/store/queues.ts';
 import type { Outcome, WriteDeps } from './writes.ts';
 
@@ -41,8 +41,10 @@ export async function fileNative(deps: ClaimDeps, pubkey: string, body: Record<s
   }
   const d = nativeD(pubkey);
   if (deps.dir.doNotIndex(d)) return fail(409, 'not-indexed', 'This calendar is not indexed, at its organizer\'s request.');
-  const listed = deps.dir.get(d) ?? deps.dir.byOwner(pubkey)[0];
+  const listed = deps.dir.get(d);
   if (listed) return fail(409, 'already-listed', 'This key\'s calendar is already in the directory.', { d: listed.d, local_name: listed.localName });
+  const clash = ownershipClash(deps.dir.byOwner(pubkey), d, 'own');
+  if (clash) return fail(409, 'already-owner', 'This key already publishes a calendar listed here.', { d: clash.d, local_name: clash.localName });
   if (!deps.reader) return fail(503, 'not-available', 'The index cannot read relays at the moment.');
   const read = await readAuthor(deps.reader, pubkey, usualRelays(deps.settings), deps.relayAllowed ? { relayAllowed: deps.relayAllowed } : {});
   if (!read.ok) return fail(422, 'no-relay-answered', 'No relay answered for this key. Try again later.');
@@ -88,8 +90,9 @@ export function requestClaim(deps: ClaimDeps, entry: StoredEntry | null, pubkey:
   if (calendar.mode !== 'mirrored') return fail(409, 'already-claimed', 'This calendar is already published by its organizer.');
   const mode = body['mode'] as ClaimMode;
   if (!MODES.has(mode)) return fail(400, 'invalid-mode', 'mode is "own" (you publish yourself) or "delegated" (the index publishes as you).');
-  if (mode === 'own' && deps.dir.byOwner(pubkey).some((e) => e.mode === 'own')) {
-    return fail(409, 'already-owner', 'This key already publishes a calendar listed here; its events are read from there.');
+  const clash = ownershipClash(deps.dir.byOwner(pubkey), calendar.d, mode);
+  if (clash) {
+    return fail(409, 'already-owner', 'This key already publishes a calendar listed here; the index reads all of its events as that calendar\'s.', { d: clash.d, local_name: clash.localName });
   }
   let signer: string | null = null;
   if (mode === 'delegated') {
@@ -143,6 +146,8 @@ export function ownerAction(deps: ClaimDeps, entry: StoredEntry | null, pubkey: 
   }
   if (body['action'] === 'connect') {
     if (calendar.source === 'nostr' || !calendar.feedUrl) return fail(409, 'no-feed', 'This calendar has no feed for the index to publish from.');
+    const clash = ownershipClash(deps.dir.byOwner(pubkey), calendar.d, 'delegated');
+    if (clash) return fail(409, 'already-owner', 'This key publishes another calendar listed here itself.', { d: clash.d, local_name: clash.localName });
     const sealed = sealSigner(deps, body['bunker']);
     if ('status' in sealed) return sealed;
     const request = deps.queues.ownerRequest({ d: calendar.d, pubkey, kind: 'connect', signer: sealed.sealed, at: now });

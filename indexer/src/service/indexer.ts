@@ -22,7 +22,7 @@ import { spreadCreatedAt } from '../rules/limits.ts';
 import { makeDump } from '../store/dump.ts';
 import type { IndexDb } from '../store/index-db.ts';
 import type { Vault } from '../store/vault-db.ts';
-import { currentKey, type DirectoryStore, type StoredEntry } from '../store/directory.ts';
+import { currentKey, ownershipClash, type DirectoryStore, type StoredEntry } from '../store/directory.ts';
 import type { QueueStore } from '../store/queues.ts';
 import type { EventRow, EventStore } from '../store/events.ts';
 import type { Filter } from 'nostr-tools/filter';
@@ -671,6 +671,7 @@ export function createIndexer(deps: IndexerDeps) {
     if (!entry || entry.removed || entry.role !== 'calendar') return { failed: 'the calendar is no longer in the directory' };
     if (claim.kind === 'claim') {
       if (entry.mode !== 'mirrored') return { failed: 'the calendar is already published by its organizer' };
+      if (ownershipClash(dir.byOwner(claim.pubkey), entry.d, claim.mode ?? 'own')) return { failed: 'the organizer\'s key already publishes another calendar listed here' };
       return claim.mode === 'delegated' ? claimDelegated(claim, entry, now) : claimOwn(claim, entry, now);
     }
     if (entry.mode === 'mirrored' || entry.owner !== claim.pubkey) return { failed: 'only the calendar\'s organizer can change how it is published' };
@@ -688,6 +689,7 @@ export function createIndexer(deps: IndexerDeps) {
       return 'done';
     }
     if (!entry.feedUrl || entry.source === 'nostr') return { failed: 'the calendar has no feed to publish from' };
+    if (ownershipClash(dir.byOwner(entry.owner), entry.d, 'delegated')) return { failed: 'the organizer\'s key already publishes another calendar listed here' };
     const connection = await connectionFor(claim, entry);
     if ('failed' in connection) return connection;
     dir.setOwnership(entry.d, { mode: 'delegated', owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar: `31924:${entry.owner}:${entry.d}` });
