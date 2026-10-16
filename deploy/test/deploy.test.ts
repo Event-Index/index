@@ -127,3 +127,17 @@ test('nginx logs no visitor address: every server block uses a format without on
     assert.doesNotMatch(read(path), /access_log(?![^;]*\beventindex;)[^;]*;/, `${path}: an access_log with another format`);
   }
 });
+
+test('strfry runs the write policy from the checked-out code, with the allowlist the indexer writes', () => {
+  const conf = readFileSync(`${repo}relay/strfry.conf`, 'utf8');
+  const appDir = /^APP_DIR=(.+)$/m.exec(read('lib.sh'))![1]!;
+  assert.equal(/^\s*plugin = "([^"]*)"$/m.exec(conf)![1], `${appDir}/relay/write-policy`);
+  assert.equal(spawnSync('git', ['-C', repo, 'ls-files', '-s', 'relay/write-policy'], { encoding: 'utf8' }).stdout.split(' ')[0], '100755', 'the plugin is executable in git');
+  const unit = read('templates/systemd/strfry.service');
+  assert.match(unit, /^Environment=EVENTINDEX_RELAY_ALLOWLIST=\$\{DATA_DIR\}\/relay-allowlist\.json$/m);
+  assert.match(unit, /^Environment=EVENTINDEX_RELAY_URL=ws:\/\/127\.0\.0\.1:\$\{RELAY_PORT\}$/m);
+  assert.match(read('templates/eventindex.env'), /^EVENTINDEX_RELAY_ALLOWLIST=\$\{DATA_DIR\}\/relay-allowlist\.json$/m);
+  const services = read('steps/services.sh');
+  assert.match(services, /install -m 644 "\$APP_DIR\/relay\/strfry\.conf" \/etc\/strfry\.conf/);
+  assert.match(services, /systemctl restart strfry\.service/);
+});

@@ -19,7 +19,11 @@ for db in index.db vault.db; do
   [ -e "$DATA_DIR/$db" ] || as_service sqlite3 "$DATA_DIR/$db" 'PRAGMA journal_mode=WAL;' >/dev/null
 done
 
-systemctl enable --now strfry.service
+# The relay's config and write policy come with the code: restart it so a
+# new version of either is in use.
+install -m 644 "$APP_DIR/relay/strfry.conf" /etc/strfry.conf
+systemctl enable strfry.service
+systemctl restart strfry.service
 if [ "${SECRETS_MISSING:-1}" = 0 ]; then
   systemctl enable litestream.service eventindex-relay-export.timer
   systemctl restart litestream.service

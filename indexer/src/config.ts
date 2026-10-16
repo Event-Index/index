@@ -10,6 +10,8 @@ export interface Settings {
   vaultDb: string;
   dumpFile: string;
   lockFile: string;
+  // The keys the relay's write policy accepts (relay/src/policy.ts).
+  relayAllowlist: string;
   indexKeyFile: string;
   calendarSecretFile: string;
   // The index's own relay, as the services reach it, and as the world does.
@@ -42,6 +44,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     vaultDb: env['EVENTINDEX_VAULT_DB'] ?? join(dataDir, 'vault.db'),
     dumpFile: join(dataDir, 'dump', 'index.db'),
     lockFile: join(dataDir, 'indexer.lock'),
+    relayAllowlist: env['EVENTINDEX_RELAY_ALLOWLIST'] ?? join(dataDir, 'relay-allowlist.json'),
     indexKeyFile: env['EVENTINDEX_INDEX_KEY_FILE'] ?? '/etc/eventindex/index-key.nsec',
     calendarSecretFile: env['EVENTINDEX_CALENDAR_SECRET_FILE'] ?? '/etc/eventindex/calendar-key.secret',
     relayUrl,

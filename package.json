@@ -9,7 +9,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --disable-warning=ExperimentalWarning --test \"indexer/test/**/*.test.ts\" \"api/test/**/*.test.ts\" \"deploy/test/**/*.test.ts\"",
+    "test": "node --disable-warning=ExperimentalWarning --test \"indexer/test/**/*.test.ts\" \"api/test/**/*.test.ts\" \"relay/test/**/*.test.ts\" \"deploy/test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

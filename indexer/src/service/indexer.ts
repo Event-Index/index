@@ -2,7 +2,7 @@
 // poll the calendars that are due, keep the events table and the directory on
 // nostr up to date, and write the daily dump.
 
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { finalizeEvent, getPublicKey, type VerifiedEvent } from 'nostr-tools/pure';
 import type { Settings } from '../config.ts';
@@ -131,6 +131,25 @@ export function createIndexer(deps: IndexerDeps) {
   // A relay list names only relays that hold the events.
   const generalRelays = settings.publishToGeneralRelays ? settings.generalRelays : [];
 
+  // The keys the relay accepts events from: the index key, every calendar
+  // key (named before its first events go out), and removed calendars' keys,
+  // which may still publish their profile and deletions.
+  const allowed = { live: new Set<string>(), removed: new Set<string>() };
+  for (const entry of dir.list({ includeRemoved: true })) {
+    if (entry.pubkey) (entry.removed ? allowed.removed : allowed.live).add(entry.pubkey);
+  }
+  function writeAllowlist(): void {
+    const file = settings.relayAllowlist;
+    try {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(`${file}.tmp`, `${JSON.stringify({ index: indexPubkey, live: [...allowed.live].sort(), removed: [...allowed.removed].sort() })}\n`);
+      renameSync(`${file}.tmp`, file);
+    } catch (error) {
+      deps.log(`relay allowlist: ${(error as Error).message}`);
+    }
+  }
+  writeAllowlist();
+
   // The co-host plan needs every calendar's events; until a calendar polls,
   // its stored records stand in for its feed.
   for (const entry of dir.list()) {
@@ -151,6 +170,11 @@ export function createIndexer(deps: IndexerDeps) {
 
   async function send(signed: VerifiedEvent[], now: number): Promise<void> {
     if (signed.length === 0) return;
+    const fresh = signed.map((e) => e.pubkey).filter((pk) => pk !== indexPubkey && !allowed.live.has(pk) && !allowed.removed.has(pk));
+    if (fresh.length) {
+      for (const pk of fresh) allowed.live.add(pk);
+      writeAllowlist();
+    }
     await publisher.publish(signed, 'own');
     if (!settings.publishToGeneralRelays) return;
     const lists = signed.filter((e) => LIST_KINDS.has(e.kind));
@@ -256,6 +280,9 @@ export function createIndexer(deps: IndexerDeps) {
       for (const p of upcoming) db.markWithdrawn(pubkey, p.kind, p.d, 'deleted');
       // Nothing is signed for the calendar again; its backups age out.
       vault.forget(entry.d);
+      allowed.live.delete(pubkey);
+      allowed.removed.add(pubkey);
+      writeAllowlist();
       deps.log(`removed ${entry.d}: ${upcoming.length} upcoming events deleted, calendar key deleted`);
     }
     dir.retire(entry.d, REMOVED, now);

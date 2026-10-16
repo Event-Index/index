@@ -1,0 +1,4 @@
+#!/bin/sh
+# The relay's write policy (relay/src/plugin.ts), as strfry runs it:
+# relay.writePolicy.plugin in strfry.conf names this file.
+exec node --disable-warning=ExperimentalWarning "$(dirname "$0")/src/plugin.ts"

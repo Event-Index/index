@@ -33,9 +33,9 @@ claims, and native NIP-52 calendars.
 |---|---|
 | `indexer/` | the poll service, the normalizer, the platform adapters, the projector and the maintainer's commands |
 | `api/` | the HTTP service: the API, NIP-05 names and the pages |
-| `relay/` | the configuration of the index's own relay (strfry) |
+| `relay/` | the index's own relay (strfry): its configuration and write policy |
 | `deploy/` | scripts and runbook for a server: setup, backups, upgrades, restore |
-| `spec/` | the iCalendar profile, the platform adapters, the NIP-52 mapping, the API reference |
+| `spec/` | the iCalendar profile, the platform adapters, the NIP-52 mapping, the relay's write policy, the API reference |
 | `seeds/` | organizer calendar lists by platform and city |
 | `fixtures/` | captured and synthetic feeds the tests run against |
 | `scripts/` | maintenance tools |

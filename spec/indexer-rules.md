@@ -173,7 +173,9 @@ creates the calendar key.
   every directory entry with a calendar key, or none for an aggregator), and
   writes the dump once a day. One feed's failure does not stop the others.
 - Events go to the index's own relay; a publish it refuses fails the poll,
-  which is retried. Publishing to other relays is off unless the operator
+  which is retried. The relay accepts only the keys in the allowlist the
+  service keeps ([`relay.md`](relay.md)): the index key, each calendar key
+  (named before its first events go out) and removed calendars' keys. Publishing to other relays is off unless the operator
   turns it on: then the calendar keys' kinds 0, 10002, 31924 and 5 and their
   upcoming events go to the general relays, and the list kinds (39998, 39999)
   to the general relays and any relays that take only lists, rate-limited and

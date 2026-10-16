@@ -8,6 +8,10 @@ Type=simple
 User=${SERVICE_USER}
 Group=${SERVICE_USER}
 ExecStart=/usr/local/bin/strfry --config=/etc/strfry.conf relay
+# For the write policy (relay/write-policy): the keys the indexer signs with,
+# and the relay itself, for checking deletions.
+Environment=EVENTINDEX_RELAY_ALLOWLIST=${DATA_DIR}/relay-allowlist.json
+Environment=EVENTINDEX_RELAY_URL=ws://127.0.0.1:${RELAY_PORT}
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=1000000

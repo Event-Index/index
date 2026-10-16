@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateSecretKey, getPublicKey, verifyEvent, type VerifiedEvent } from 'nostr-tools/pure';
@@ -25,13 +25,14 @@ function entryFor(fixture: string, extra: Partial<Entry> = {}): Entry {
     location: null, g: null, foundVia: null, addedAt: NOW - 86400, ...extra };
 }
 
-function harness(options: { fixtures: string[]; texts?: Record<string, string>; failing?: string[]; publishGeneral?: boolean; rsvps?: Set<string>; dataDir?: string }) {
-  const db = openIndexDb(':memory:');
+function harness(options: { fixtures: string[]; texts?: Record<string, string>; failing?: string[]; publishGeneral?: boolean; rsvps?: Set<string>; dataDir?: string;
+  onPublish?: (list: VerifiedEvent[], audience: Audience) => void; db?: ReturnType<typeof openIndexDb>; vault?: ReturnType<typeof openVault>; indexKey?: Uint8Array }) {
+  const db = options.db ?? openIndexDb(':memory:');
   const dir = directoryStore(db);
   const queues = queueStore(db);
   const events = eventStore(db);
-  const vault = openVault(':memory:', new Uint8Array(randomBytes(32)));
-  const indexKey = generateSecretKey();
+  const vault = options.vault ?? openVault(':memory:', new Uint8Array(randomBytes(32)));
+  const indexKey = options.indexKey ?? generateSecretKey();
   const sent: Array<{ audience: Audience; event: VerifiedEvent }> = [];
   const fetched: string[] = [];
   const clock = { now: NOW };
@@ -47,13 +48,16 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
       return { status: 'ok', text: options.texts?.[fixture] ?? readFixture(fixture), etag: null, lastModified: null, finalUrl: url };
     },
     publisher: {
-      publish: async (list, audience) => void sent.push(...list.map((event) => ({ audience, event }))),
+      publish: async (list, audience) => {
+        options.onPublish?.(list, audience);
+        sent.push(...list.map((event) => ({ audience, event })));
+      },
       rsvps: async () => options.rsvps ?? new Set(),
       close: () => {},
     },
     log: () => {},
   });
-  for (const fixture of options.fixtures) dir.add(entryFor(fixture));
+  for (const fixture of options.fixtures) if (!dir.get(entryFor(fixture).d)) dir.add(entryFor(fixture));
   return { db, dir, queues, events, vault, indexKey, indexPubkey: getPublicKey(indexKey), sent, fetched, clock, indexer };
 }
 
@@ -206,5 +210,40 @@ test('kind 10002 names the general relays only when the index publishes to them'
       const expected = [['r', 'wss://relay.eventindex.space'], ...(publishGeneral ? ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.damus.io'].map((r) => ['r', r, 'write']) : [])];
       assert.deepEqual(list.tags, expected, `general relays ${publishGeneral ? 'on' : 'off'}`);
     }
+  }
+});
+
+test('the relay allowlist names every key before its first events go out, and removed keys once removed', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'allow-'));
+  try {
+    const file = join(dataDir, 'relay-allowlist.json');
+    const read = () => JSON.parse(readFileSync(file, 'utf8')) as { index: string; live: string[]; removed: string[] };
+    const checked: number[] = [];
+    const onPublish = (list: VerifiedEvent[], audience: Audience) => {
+      if (audience !== 'own') return;
+      const allow = read();
+      for (const e of list) assert.ok(e.pubkey === allow.index || allow.live.includes(e.pubkey) || (allow.removed.includes(e.pubkey) && [0, 5].includes(e.kind)), `kind ${e.kind} by a key the allowlist lacks`);
+      checked.push(list.length);
+    };
+    const h = harness({ fixtures: ['meetup-pythonsd.ics', 'luma-calendar-craftnook.ics'], dataDir, onPublish });
+    assert.deepEqual(read(), { index: h.indexPubkey, live: [], removed: [] }, 'written as the service starts');
+    await h.indexer.tick();
+    assert.ok(checked.length >= 3);
+    const python = h.dir.get('meetup:pythonsd')!.pubkey!;
+    const craft = h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!;
+    assert.deepEqual(read().live.sort(), [python, craft].sort());
+
+    const { id } = h.queues.requestRemoval({ d: 'meetup:pythonsd', message: null, at: NOW });
+    h.queues.resolveRemoval(id, 'approved', NOW);
+    h.clock.now = NOW + 60;
+    await h.indexer.tick();
+    assert.deepEqual(read(), { index: h.indexPubkey, live: [craft], removed: [python] });
+
+    // A restart rebuilds the list from the directory.
+    rmSync(file);
+    const again = harness({ fixtures: [], dataDir, db: h.db, vault: h.vault, indexKey: h.indexKey });
+    assert.deepEqual(read(), { index: again.indexPubkey, live: [craft], removed: [python] });
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
   }
 });
