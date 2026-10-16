@@ -13,6 +13,7 @@ import { PLATFORMS } from '../../indexer/src/project/profile.ts';
 import { resolveLink } from '../../indexer/src/directory/resolve.ts';
 import { nativeD } from '../../indexer/src/directory/id.ts';
 import { outsideRelay, readAuthor, type RelayReader } from '../../indexer/src/native/read.ts';
+import { startOf } from '../../indexer/src/native/ingest.ts';
 import { loadAggregators, shortNpub } from '../../indexer/src/native/publishers.ts';
 import { ownershipClash } from '../../indexer/src/store/directory.ts';
 import type { Settings } from '../../indexer/src/config.ts';
@@ -55,14 +56,14 @@ const REASONS: Record<string, string> = {
 export { autoApprovable };
 
 // A nostr publisher pasted as a link (an npub, an nprofile, a NIP-05
-// address): listed at once when it has NIP-52 events, as the index would
-// list it on reading them.
+// address): kept at once when it has NIP-52 events, and listed when one of
+// them is upcoming, as the index would on reading them.
 async function listPublisher(deps: WriteDeps, pubkey: string, hints: string[], now: number): Promise<Outcome> {
   const d = nativeD(pubkey);
   if (deps.dir.doNotIndex(d)) return fail(409, 'not-indexed', 'This calendar is not indexed, at its organizer\'s request.');
-  const listed = deps.dir.get(d);
-  if (listed) return fail(409, 'already-listed', 'This calendar is already in the directory.', { d, local_name: listed.localName });
-  const clash = ownershipClash(deps.dir.byOwner(pubkey), d, 'own');
+  const known = deps.dir.get(d);
+  if (known?.listed) return fail(409, 'already-listed', 'This calendar is already in the directory.', { d, local_name: known.localName });
+  const clash = known ? null : ownershipClash(deps.dir.byOwner(pubkey), d, 'own');
   if (clash) return fail(409, 'already-listed', 'This key\'s calendar is already in the directory.', { d: clash.d, local_name: clash.localName });
   if (!deps.reader || !deps.settings) return fail(503, 'not-available', 'The index cannot read relays at the moment.');
   const allowed = deps.relayAllowed ?? ((relay: string) => outsideRelay(relay));
@@ -73,18 +74,35 @@ async function listPublisher(deps: WriteDeps, pubkey: string, hints: string[], n
   if (!read.ok) return fail(422, 'no-relay-answered', 'No relay answered for this key. Try again later.');
   if (read.events.length === 0) return fail(422, 'no-events', 'No calendar events (NIP-52) were found from this key on its relays.');
   const name = read.profile?.name ?? read.calendars[0]?.tags.find((t) => t[0] === 'title')?.[1] ?? shortNpub(pubkey);
-  deps.dir.add({
-    d, role: loadAggregators().has(pubkey) ? 'aggregator' : 'calendar', source: 'nostr', feedUrl: '', pageUrl: read.profile?.website ?? null, name,
-    description: read.profile?.about ?? null, image: read.profile?.picture ?? null, location: null, g: null,
-    foundVia: 'submission', addedAt: now, mode: 'own', owner: pubkey,
-  });
-  deps.log(`listed nostr publisher ${d}`);
   const count = read.events.length;
+  const upcoming = read.events.some((f) => (startOf(f.event) ?? 0) >= now);
+  if (!known) {
+    deps.dir.add({
+      d, role: loadAggregators().has(pubkey) ? 'aggregator' : 'calendar', source: 'nostr', feedUrl: '', pageUrl: read.profile?.website ?? null, name,
+      description: read.profile?.about ?? null, image: read.profile?.picture ?? null, location: null, g: null,
+      foundVia: 'submission', addedAt: now, mode: 'own', owner: pubkey, listed: upcoming,
+    });
+  } else if (upcoming) {
+    deps.dir.setListed(d);
+  }
+  deps.log(`${upcoming ? 'listed' : 'kept'} nostr publisher ${d}`);
+  const events = `with ${count} event${count === 1 ? '' : 's'}`;
+  const body = { d, local_name: deps.dir.get(d)!.localName, name, source: 'nostr', role: 'calendar', events: count };
+  if (!upcoming) {
+    return {
+      status: 202,
+      body: {
+        status: 'kept', ...body,
+        found: `Found the nostr calendar "${name}", ${events}, none upcoming.`,
+        message: 'Kept. The index serves its events and lists it once it has an upcoming event. It signs nothing for it.',
+      },
+    };
+  }
   return {
     status: 201,
     body: {
-      status: 'listed', d, local_name: deps.dir.get(d)!.localName, name, source: 'nostr', role: 'calendar', events: count,
-      found: `Found the nostr calendar "${name}", with ${count} event${count === 1 ? '' : 's'}.`,
+      status: 'listed', ...body,
+      found: `Found the nostr calendar "${name}", ${events}.`,
       message: 'Listed. The index reads its events from its relays and signs nothing for it. Its organizer can manage it by signing in with its key.',
     },
   };

@@ -266,12 +266,14 @@ relay also takes the events of organizers it publishes as is
 ## Every public NIP-52 event
 
 With `INGEST_NOSTR=1` the poll service reads every public NIP-52 event by
-kind and lists each publisher in the directory
+kind and files each publisher, listing it once it has an upcoming event
 ([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 14). A first run
 reads each relay's history over a few minutes, a few thousand events a
-tick; `eventindex-admin status` counts the calendars listed. Their entries
-stay on the index's relay until `PUBLISH_NOSTR_ENTRIES_OUTSIDE=1`, which
-sends them to the list and search relays at their sets' pace. Nostr
+tick; `eventindex-admin status` counts the calendars listed and the
+publishers kept without a listing. Their entries stay on the index's relay
+until `PUBLISH_NOSTR_ENTRIES_OUTSIDE=1`, which sends them to the list and
+search relays at their sets' pace; the journal says how many before each
+batch goes (`journalctl -u eventindex-indexer | grep 'directory: sending'`). Nostr
 publishers of other organizers' events are listed in
 `seeds/nostr-aggregators.json`, or marked with `eventindex-admin aggregator`.
 

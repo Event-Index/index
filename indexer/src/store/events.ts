@@ -133,6 +133,8 @@ export function eventStore(index: IndexDb) {
     upcomingByCalendar: (now: number) => new Map(db.prepare<[number], { d: string; n: number }>(
       'SELECT calendar_d AS d, count(*) AS n FROM events WHERE start >= ? GROUP BY calendar_d',
     ).all(now).map((r) => [r.d, r.n])),
+    hasUpcoming: (calendarD: string, now: number) =>
+      !!db.prepare<[string, number], { x: number }>('SELECT 1 AS x FROM events WHERE calendar_d = ? AND start >= ? LIMIT 1').get(calendarD, now),
     countUpcoming: (now: number) => db.prepare<[number], { n: number }>('SELECT count(*) AS n FROM events WHERE start >= ?').get(now)!.n,
     countByCalendar: (calendarD: string) => db.prepare<[string], { n: number }>('SELECT count(*) AS n FROM events WHERE calendar_d = ?').get(calendarD)!.n,
     // The calendars with an event carrying the topic.

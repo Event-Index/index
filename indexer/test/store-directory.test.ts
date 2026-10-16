@@ -168,6 +168,7 @@ test('a directory from before ownership gains its columns when opened', () => {
   const db = openIndexDb(path);
   const dir = directoryStore(db);
   assert.equal(dir.get('meetup:pythonsd')!.mode, 'mirrored');
+  assert.equal(dir.get('meetup:pythonsd')!.listed, true, 'an entry from before is listed');
   db.close();
   rmSync(dataDir, { recursive: true, force: true });
 });
@@ -214,4 +215,23 @@ test('a submission can name its city, and a directory from before gains the colu
   const result = queues.submit({ d: `nostr:${'a0'.repeat(32)}`, feedUrl: '', source: 'nostr', role: 'calendar', name: 'Lakeside', city: 'chicago', at: NOW }, 10);
   assert.equal(result.status, 'queued');
   assert.equal(queues.submission((result as { id: number }).id)!.city, 'chicago');
+});
+
+test('an entry kept without a listing is found by d and local name, and left out of the lists and search until it is listed', () => {
+  const dir = directoryStore(openIndexDb(':memory:'));
+  const pubkey = 'a1'.repeat(32);
+  const d = `nostr:${pubkey}`;
+  dir.add(entry(d, { source: 'nostr', feedUrl: '', name: 'Quiet Club', foundVia: 'ingest', mode: 'own', owner: pubkey, listed: false }));
+  const kept = dir.get(d)!;
+  assert.equal(kept.listed, false);
+  assert.equal(dir.byLocalName(kept.localName)!.d, d);
+  assert.equal(dir.byOwner(pubkey).length, 1);
+  assert.deepEqual(dir.list().map((e) => e.d), []);
+  assert.deepEqual(dir.list({ includeRemoved: true }).map((e) => e.d), []);
+  assert.deepEqual(dir.list({ includeUnlisted: true }).map((e) => e.d), [d]);
+  assert.deepEqual(dir.search({ q: 'quiet' }), []);
+  dir.setListed(d);
+  assert.equal(dir.get(d)!.listed, true);
+  assert.deepEqual(dir.list().map((e) => e.d), [d]);
+  assert.deepEqual(dir.search({ q: 'quiet' }).map((e) => e.d), [d]);
 });

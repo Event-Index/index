@@ -256,6 +256,8 @@ export function status(s: AdminStores, now: number) {
     calendars: listed.filter((e) => e.role === 'calendar').length,
     aggregators: listed.filter((e) => e.role === 'aggregator').length,
     removed: all.length - listed.length,
+    // Nostr publishers kept without a listing: none of their events is upcoming.
+    unlisted: s.dir.list({ includeUnlisted: true }).filter((e) => !e.listed).length,
     withKey: listed.filter((e) => e.pubkey).length,
     stale: polls.filter((p) => p.state.stale).map((p) => p.d),
     neverPolled: polls.filter((p) => p.state.lastSuccessAt === null).length,

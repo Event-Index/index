@@ -217,3 +217,15 @@ test('a key whose claimed calendar was removed can still file its own; one that 
   raw.prepare('UPDATE directory SET removed = NULL WHERE d = ?').run(d);
   h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
 });
+
+test('an organizer who files a key the index kept without a listing has it listed at once', async () => {
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  h.dir.add({ d: `nostr:${pubkey}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: 'Quiet Club', description: null, image: null,
+    location: null, g: null, foundVia: 'ingest', addedAt: NOW, mode: 'own', owner: pubkey, listed: false });
+  const filed = await signed(`${API}/calendars/native`, { city: 'chicago' }, key);
+  assert.equal(filed.status, 200);
+  assert.equal(filed.body.status, 'updated');
+  const entry = h.dir.get(`nostr:${pubkey}`)!;
+  assert.deepEqual([entry.listed, entry.foundVia, entry.location], [true, 'owner', 'Chicago, US']);
+});

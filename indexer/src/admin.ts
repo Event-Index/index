@@ -98,6 +98,7 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       out(`calendars       ${r.calendars} (${r.withKey} with a key, ${r.neverPolled} not yet polled)`);
       out(`aggregators     ${r.aggregators}`);
       out(`removed         ${r.removed}`);
+      out(`kept unlisted   ${r.unlisted} (nostr publishers with no upcoming event)`);
       out(`stale           ${r.stale.length}${r.stale.length ? `: ${r.stale.join(', ')}` : ''}`);
       out(`upcoming events ${r.upcomingEvents}`);
       out(`submissions     ${r.pendingSubmissions} pending`);

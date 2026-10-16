@@ -7,6 +7,10 @@
 // and the index reads their events), or `delegated` (its feed is read, and the
 // index signs its events with its organizer's key, through a signer they
 // connected).
+//
+// An entry is listed unless filed without a listing: a nostr publisher the
+// index found with no upcoming event is kept, its events served, but it is in
+// no list, search or directory entry until it has one; then it stays listed.
 
 import type { IndexDb } from './index-db.ts';
 import type { Role, Source } from '../types.ts';
@@ -33,7 +37,8 @@ CREATE TABLE IF NOT EXISTS directory (
   owner TEXT,
   claimed_at INTEGER,
   native_calendar TEXT,
-  owner_relays TEXT
+  owner_relays TEXT,
+  unlisted INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS directory_feed ON directory(feed_url);
 CREATE TABLE IF NOT EXISTS do_not_index (
@@ -56,6 +61,7 @@ const ADDED: Array<[string, string]> = [
   ['claimed_at', 'INTEGER'],
   ['native_calendar', 'TEXT'],
   ['owner_relays', 'TEXT'],
+  ['unlisted', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
 export interface Ownership {
@@ -83,9 +89,12 @@ export interface Entry {
   // Mirrored unless given.
   mode?: Mode;
   owner?: string | null;
+  // Listed unless given.
+  listed?: boolean;
 }
 
-export interface StoredEntry extends Omit<Entry, 'mode' | 'owner'>, Ownership {
+export interface StoredEntry extends Omit<Entry, 'mode' | 'owner' | 'listed'>, Ownership {
+  listed: boolean;
   // The relays its organizer publishes to, as last read.
   ownerRelays: string[];
   pubkey: string | null;
@@ -121,6 +130,7 @@ interface Row {
   description: string | null; image: string | null; location: string | null; g: string | null; found_via: string | null;
   pubkey: string | null; added_at: number; removed: string | null; removed_at: number | null;
   mode: Mode; owner: string | null; claimed_at: number | null; native_calendar: string | null; owner_relays: string | null;
+  unlisted: number;
 }
 
 const like = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -138,19 +148,21 @@ export function directoryStore(index: IndexDb) {
       addedAt: row.added_at, pubkey: row.pubkey, removed: row.removed, removedAt: row.removed_at, localName: index.localNameFor(row.d),
       mode: row.mode, owner: row.owner, claimedAt: row.claimed_at, nativeCalendar: row.native_calendar,
       ownerRelays: row.owner_relays ? (JSON.parse(row.owner_relays) as string[]) : [],
+      listed: row.unlisted === 0,
     }
     : null);
   const byD = db.prepare<[string], Row>('SELECT * FROM directory WHERE d = ?');
   const blocked = db.prepare<[string], { d: string }>('SELECT d FROM do_not_index WHERE d = ?');
-  const insert = db.prepare(`INSERT INTO directory (d, role, source, feed_url, page_url, name, description, image, location, g, found_via, added_at, mode, owner)
-    VALUES (@d, @role, @source, @feedUrl, @pageUrl, @name, @description, @image, @location, @g, @foundVia, @addedAt, @mode, @owner)`);
+  const insert = db.prepare(`INSERT INTO directory (d, role, source, feed_url, page_url, name, description, image, location, g, found_via, added_at, mode, owner, unlisted)
+    VALUES (@d, @role, @source, @feedUrl, @pageUrl, @name, @description, @image, @location, @g, @foundVia, @addedAt, @mode, @owner, @unlisted)`);
   const block = db.prepare('INSERT OR IGNORE INTO do_not_index (d, reason, added_at) VALUES (?, ?, ?)');
 
   return {
     // False when the d is already listed or on the do-not-index list.
     add(entry: Entry): boolean {
       if (byD.get(entry.d) || blocked.get(entry.d)) return false;
-      insert.run({ ...entry, mode: entry.mode ?? 'mirrored', owner: entry.owner ?? null });
+      const { listed, ...rest } = entry;
+      insert.run({ ...rest, mode: entry.mode ?? 'mirrored', owner: entry.owner ?? null, unlisted: listed === false ? 1 : 0 });
       index.localNameFor(entry.d);
       return true;
     },
@@ -165,12 +177,13 @@ export function directoryStore(index: IndexDb) {
       return d ? toEntry(byD.get(d)) : null;
     },
     byPubkey: (pubkey: string) => toEntry(db.prepare<[string], Row>('SELECT * FROM directory WHERE pubkey = ?').get(pubkey)),
-    list(options: { includeRemoved?: boolean } = {}): StoredEntry[] {
-      const sql = options.includeRemoved ? 'SELECT * FROM directory ORDER BY d' : 'SELECT * FROM directory WHERE removed IS NULL ORDER BY d';
-      return db.prepare<[], Row>(sql).all().map((r) => toEntry(r)!);
+    // Listed entries; with includeUnlisted, those kept without a listing too.
+    list(options: { includeRemoved?: boolean; includeUnlisted?: boolean } = {}): StoredEntry[] {
+      const where = [...(options.includeRemoved ? [] : ['removed IS NULL']), ...(options.includeUnlisted ? [] : ['unlisted = 0'])];
+      return db.prepare<[], Row>(`SELECT * FROM directory${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY d`).all().map((r) => toEntry(r)!);
     },
     search(query: { q?: string; near?: string; tag?: string; limit?: number }): StoredEntry[] {
-      const where = ['removed IS NULL'];
+      const where = ['removed IS NULL', 'unlisted = 0'];
       const params: string[] = [];
       if (query.q) {
         where.push("(name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\')");
@@ -190,6 +203,8 @@ export function directoryStore(index: IndexDb) {
     // An organizer's own settings: where the calendar's events are.
     setPlace: (d: string, location: string | null, g: string | null) => void db.prepare('UPDATE directory SET location = ?, g = ? WHERE d = ?').run(location, g, d),
     setRole: (d: string, role: Role) => void db.prepare('UPDATE directory SET role = ? WHERE d = ?').run(role, d),
+    // Lists an entry kept without a listing; it stays listed.
+    setListed: (d: string) => void db.prepare('UPDATE directory SET unlisted = 0 WHERE d = ?').run(d),
     setFoundVia: (d: string, foundVia: string) => void db.prepare('UPDATE directory SET found_via = ? WHERE d = ?').run(foundVia, d),
     setOwnerRelays: (d: string, relays: string[]) => void db.prepare('UPDATE directory SET owner_relays = ? WHERE d = ?').run(JSON.stringify(relays), d),
     setMeta(d: string, facts: CalendarFacts): void {

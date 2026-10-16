@@ -48,8 +48,10 @@ export async function fileNative(deps: ClaimDeps, pubkey: string, body: Record<s
   const listed = deps.dir.get(d);
   if (listed && !listed.removed) {
     if (place) deps.dir.setPlace(d, place.location, place.g);
-    // Proven by its key: read from its own relays too from now on.
+    // Proven by its key: read from its own relays too from now on, and
+    // listed, as its organizer asks.
     deps.dir.setFoundVia(d, 'owner');
+    deps.dir.setListed(d);
     return { status: 200, body: { status: 'updated', d, local_name: listed.localName, location: place?.location ?? listed.location } };
   }
   const clash = ownershipClash(deps.dir.byOwner(pubkey), d, 'own');

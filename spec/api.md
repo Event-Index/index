@@ -65,6 +65,7 @@ A calendar response:
   },
   "eventindex": {
     "local_name": "meetup-pythonsd",
+    "listed": true,
     "address": "39999:<index key>:meetup:pythonsd",
     "nostr": { "npub": "npub1…", "nip05": "meetup-pythonsd@eventindex.space", "calendar": "naddr1…" },
     "publishing": "mirrored",
@@ -91,7 +92,10 @@ is null (the index names no key it does not hold) and `nostr.calendar` is the
 31924 the entry names, if any. `claimed` and `claimed_at` say whether and
 when its organizer claimed it. `last_indexed` is the last successful poll or
 read. A removed calendar is still answered by these lookups, with
-`removed: true` and no events.
+`removed: true` and no events. A nostr publisher kept without a listing
+([`indexer-rules.md`](indexer-rules.md) § 14) is answered too, with
+`listed: false` and `address` null; the lists, search and counts leave it
+out.
 
 ### Events
 
@@ -200,7 +204,7 @@ added at once when it is safe to, and otherwise waits for review.
 | a Luma vanity page (`luma.com/<name>`) or an event's page | the calendar named in the page's own data, read once through the same guarded fetch and size cap as feeds |
 | a Google Calendar embed (`?src=<id>`) or share (`?cid=`) link | the calendar's public feed; a private address is refused |
 | a Mobilizon group's page (`/@<group>`) | its feed, `/@<group>/feed/ics` |
-| an npub, an nprofile (with or without `nostr:`), or a NIP-05 address | a nostr publisher, listed at once when its relays hold NIP-52 events from it |
+| an npub, an nprofile (with or without `nostr:`), or a NIP-05 address | a nostr publisher, listed at once when its relays hold an upcoming NIP-52 event from it, kept without a listing when they hold only past ones |
 | anything else | a feed address, as given |
 
 For a feed it answers `201` with
@@ -212,7 +216,10 @@ when it waits for review; `found` says in plain words what was found
 the entry is filed under the index key and the next poll (within a minute)
 creates its calendar key and publishes its events. For a nostr publisher it
 answers `201` with
-`{"status": "listed", "d": "nostr:<hex key>", "local_name", "name", "events": n, "found", "message"}`.
+`{"status": "listed", "d": "nostr:<hex key>", "local_name", "name", "events": n, "found", "message"}`,
+or, when none of its events is upcoming, `202` with the same fields and
+`"status": "kept"`: the index serves its events and lists it once it has an
+upcoming one ([`indexer-rules.md`](indexer-rules.md) § 14).
 A refused link answers with a code and a sentence saying why.
 
 `/remove-request` answers `202` with
@@ -240,7 +247,7 @@ pages of `eventindex.space` make them through a browser extension (NIP-07).
 
 | Request | Does |
 |---|---|
-| `POST /calendars/native` with `{"city": "<city slug>"}` (optional) | lists the calendar the key publishes on nostr at once, when its relays hold NIP-52 events from it, or, when it is listed, sets its city ([`indexer-rules.md`](indexer-rules.md) § 12) |
+| `POST /calendars/native` with `{"city": "<city slug>"}` (optional) | lists the calendar the key publishes on nostr at once, when its relays hold NIP-52 events from it, or, when it is filed, lists it and sets its city ([`indexer-rules.md`](indexer-rules.md) § 12) |
 | `POST /calendars/<local name>/remove-request`, signed with the key the calendar is published with | removes the calendar at the poll service's next tick, with no review |
 | `POST /calendars/<local name>/claim` with `{"mode": "own"}` or `{"mode": "delegated", "bunker": "bunker://…"}` | claims a mirrored calendar for the key ([`indexer-rules.md`](indexer-rules.md) § 13): `own` to publish it yourself, `delegated` to have the index publish it as you through the remote signer (NIP-46) at that address |
 | `POST /calendars/<local name>/claim/<claim>/nip05` with `{"nip05": "<name>@<domain>"}` | verifies the key's claim by NIP-05 at the calendar's own domain |

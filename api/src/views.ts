@@ -70,7 +70,9 @@ export function calendarView(deps: ViewDeps, entry: StoredEntry) {
     },
     eventindex: {
       local_name: name,
-      address: indexPubkey ? `39999:${indexPubkey}:${entry.d}` : null,
+      // A publisher kept without a listing has no directory entry.
+      listed: entry.listed,
+      address: indexPubkey && entry.listed ? `39999:${indexPubkey}:${entry.d}` : null,
       nostr: nostrFacts(deps, entry),
       publishing: PUBLISHING[entry.mode],
       page: `https://${settings.domain}/calendar/${name}`,

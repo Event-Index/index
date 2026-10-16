@@ -117,9 +117,11 @@ test('status counts the directory, the queues and the stale feeds', () => {
   s.queues.requestRemoval({ d: 'meetup:pythonsd', message: null, at: NOW });
   s.db.savePollState('meetup:sdbitcoiners', { ...s.db.pollState('meetup:sdbitcoiners'), stale: true });
   s.dir.setFact('index_pubkey', 'ab'.repeat(32));
+  s.dir.add({ d: `nostr:${'cd'.repeat(32)}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: null, description: null, image: null,
+    location: null, g: null, foundVia: 'ingest', addedAt: NOW, mode: 'own', owner: 'cd'.repeat(32), listed: false });
   const report = status(s, NOW);
   assert.deepEqual(report, {
-    indexPubkey: 'ab'.repeat(32), calendars: 2, aggregators: 0, removed: 0, withKey: 0, stale: ['meetup:sdbitcoiners'], neverPolled: 2,
+    indexPubkey: 'ab'.repeat(32), calendars: 2, aggregators: 0, removed: 0, unlisted: 1, withKey: 0, stale: ['meetup:sdbitcoiners'], neverPolled: 2,
     upcomingEvents: 0, pendingSubmissions: 1, pendingRemovals: 1, pendingClaims: 0, lastDump: null,
   });
 });

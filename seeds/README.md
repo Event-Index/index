@@ -84,8 +84,10 @@ CALENDAR_KEY_SECRET=<64 hex digits> node scripts/seed-entries.ts seeds/luma/new-
 - `source` and `id`: a Luma calendar id or a Meetup group, as in the seed
   lists; or `feed`, a feed URL, for any other source.
 - `source` `nostr` with `pubkey`: a community that publishes its NIP-52 events
-  from its own key. It is listed here and filed once the index reads native
-  calendars; the index never holds a key for it.
+  from its own key. Importing the list does not file it: the index lists it
+  from its events once it has an upcoming one
+  ([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 14), or its
+  organizer files it with their key; the index never holds a key for it.
 
 `eventindex-admin import-seeds seeds/communities.json` files the ones with a
 feed, like a seed list.

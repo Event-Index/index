@@ -213,7 +213,7 @@ export function createIndexer(deps: IndexerDeps) {
   // When the operator has the relay host claimants, the keys of organizers
   // the index publishes as.
   const allowed = { live: new Set<string>(), removed: new Set<string>(), hosted: new Set<string>() };
-  for (const entry of dir.list({ includeRemoved: true })) {
+  for (const entry of dir.list({ includeRemoved: true, includeUnlisted: true })) {
     if (entry.pubkey) (entry.removed || entry.mode !== 'mirrored' ? allowed.removed : allowed.live).add(entry.pubkey);
     if (settings.hostClaimants && !entry.removed && entry.mode === 'delegated' && entry.owner) allowed.hosted.add(entry.owner);
   }
@@ -515,8 +515,8 @@ export function createIndexer(deps: IndexerDeps) {
 
   // The directory entry a publisher's events belong to: the calendar it
   // publishes itself (filed by its key, or claimed), else its own entry,
-  // listed now when it has events to show. None for a key the index
-  // publishes as, or one it leaves out.
+  // kept now when it has events to show (and listed once one is upcoming).
+  // None for a key the index publishes as, or one it leaves out.
   function entryFor(pubkey: string, now: number, list: boolean): StoredEntry | null {
     const owned = dir.byOwner(pubkey).filter((e) => !e.removed);
     const own = owned.find((e) => e.mode === 'own');
@@ -536,9 +536,8 @@ export function createIndexer(deps: IndexerDeps) {
     dir.add({
       d, role: aggregators.has(pubkey) ? 'aggregator' : 'calendar', source: 'nostr', feedUrl: '', pageUrl: profile?.website ?? null,
       name: profile?.name ?? shortNpub(pubkey), description: profile?.about ?? null, image: profile?.picture ?? null,
-      location: null, g: null, foundVia: 'ingest', addedAt: now, mode: 'own', owner: pubkey,
+      location: null, g: null, foundVia: 'ingest', addedAt: now, mode: 'own', owner: pubkey, listed: false,
     });
-    deps.log(`listed ${d}${aggregators.has(pubkey) ? ' (aggregator)' : ''}`);
     return dir.get(d);
   }
 
@@ -555,6 +554,11 @@ export function createIndexer(deps: IndexerDeps) {
         db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
       }
       events.replaceCalendar(entry.d, nativeRows(feed));
+      // Listed with its first upcoming event, and listed from then on.
+      if (!entry.listed && events.hasUpcoming(entry.d, now)) {
+        dir.setListed(entry.d);
+        deps.log(`listed ${entry.d}${entry.role === 'aggregator' ? ' (aggregator)' : ''}`);
+      }
       if (entry.foundVia === 'ingest') db.savePollState(entry.d, { ...db.pollState(entry.d), lastSuccessAt: now, failures: 0, firstFailureAt: null, stale: false });
     }
     store.built(pubkey);
@@ -596,7 +600,7 @@ export function createIndexer(deps: IndexerDeps) {
   const PROFILE_EVERY = 7 * DAY;
   async function refreshProfiles(now: number): Promise<void> {
     if (!settings.ingestNip52 || !deps.reader) return;
-    const due = dir.list().filter((e) => e.foundVia === 'ingest' && e.owner && now - (store.profile(e.owner)?.checkedAt ?? 0) >= PROFILE_EVERY)
+    const due = dir.list({ includeUnlisted: true }).filter((e) => e.foundVia === 'ingest' && e.owner && now - (store.profile(e.owner)?.checkedAt ?? 0) >= PROFILE_EVERY)
       .slice(0, PROFILE_BATCH);
     if (!due.length) return;
     const authors = due.map((e) => e.owner!);
@@ -630,7 +634,7 @@ export function createIndexer(deps: IndexerDeps) {
   // of an organizer's own event, by polling its calendar again so its
   // projection names the original.
   function markCopies(now: number): void {
-    const entries = new Map(dir.list().map((e) => [e.d, e]));
+    const entries = new Map(dir.list({ includeUnlisted: true }).map((e) => [e.d, e]));
     const rankOf = (entry: StoredEntry): Candidate['rank'] => (entry.role === 'aggregator' ? AGGREGATOR : entry.mode === 'own' ? ORGANIZER : FEED);
     const rows = events.from(now - WINDOW_PAST).filter((r) => entries.has(r.calendarD));
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -987,29 +991,37 @@ export function createIndexer(deps: IndexerDeps) {
       { template: eventsHeader(), d: 'events', start: now },
     ];
     // Entries listed from what publishers post stay on the index's relay
-    // until the operator sends them outside.
+    // until the operator sends them outside; publishers kept without a
+    // listing get none.
     const held: typeof items = [];
+    let sending = 0;
     for (const entry of dir.list({ includeRemoved: true })) {
       const key = currentKey(entry);
       if (entry.role === 'calendar' && !key) continue;
-      (nostrEntriesGoOutside(entry.d) ? items : held).push({
-        template: directoryEntry({
-          identity: identityOf(entry),
-          calendar: metaOf(entry, dir.calendarMeta(entry.d)),
-          header,
-          pubkey: key,
-          formerKey: formerKeyOf(entry, now),
-          readFrom: entry.mode === 'own' ? 'nostr' : 'feed',
-          nativeCalendar: entry.nativeCalendar,
-          localName: entry.localName,
-          location: entry.location,
-          geohash: entry.g,
-          city: citySlug(entry.location),
-          removed: entry.removed ?? undefined,
-        }),
-        d: entry.d,
-        start: now,
+      const outside = nostrEntriesGoOutside(entry.d);
+      const template = directoryEntry({
+        identity: identityOf(entry),
+        calendar: metaOf(entry, dir.calendarMeta(entry.d)),
+        header,
+        pubkey: key,
+        formerKey: formerKeyOf(entry, now),
+        readFrom: entry.mode === 'own' ? 'nostr' : 'feed',
+        nativeCalendar: entry.nativeCalendar,
+        localName: entry.localName,
+        location: entry.location,
+        geohash: entry.g,
+        city: citySlug(entry.location),
+        removed: entry.removed ?? undefined,
       });
+      (outside ? items : held).push({ template, d: entry.d, start: now });
+      if (outside && fromPosts(entry) && db.shouldPublish(indexPubkey, 39999, entry.d, projectionHash(template))) sending += 1;
+    }
+    // The publishers' entries going to the list and search relays are
+    // counted before they go.
+    if (sending && settings.publishToGeneralRelays && settings.publishDirectoryOutside) {
+      const all = dir.list({ includeUnlisted: true }).filter(fromPosts);
+      const listed = all.filter((e) => e.listed).length;
+      deps.log(`directory: sending ${sending} entr${sending === 1 ? 'y' : 'ies'} of nostr publishers to the list and search relays (${listed} listed, ${all.length - listed} kept without an entry)`);
     }
     await retireOwnHeader();
     // One second each, so a list relay reads them in order.
@@ -1181,7 +1193,7 @@ export function createIndexer(deps: IndexerDeps) {
 
       await carryOutClaims(now);
 
-      const due = dir.list()
+      const due = dir.list({ includeUnlisted: true })
         // Publishers listed from what they post are read by ingestion.
         .filter((e) => !dir.doNotIndex(e.d) && e.foundVia !== 'ingest')
         .map((e) => ({ e, at: db.pollState(e.d).nextPollAt }))

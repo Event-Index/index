@@ -310,14 +310,17 @@ its directory entry.
   keeps its name and description from its feed. The entry's `calendar` names
   the organizer's newest kind 31924, when they have one.
 - **Listing.** No proof is needed to be listed: the index lists every
-  publisher it reads (§ 14), and anyone may paste a publisher's npub,
-  nprofile or NIP-05 address as a submission, which lists it at once when its
-  relays hold NIP-52 events from it. Its `d` is `nostr:<their hex key>`
+  publisher it reads once it has an upcoming event (§ 14), and anyone may
+  paste a publisher's npub, nprofile or NIP-05 address as a submission, which
+  lists it at once when its relays hold an upcoming NIP-52 event from it, and
+  keeps it without a listing (§ 14) when they hold only past ones. Its `d`
+  is `nostr:<their hex key>`
   ([`icalendar-profile.md`](icalendar-profile.md) § 5), and no calendar key is
   made for it.
 - **The organizer's key.** Proof is needed to act on it: a request signed
   with the publisher's key ([`api.md`](api.md), "Requests signed with your
-  key") lists it at once, or, when it is listed, sets its city; it is then
+  key") lists it at once, upcoming events or not, as its organizer asks, or,
+  when it is filed, lists it and sets its city; it is then
   read from the organizer's own relays as well, and followed by the index key
   (§ 11). Signed with that key, a remove request is carried out at once
   (§ 10).
@@ -427,11 +430,19 @@ other direction at full width.
   by id, and by address every version no newer than the deletion; it is
   remembered, so an older copy read later, or the same event from another
   relay, stays deleted. A deletion by anyone else does nothing.
-- **Listing.** Every key with an event kept is listed in the directory, filed
-  by the index key as curator, with no review: `d` `nostr:<key>`, `source`
+- **Listing.** Every key with an event kept is filed in the directory by the
+  index key as curator, with no review: `d` `nostr:<key>`, `source`
   `nostr`, `p` the publisher, named from its profile (`display_name`, else
   `name`; checked weekly; else its npub, shortened), its `about`, `picture`
-  and `website` as description, image and page. A key in
+  and `website` as description, image and page. It is listed (it gets a
+  directory entry, kind 39999, and shows in the API's lists, search and
+  counts and on the site) once it has an upcoming event: one whose start is
+  still to come. Until then it is kept without a listing: its events and
+  records are served (`GET /calendars/byslug/<local name>` and its page
+  still answer, with `listed: false`), but it has no directory entry. Once
+  listed it stays listed: when its events have all passed, its entry is
+  neither withdrawn nor changed, so lists do not churn as publishers come
+  and go; it leaves only on removal (§ 10, § 12). A key in
   `seeds/nostr-aggregators.json` (publishers of other organizers' events
   under their own key, such as Club Orange) is listed with the role
   `aggregator`; its events are kept and attributed to it. A key that owns a
@@ -443,7 +454,10 @@ other direction at full width.
   API serves past ones too.
 - **Where its entry goes.** Entries listed this way, or from a pasted link,
   stay on the index's relay until the operator sends them to the list and
-  search relays too (`PUBLISH_NOSTR_ENTRIES_OUTSIDE`).
+  search relays too (`PUBLISH_NOSTR_ENTRIES_OUTSIDE`). Before a tick sends
+  any there, the service logs how many it sends, how many publishers are
+  listed and how many are kept without a listing. Like every directory
+  entry, their `created_at` are a second apart, counting back from now.
 
 ## 15. Copies and originals
 

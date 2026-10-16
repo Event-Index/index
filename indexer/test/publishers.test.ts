@@ -29,6 +29,7 @@ function harness(options: { outsideNative?: boolean; aggregators?: string[] } = 
   const indexKey = generateSecretKey();
   const held: Record<string, VerifiedEvent[]> = { [SEARCH]: [], [GENERAL]: [], [PROFILES]: [], 'ws://own.test': [] };
   const sent: Array<{ audience: Audience; event: VerifiedEvent }> = [];
+  const logs: string[] = [];
   const clock = { now: NOW };
   const settings = {
     ...loadSettings({
@@ -56,9 +57,9 @@ function harness(options: { outsideNative?: boolean; aggregators?: string[] } = 
     },
     relayAllowed: async () => true,
     ...(options.aggregators ? { aggregators: new Set(options.aggregators) } : {}),
-    log: () => {},
+    log: (line) => logs.push(line),
   });
-  return { db, dir, events, vault, indexer, held, sent, clock, indexPubkey: getPublicKey(indexKey) };
+  return { db, dir, events, vault, indexer, held, sent, logs, clock, indexPubkey: getPublicKey(indexKey) };
 }
 
 function publisher() {
@@ -224,4 +225,53 @@ test('a publisher listed from a pasted link is treated as one the index found: n
   const outside = (pubkey: string) => h.sent.filter((s) => s.event.kind === 39999 && s.event.tags[0]![1] === nativeD(pubkey) && s.audience !== 'own').length;
   assert.equal(outside(pasted.pubkey), 0);
   assert.ok(outside(proven.pubkey) > 0);
+});
+
+const entriesOf = (h: ReturnType<typeof harness>, pubkey: string) =>
+  h.sent.filter((s) => (s.event.kind === 39999 && s.event.tags[0]![1] === nativeD(pubkey)) || (s.event.kind === 5 && s.event.tags.some((t) => t[1]?.endsWith(nativeD(pubkey)))));
+
+test('a publisher with no upcoming events is kept and served, without a directory entry', async () => {
+  const h = harness({ outsideNative: true });
+  const past = publisher();
+  h.held[GENERAL]!.push(past.event('spring', 'Spring meetup', NOW - 30 * 86400), past.sign(0, [], JSON.stringify({ name: 'Quiet Club' })));
+  await h.indexer.tick();
+  await h.indexer.tick();
+  const entry = h.dir.get(nativeD(past.pubkey))!;
+  assert.equal(entry.listed, false);
+  assert.deepEqual(h.events.byCalendar(entry.d, NOW - 60 * 86400, NOW).map((r) => r.title), ['Spring meetup']);
+  assert.equal(h.db.recordsOf(entry.d).length, 1);
+  assert.deepEqual(entriesOf(h, past.pubkey), [], 'no directory entry is published');
+  assert.ok(!h.dir.list().some((e) => e.d === entry.d));
+});
+
+test('a publisher is listed once it has an upcoming event, and stays listed once its events pass', async () => {
+  const h = harness({ outsideNative: true });
+  const p = publisher();
+  h.held[GENERAL]!.push(p.event('spring', 'Spring meetup', NOW - 30 * 86400));
+  await h.indexer.tick();
+  assert.equal(h.dir.get(nativeD(p.pubkey))!.listed, false);
+  h.held[GENERAL]!.push(p.event('oct', 'October meetup', NOW + 3 * 86400));
+  h.clock.now += 600;
+  await h.indexer.tick();
+  assert.equal(h.dir.get(nativeD(p.pubkey))!.listed, true);
+  assert.deepEqual([...new Set(entriesOf(h, p.pubkey).map((s) => s.audience))].sort(), ['lists', 'own', 'search']);
+  assert.ok(h.logs.some((l) => l === `listed ${nativeD(p.pubkey)}`), h.logs.join('\n'));
+  const before = entriesOf(h, p.pubkey).length;
+  h.clock.now += 10 * 86400;
+  await h.indexer.tick();
+  assert.equal(h.dir.get(nativeD(p.pubkey))!.listed, true);
+  assert.ok(h.dir.list().some((e) => e.d === nativeD(p.pubkey)));
+  assert.equal(entriesOf(h, p.pubkey).length, before, 'its entry is neither withdrawn nor sent again');
+});
+
+test('the exact count of nostr publishers\' entries going outside is logged before they are sent', async () => {
+  const h = harness({ outsideNative: true });
+  const [a, b, quiet] = [publisher(), publisher(), publisher()];
+  h.held[SEARCH]!.push(a.event('x', 'Meetup A'), b.event('y', 'Meetup B'), quiet.event('z', 'Old meetup', NOW - 86400));
+  await h.indexer.tick();
+  const line = h.logs.findIndex((l) => l === 'directory: sending 2 entries of nostr publishers to the list and search relays (2 listed, 1 kept without an entry)');
+  assert.ok(line >= 0, h.logs.join('\n'));
+  h.clock.now += 60;
+  await h.indexer.tick();
+  assert.equal(h.logs.filter((l) => l.startsWith('directory: sending')).length, 1, 'only when there are some to send');
 });

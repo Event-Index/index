@@ -16,8 +16,8 @@ iCalendar record. It serves each record as:
 The bridge runs both ways. The index reads every public NIP-52 event by
 kind from the relays that carry them, keeps each as its publisher signed it,
 and serves it as `.ics`, jCal and JSON-LD, signing nothing; every publisher
-is listed in the directory, and the index marks an aggregator's copy of an
-organizer's own event as a copy. An organizer whose calendar the index
+with an upcoming event is listed in the directory, and stays listed, and the
+index marks an aggregator's copy of an organizer's own event as a copy. An organizer whose calendar the index
 mirrors can claim it, to publish its events from their own key: themselves,
 or by the index, as them, through a remote signer they connect (NIP-46).
 Anyone can add a calendar by pasting a link to it, to one of its events, or

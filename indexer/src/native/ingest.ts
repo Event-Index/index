@@ -66,25 +66,28 @@ function signed(event: NostrEvent): boolean {
   }
 }
 
+// An event's start (a day's at 00:00 UTC), or null when it has none or it
+// cannot be read.
+export function startOf(event: NostrEvent): number | null {
+  const start = tag(event, 'start');
+  if (start === undefined) return null;
+  if (event.kind === 31923) return /^\d{1,12}$/.test(start) ? Number(start) : null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) return null;
+  return date.getTime() / 1000;
+}
+
 // Why an event is left out, or null when it is kept.
 export function acceptable(event: NostrEvent, now: number): string | null {
   if (event.kind !== 31922 && event.kind !== 31923) return 'kind';
   if (!signed(event)) return 'signature';
   if (tag(event, 'd') === undefined) return 'no-d';
   if (!(tag(event, 'title') ?? '').trim() && !(tag(event, 'name') ?? '').trim()) return 'no-title';
-  const start = tag(event, 'start');
-  if (start === undefined) return 'no-start';
-  let at: number;
-  if (event.kind === 31923) {
-    if (!/^\d{1,12}$/.test(start)) return 'bad-start';
-    at = Number(start);
-  } else {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
-    if (!match) return 'bad-start';
-    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-    if (date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) return 'bad-start';
-    at = date.getTime() / 1000;
-  }
+  if (tag(event, 'start') === undefined) return 'no-start';
+  const at = startOf(event);
+  if (at === null) return 'bad-start';
   if (at < EARLIEST || at > now + AHEAD) return 'absurd-date';
   return null;
 }

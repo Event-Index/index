@@ -82,3 +82,31 @@ test('the submit form says what to paste, and answers with what was found', asyn
   assert.match(html, /<h1>Added<\/h1>/);
   assert.match(html, /Found the Meetup group &quot;San Diego Bitcoiners&quot;\./);
 });
+
+test('a nostr address with only past events is kept without a listing, and left out of the public lists', async () => {
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  h.relay.get(NATIVE_RELAY)!.push(
+    finalizeEvent({ kind: 0, tags: [], content: JSON.stringify({ name: 'Old Chess Club' }), created_at: NOW }, key),
+    finalizeEvent({ kind: 31923, tags: [['d', 'y'], ['title', 'Last open night'], ['start', String(NOW - 86400)]], content: '', created_at: NOW }, key),
+  );
+  const { status, body } = await submit(npubEncode(pubkey));
+  assert.equal(status, 202);
+  assert.equal(body.status, 'kept');
+  assert.equal(body.found, 'Found the nostr calendar "Old Chess Club", with 1 event, none upcoming.');
+  assert.match(body.message, /lists it once it has an upcoming event/);
+  const entry = h.dir.get(`nostr:${pubkey}`)!;
+  assert.equal(entry.listed, false);
+  const again = await submit(npubEncode(pubkey));
+  assert.deepEqual([again.status, again.body.status], [202, 'kept']);
+  assert.doesNotMatch(await (await h.get('/calendars')).text(), /Old Chess Club/);
+  const search = await (await h.get(`${API}/search/calendars/byterm?q=old%20chess`)).json() as { count: number };
+  assert.equal(search.count, 0);
+  const one = await h.get(`${API}/calendars/byslug/${entry.localName}`);
+  assert.equal(one.status, 200, 'it is still served by its own address');
+  const view = await one.json() as { eventindex: { listed: boolean; address: string | null } };
+  assert.deepEqual([view.eventindex.listed, view.eventindex.address], [false, null], 'it has no directory entry');
+  const page = await h.post('/submit', `url=${encodeURIComponent(npubEncode(pubkey))}`, from());
+  assert.equal(page.status, 202);
+  assert.match(await page.text(), /<h1>Kept<\/h1>/);
+});

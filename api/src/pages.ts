@@ -620,6 +620,12 @@ export function submitResultPage(outcome: { status: number; body: Record<string,
 ${outcome.body['found'] ? `<p>${esc(outcome.body['found'])}</p>\n` : ''}<p><strong>${esc(name)}</strong> is in the index. Its first events appear within minutes on <a href="/calendar/${esc(outcome.body['local_name'])}">its page</a>.</p>
 <p><a href="/">Back to Event Index</a></p>`);
   }
+  if (outcome.status === 202 && outcome.body['status'] === 'kept') {
+    return layout('Kept · Event Index', `<div class="page-head"><h1>Kept</h1></div>
+<p>${esc(outcome.body['found'])}</p>
+<p>${esc(outcome.body['message'])}</p>
+<p><a href="/calendar/${esc(outcome.body['local_name'])}">See its page</a></p>`);
+  }
   if (outcome.status === 202) {
     const name = outcome.body['name'] ?? outcome.body['d'];
     const again = outcome.body['status'] === 'already-queued';

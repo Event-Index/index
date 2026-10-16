@@ -46,7 +46,7 @@ test('a ring grows with the day\'s share of the busiest day\'s events', () => {
 const entry = (d: string, location: string | null, name = d): StoredEntry => ({
   d, role: 'calendar', source: 'luma', feedUrl: `https://x/${d}`, pageUrl: null, name, description: null, image: null, location, g: null,
   foundVia: null, addedAt: 0, pubkey: 'ab'.repeat(32), localName: d.replace(/:/g, '-'), removed: null, removedAt: null,
-  mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null, ownerRelays: [],
+  mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null, ownerRelays: [], listed: true,
 });
 const row = (id: string, calendarD: string, start: number, extra: Partial<EventRow> = {}): EventRow => ({
   id, calendarD, recordId: id, uid: id, d: id, kind: 31923, start, end: null, tzid: 'UTC', title: `Event ${id}`, summary: 'Long description',
