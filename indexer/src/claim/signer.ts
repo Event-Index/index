@@ -5,9 +5,8 @@
 // checks every event it gets back.
 
 import { generateSecretKey, verifyEvent, type EventTemplate, type VerifiedEvent } from 'nostr-tools/pure';
-import { BunkerSigner } from 'nostr-tools/nip46';
-import type { AbstractSimplePool } from 'nostr-tools/abstract-pool';
 import type { BunkerPointer } from './proof.ts';
+import { openNip46, type Nip46Client, type Nip46Pool } from './nip46.ts';
 import type { SignerConnection, Vault } from '../store/vault-db.ts';
 
 // The kinds the index signs as an organizer, and asks their signer for.
@@ -40,14 +39,6 @@ export function vaultSigner(vault: Vault, d: string, pubkey: string): Signer {
   return { pubkey, sign: async (template) => vault.sign(d, template) };
 }
 
-function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    work.finally(() => clearTimeout(timer)),
-    new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error(`the signer did not answer (${what})`)), ms); }),
-  ]);
-}
-
 // A session that signs only the delegated kinds, and only what was asked:
 // each event must be the template, signed by the organizer's key.
 export function limited(session: RemoteSession, kinds = DELEGATED_KINDS): RemoteSession {
@@ -70,37 +61,36 @@ export function limited(session: RemoteSession, kinds = DELEGATED_KINDS): Remote
 
 const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
 
-// Remote signers over NIP-46, through nostr-tools' BunkerSigner.
-export function nip46Signers(pool?: AbstractSimplePool, timeoutMs = SIGNER_TIMEOUT_MS): RemoteSigners {
-  async function session(bunker: BunkerSigner): Promise<RemoteSession> {
-    const pubkey = await withTimeout(bunker.getPublicKey(), timeoutMs, 'get_public_key');
+// Remote signers over NIP-46, through the index's own client (nip46.ts).
+export function nip46Signers(pool: Nip46Pool, timeoutMs = SIGNER_TIMEOUT_MS): RemoteSigners {
+  async function session(client: Nip46Client): Promise<RemoteSession> {
+    const pubkey = await client.request('get_public_key', []);
+    if (!/^[0-9a-f]{64}$/.test(pubkey)) throw new Error('the signer gave no key');
     return {
       pubkey,
-      sign: (template) => withTimeout(bunker.signEvent(template), timeoutMs, `sign_event ${template.kind}`),
-      close: () => bunker.close(),
+      sign: async (template) => JSON.parse(await client.request('sign_event', [JSON.stringify(template)])) as VerifiedEvent,
+      close: async () => client.close(),
     };
   }
-  const params = pool ? { pool } : {};
   return {
     async pair(pointer, permissions) {
       const clientSecret = generateSecretKey();
-      const bunker = BunkerSigner.fromBunker(clientSecret, { ...pointer }, params);
+      const client = await openNip46(pool, clientSecret, pointer, timeoutMs);
       try {
-        await withTimeout(bunker.sendRequest('connect', [pointer.pubkey, pointer.secret ?? '', permissions]), timeoutMs, 'connect');
-        const opened = await session(bunker);
+        await client.request('connect', [pointer.pubkey, pointer.secret ?? '', permissions]);
+        const opened = await session(client);
         return { connection: { clientSecret: hex(clientSecret), bunker: { pubkey: pointer.pubkey, relays: pointer.relays, secret: null } }, session: opened };
       } catch (error) {
-        await bunker.close().catch(() => {});
+        client.close();
         throw error;
       }
     },
     async open(connection) {
-      const clientSecret = new Uint8Array(Buffer.from(connection.clientSecret, 'hex'));
-      const bunker = BunkerSigner.fromBunker(clientSecret, { pubkey: connection.bunker.pubkey, relays: connection.bunker.relays, secret: null }, params);
+      const client = await openNip46(pool, new Uint8Array(Buffer.from(connection.clientSecret, 'hex')), connection.bunker, timeoutMs);
       try {
-        return await session(bunker);
+        return await session(client);
       } catch (error) {
-        await bunker.close().catch(() => {});
+        client.close();
         throw error;
       }
     },
