@@ -317,7 +317,8 @@ mirrors, so that its events are published from their own key.
     instance of a Mobilizon or Gancio group). A leading `www.` is ignored.
 - **Review.** A maintainer approves a claim only once it is verified, and may
   reject any. The poll service carries out an approved claim at its next
-  tick.
+  tick; one it cannot carry out yet (no relay answers for the organizer) is
+  tried again at each tick, and fails a day after its approval.
 - **Modes.** The organizer chooses one when they claim:
   - **`own`, "I publish myself".** The index stops polling the feed and reads
     the organizer's events instead (§ 12).

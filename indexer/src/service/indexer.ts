@@ -682,13 +682,19 @@ export function createIndexer(deps: IndexerDeps) {
   async function carryOutClaims(now: number): Promise<void> {
     for (const claim of queues.claims('approved')) {
       let outcome: Outcome;
+      let waiting = 'no relay answered for the organizer for a day';
       try {
         outcome = await carryOut(claim, now);
       } catch (error) {
         deps.log(`claim ${claim.id} for ${claim.d}: ${(error as Error).stack ?? error}`);
         outcome = 'retry';
+        waiting = 'the claim could not be carried out for a day';
       }
-      if (outcome === 'retry') continue;
+      // Tried again at each tick, for a day after its approval.
+      if (outcome === 'retry') {
+        if (claim.resolvedAt === null || now - claim.resolvedAt <= DAY) continue;
+        outcome = { failed: waiting };
+      }
       if (outcome === 'done') queues.resolveClaim(claim.id, 'done', now);
       else {
         queues.resolveClaim(claim.id, 'failed', now, outcome.failed);

@@ -391,3 +391,19 @@ test('a poll signs at most a batch as the organizer, publishes it, and comes bac
   assert.deepEqual(h.by(organizer, before).map((s) => s.event.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'then the rest, each once');
   h.close();
 });
+
+test('a claim to publish itself waits while no relay answers for the organizer, and fails after a day', async () => {
+  const h = claimHarness();
+  await h.tickAt(NOW);
+  const claim = h.queues.requestClaim({ d: D, pubkey: 'a0'.repeat(32), mode: 'own', signer: null, at: NOW });
+  h.approve(claim);
+  delete (h.held as Record<string, unknown>)[OWN];
+  delete (h.held as Record<string, unknown>)['wss://general.test'];
+  await h.tickAt(NOW + 60);
+  assert.equal(h.queues.claim(claim.id)!.status, 'approved', 'tried again at the next tick');
+  assert.equal(h.dir.get(D)!.mode, 'mirrored');
+  await h.tickAt(NOW + 86400 + 60);
+  assert.deepEqual([h.queues.claim(claim.id)!.status, h.queues.claim(claim.id)!.note], ['failed', 'no relay answered for the organizer for a day']);
+  assert.equal(h.dir.get(D)!.mode, 'mirrored');
+  h.close();
+});
