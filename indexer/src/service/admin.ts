@@ -39,7 +39,7 @@ export interface Cities {
 // A calendar's usual area: precision 4 (about 39 km by 20 km).
 const AREA_PRECISION = 4;
 
-function area(city: City): { location: string; g: string } {
+export function area(city: City): { location: string; g: string } {
   return { location: `${city.name}, ${city.country}`, g: encodeGeohash(city.latitude, city.longitude, AREA_PRECISION) };
 }
 

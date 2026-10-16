@@ -19,7 +19,7 @@ import { LIMITS, rateLimiter, type Limits } from './limits.ts';
 import type { RelayReader } from '../../indexer/src/native/read.ts';
 import { calendarView, documentJsonLd, eventDocument, eventList, feedOf, feedWindow, statsView, withoutCopies, type Format, type ViewDeps } from './views.ts';
 import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
-import { fileNative, ownerAction, requestClaim, verifyClaimNip05, type ClaimDeps } from './claims.ts';
+import { fileNative, ownerAction, removeNow, requestClaim, verifyClaimNip05, type ClaimDeps } from './claims.ts';
 import { checkAuth } from '../../indexer/src/claim/auth.ts';
 import { brandFiles } from './brand.ts';
 import { CSP, SCRIPTED_CSP, STYLE, calendarPage, calendarsPage, claimPage, homePage, messagePage, nativePage, removeResultPage, submitResultPage } from './pages.ts';
@@ -195,7 +195,9 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       const claim = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'claim';
       const nip05 = parts.length === 5 && parts[0] === 'calendars' && parts[2] === 'claim' && parts[4] === 'nip05' && /^\d+$/.test(parts[3]!);
       const signer = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'signer';
-      if (native || claim || nip05 || signer) {
+      // A remove request signed by the calendar's own key is carried out at once.
+      const removal = parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'remove-request' && req.headers['authorization'] !== undefined;
+      if (native || claim || nip05 || signer || removal) {
         const text = await readText(req, limits.maxBodyBytes);
         // The API's addresses; and for a request made on this machine, not
         // through the proxy, the loopback address it was asked at.
@@ -214,6 +216,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
         if (native) return outcomeJson(await fileNative(claims, auth.pubkey, body, now));
         const entry = dir.byLocalName(decodeURIComponent(parts[1]!));
         if (claim) return outcomeJson(requestClaim(claims, entry, auth.pubkey, body, now));
+        if (removal) return outcomeJson(removeNow(claims, entry, auth.pubkey, now));
         if (nip05) return outcomeJson(await verifyClaimNip05(claims, entry, Number(parts[3]), auth.pubkey, body, now));
         return outcomeJson(ownerAction(claims, entry, auth.pubkey, body, now));
       }

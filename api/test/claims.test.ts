@@ -48,7 +48,7 @@ test('a request without a proof of its key is refused', async () => {
   assert.equal(elsewhere.body.reason, 'wrong-url');
 });
 
-test('a native calendar is filed by its key for review, with what was found under it', async () => {
+test('a calendar published on nostr is listed at once by its key, and its organizer can set its city', async () => {
   const key = generateSecretKey();
   const pubkey = getPublicKey(key);
   const sign = (kind: number, tags: string[][], content = '') => finalizeEvent({ kind, tags, content, created_at: NOW - 60 }, key);
@@ -57,24 +57,55 @@ test('a native calendar is filed by its key for review, with what was found unde
     sign(31923, [['d', 'nov'], ['title', 'November open'], ['start', String(NOW + 20 * 86400)]]),
   );
   const filed = await signed(`${API}/calendars/native`, { city: 'chicago' }, key);
-  assert.equal(filed.status, 202);
-  assert.equal(filed.body.status, 'queued');
+  assert.equal(filed.status, 201);
+  assert.equal(filed.body.status, 'listed');
   assert.equal(filed.body.d, `nostr:${pubkey}`);
   assert.equal(filed.body.name, 'Riverside Chess Club');
   assert.equal(filed.body.events, 1);
-  const submission = h.queues.submission(filed.body.submission)!;
-  assert.deepEqual([submission.source, submission.feedUrl, submission.city], ['nostr', '', 'chicago']);
-  assert.equal((await signed(`${API}/calendars/native`, {}, key)).body.status, 'already-queued');
+  const entry = h.dir.get(`nostr:${pubkey}`)!;
+  assert.deepEqual([entry.mode, entry.owner, entry.source, entry.location, entry.foundVia], ['own', pubkey, 'nostr', 'Chicago, US', 'owner']);
+  const moved = await signed(`${API}/calendars/native`, { city: 'houston' }, key);
+  assert.equal(moved.status, 200);
+  assert.equal(moved.body.status, 'updated');
+  assert.equal(h.dir.get(`nostr:${pubkey}`)!.location, 'Houston, US');
 });
 
-test('a key with no calendar events, or one already listed, is not filed', async () => {
+test('a publisher the index listed on its own can prove its key to set its city', async () => {
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  h.dir.add({ d: `nostr:${pubkey}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: 'npub1…', description: null, image: null,
+    location: null, g: null, foundVia: 'ingest', addedAt: NOW, mode: 'own', owner: pubkey });
+  const set = await signed(`${API}/calendars/native`, { city: 'dallas' }, key);
+  assert.equal(set.status, 200);
+  const entry = h.dir.get(`nostr:${pubkey}`)!;
+  assert.deepEqual([entry.location, entry.foundVia], ['Dallas, US', 'owner'], 'from then on also read from its own relays');
+});
+
+test('a calendar\'s organizer removes it at once by signing with its key; anyone else asks a maintainer', async () => {
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  h.dir.add({ d: `nostr:${pubkey}`, role: 'calendar', source: 'nostr', feedUrl: '', pageUrl: null, name: 'Lakeside', description: null, image: null,
+    location: null, g: null, foundVia: 'ingest', addedAt: NOW, mode: 'own', owner: pubkey });
+  const name = local(`nostr:${pubkey}`);
+  const stranger = await signed(`${API}/calendars/${name}/remove-request`, {}, generateSecretKey());
+  assert.equal(stranger.status, 403);
+  assert.equal(stranger.body.error, 'not-owner');
+  const now = await signed(`${API}/calendars/${name}/remove-request`, {}, key);
+  assert.equal(now.status, 202);
+  assert.equal(now.body.status, 'approved');
+  assert.equal(h.queues.removal(now.body.request)!.status, 'approved', 'carried out at the poll service\'s next tick, with no review');
+  const unsigned = await h.post(`${API}/calendars/${local('meetup:pythonsd')}/remove-request`, {}, { 'x-real-ip': '198.51.100.7' });
+  assert.equal(((await unsigned.json()) as any).status, 'received', 'without a key, a request waits for a maintainer');
+});
+
+test('a key with no calendar events is not listed; one listed already is answered with its entry', async () => {
   const empty = await signed(`${API}/calendars/native`, {}, generateSecretKey());
   assert.equal(empty.status, 422);
   assert.equal(empty.body.error, 'no-events');
   const native = h.native!;
   const listed = await signed(`${API}/calendars/native`, {}, native.key);
-  assert.equal(listed.status, 409);
-  assert.equal(listed.body.error, 'already-listed');
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.status, 'updated');
   assert.equal(listed.body.local_name, local(native.d));
   assert.equal((await signed(`${API}/calendars/native`, { city: 'atlantis' }, generateSecretKey())).status, 400);
 });
@@ -182,7 +213,7 @@ test('a key whose claimed calendar was removed can still file its own; one that 
   raw.prepare('UPDATE directory SET removed = ? WHERE d = ?').run('organizer request', d);
   h.relay.get(NATIVE_RELAY)!.push(finalizeEvent({ kind: 31923, tags: [['d', 'x'], ['title', 'Open night'], ['start', String(NOW + 86400)]], content: '', created_at: NOW }, key));
   const filed = await signed(`${API}/calendars/native`, {}, key);
-  assert.equal(filed.status, 202);
+  assert.equal(filed.status, 201);
   raw.prepare('UPDATE directory SET removed = NULL WHERE d = ?').run(d);
   h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
 });

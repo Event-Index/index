@@ -344,7 +344,7 @@ ${data.cities.map((c) => `<li><a href="/calendars?city=${esc(c.slug)}">${esc(c.n
 <button type="submit">Submit for review</button>
 </form>
 <p><strong>Claim a calendar.</strong> Already on nostr? Find your calendar under <a href="/calendars">Calendars</a> and claim it, to publish its events from your own key: yourself, or by the index, as you.</p>
-<p><strong>Publish on nostr already?</strong> If your calendar's events are NIP-52 events from your own key, the index can list them as they are. <a href="/add/nostr">Add it by its key</a></p>
+<p><strong>Publish on nostr already?</strong> If your calendar's events are NIP-52 events from your own key, the index lists them on its own. <a href="/add/nostr">Add it by its key</a> to list it now and set its city.</p>
 <p><strong>Remove a calendar.</strong> Find it under <a href="/calendars">Calendars</a> and use the form on its page. Once a request is approved, its upcoming events are deleted and it is never indexed again.</p>
 </div>
 <div id="api">
@@ -433,7 +433,9 @@ ${removeForm(entry)}
 </div>
 </div>`;
   }
-  const manage = entry.source === 'nostr' ? '' : `<p class="gap"><a href="/calendar/${name}/claim">Manage how it is published</a></p>`;
+  const manage = entry.source === 'nostr'
+    ? `<p class="gap"><a href="/calendar/${name}/claim">Manage this calendar</a></p>`
+    : `<p class="gap"><a href="/calendar/${name}/claim">Manage how it is published</a></p>`;
   return `<div class="box">
 <h2 id="organizer">Organizer of this calendar?</h2>
 ${manage}
@@ -520,6 +522,11 @@ export function claimPage(entry: StoredEntry): string {
 <button type="submit">Connect a signer</button>
 </form>`
         : '';
+    const remove = `<div class="box" data-remove="${api}/remove-request">
+<h2>Remove this calendar</h2>
+<p>Signed with the key it is published with, a removal is carried out at once, with no review: its events leave the index, and it is not listed again.</p>
+<p><button type="button" data-remove-now>Remove this calendar now</button></p>
+</div>`;
     return layout(`Manage ${name} · Event Index`, `<div class="page-head">
 <p class="eyebrow"><a href="/calendar/${local}">${esc(name)}</a></p>
 <h1>Manage ${esc(name)}</h1>
@@ -530,6 +537,7 @@ ${owner}
 ${SIGN_IN}
 <div data-after-sign-in hidden>
 ${delegated}
+${remove}
 </div>
 ${STATUS}
 </section>`, `How ${name} is published.`, true);
@@ -567,9 +575,9 @@ ${STATUS}
 // Adding a calendar its organizer publishes on nostr, by their key.
 export function nativePage(cities: City[]): string {
   const options = [...cities].sort((a, b) => a.name.localeCompare(b.name)).map((c) => `<option value="${esc(c.slug)}">${esc(c.name)}</option>`).join('\n');
-  return layout('Add a calendar by its nostr key · Event Index', `<div class="page-head">
-<h1>Add a calendar by its nostr key</h1>
-<p class="muted">If you publish your calendar's events on nostr (NIP-52) from your own key, the index can list them as they are: it reads your events from your relays and serves them as iCalendar, jCal and JSON-LD. The index signs nothing for it.</p>
+  return layout('Your calendar on nostr · Event Index', `<div class="page-head">
+<h1>Your calendar on nostr</h1>
+<p class="muted">If you publish your calendar's events on nostr (NIP-52) from your own key, the index lists it on its own as it reads the relays, and serves your events as iCalendar, jCal and JSON-LD. The index signs nothing for it. Sign in with your key to list it now, from your own relays, and to say where its events are.</p>
 </div>
 <section class="narrow">
 ${SIGN_IN}
@@ -578,11 +586,11 @@ ${SIGN_IN}
 <option value="">Somewhere else</option>
 ${options}
 </select></div>
-<button type="submit">Add my calendar</button>
+<button type="submit">List it, or save its city</button>
 </form>
 ${STATUS}
-<p class="muted">A maintainer reviews each calendar before it is listed.</p>
-</section>`, 'Add a calendar you publish on nostr to Event Index.', true);
+<p class="muted">To remove it, open its page once it is listed and manage it with the same key.</p>
+</section>`, 'Your calendar on nostr, on Event Index.', true);
 }
 
 export function removeResultPage(entry: StoredEntry | null, outcome: { status: number; body: Record<string, unknown> }): string {

@@ -11,7 +11,8 @@ import { readAuthor, type RelayReader } from '../../indexer/src/native/read.ts';
 import { calendarDomains, checkNip05, parseBunkerUrl } from '../../indexer/src/claim/proof.ts';
 import { sealFor } from '../../indexer/src/claim/seal.ts';
 import { PLATFORMS } from '../../indexer/src/project/profile.ts';
-import type { Cities } from '../../indexer/src/service/admin.ts';
+import { area, type Cities } from '../../indexer/src/service/admin.ts';
+import { loadAggregators } from '../../indexer/src/native/publishers.ts';
 import { ownershipClash, type StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { ClaimMode } from '../../indexer/src/store/queues.ts';
 import type { Outcome, WriteDeps } from './writes.ts';
@@ -34,15 +35,23 @@ function usualRelays(settings: Settings): string[] {
   return [...new Set([settings.relayUrl, ...settings.generalRelays, ...settings.profileRelays])];
 }
 
+// A calendar its organizer publishes on nostr, listed at once by their key
+// (no review: a publisher is listed anyway once the index reads its events),
+// or, when it is listed already, its organizer's settings: its city.
 export async function fileNative(deps: ClaimDeps, pubkey: string, body: Record<string, unknown>, now: number): Promise<Outcome> {
-  const city = body['city'];
-  if (city !== undefined && city !== null && city !== '' && !deps.cities.cities.some((c) => c.slug === city)) {
-    return fail(400, 'invalid-parameter', 'city must be a city of the directory, by its slug.');
-  }
+  const slug = body['city'];
+  const city = typeof slug === 'string' && slug ? deps.cities.cities.find((c) => c.slug === slug) : null;
+  if (slug !== undefined && slug !== null && slug !== '' && !city) return fail(400, 'invalid-parameter', 'city must be a city of the directory, by its slug.');
+  const place = city ? area(city) : null;
   const d = nativeD(pubkey);
   if (deps.dir.doNotIndex(d)) return fail(409, 'not-indexed', 'This calendar is not indexed, at its organizer\'s request.');
   const listed = deps.dir.get(d);
-  if (listed) return fail(409, 'already-listed', 'This key\'s calendar is already in the directory.', { d: listed.d, local_name: listed.localName });
+  if (listed && !listed.removed) {
+    if (place) deps.dir.setPlace(d, place.location, place.g);
+    // Proven by its key: read from its own relays too from now on.
+    deps.dir.setFoundVia(d, 'owner');
+    return { status: 200, body: { status: 'updated', d, local_name: listed.localName, location: place?.location ?? listed.location } };
+  }
   const clash = ownershipClash(deps.dir.byOwner(pubkey), d, 'own');
   if (clash) return fail(409, 'already-owner', 'This key already publishes a calendar listed here.', { d: clash.d, local_name: clash.localName });
   if (!deps.reader) return fail(503, 'not-available', 'The index cannot read relays at the moment.');
@@ -50,15 +59,29 @@ export async function fileNative(deps: ClaimDeps, pubkey: string, body: Record<s
   if (!read.ok) return fail(422, 'no-relay-answered', 'No relay answered for this key. Try again later.');
   if (read.events.length === 0) return fail(422, 'no-events', 'No calendar events (NIP-52) were found from this key on its relays.');
   const name = read.profile?.name ?? read.calendars[0]?.tags.find((t) => t[0] === 'title')?.[1] ?? null;
-  const queued = deps.queues.submit({ d, feedUrl: '', source: 'nostr', role: 'calendar', name, city: typeof city === 'string' && city ? city : null, at: now }, deps.limits.queueCap);
-  if (queued.status === 'queue-full') return fail(503, 'queue-full', 'The review queue is full. Please try again in a few days.');
+  deps.dir.add({
+    d, role: loadAggregators().has(pubkey) ? 'aggregator' : 'calendar', source: 'nostr', feedUrl: '', pageUrl: read.profile?.website ?? null, name,
+    description: read.profile?.about ?? null, image: read.profile?.picture ?? null, location: place?.location ?? null, g: place?.g ?? null,
+    foundVia: 'owner', addedAt: now, mode: 'own', owner: pubkey,
+  });
   return {
-    status: 202,
+    status: 201,
     body: {
-      status: queued.status, submission: queued.id, d, name, events: read.events.length,
-      message: 'A maintainer reviews each calendar before it is listed. The index signs nothing for it: it reads your events from your relays.',
+      status: 'listed', d, local_name: deps.dir.get(d)!.localName, name, events: read.events.length,
+      message: 'Listed. The index reads your events from your relays and signs nothing for this calendar.',
     },
   };
+}
+
+// A removal the calendar's organizer asks for with its own key: approved at
+// once, and carried out at the poll service's next tick.
+export function removeNow(deps: ClaimDeps, entry: StoredEntry | null, pubkey: string, now: number): Outcome {
+  if (!entry) return fail(404, 'not-found', 'There is no such calendar in the directory.');
+  if (entry.removed) return fail(410, 'removed', 'This calendar is no longer indexed.');
+  if (entry.mode === 'mirrored' || entry.owner !== pubkey) return fail(403, 'not-owner', 'Only the key this calendar is published with can remove it at once. Anyone can ask a maintainer, without signing.');
+  const request = deps.queues.requestRemoval({ d: entry.d, message: 'by its organizer\'s key', at: now });
+  deps.queues.resolveRemoval(request.id, 'approved', now);
+  return { status: 202, body: { status: 'approved', request: request.id, d: entry.d, message: 'Removed at the index\'s next tick: its events leave the index, and it is not listed again.' } };
 }
 
 export function claimInstructions(entry: StoredEntry, token: string, domains: string[]): string {

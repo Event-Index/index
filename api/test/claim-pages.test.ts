@@ -99,6 +99,17 @@ test('a native calendar\'s page names its organizer\'s key and has no feed', asy
   assert.ok(!/>Feed</.test(html));
   assert.equal((html.match(/<li class="event">/g) ?? []).length, 2);
   assert.ok(!/Claim this calendar/.test(html));
+  assert.match(html, new RegExp(`href="/calendar/${local(h.native!.d)}/claim">Manage this calendar</a>`));
+});
+
+test('its organizer can remove it at once from its manage page, signing with its key', async () => {
+  const response = await h.get(`/calendar/${local(h.native!.d)}/claim`);
+  const html = await response.text();
+  scriptedPage(response, html);
+  assert.match(html, new RegExp(`data-remove="/api/1.0/calendars/${local(h.native!.d)}/remove-request"`));
+  assert.match(html, /<button type="button" data-remove-now>Remove this calendar now<\/button>/);
+  const js = await (await h.get('/claim.js')).text();
+  assert.match(js, /data-remove-now/);
 });
 
 test('the page to add a calendar by its nostr key', async () => {
@@ -109,6 +120,8 @@ test('the page to add a calendar by its nostr key', async () => {
   assert.match(html, /<form[^>]+data-native="\/api\/1\.0\/calendars\/native"/);
   assert.match(html, /<select[^>]*name="city"[^>]*>[\s\S]*<option value="chicago">Chicago<\/option>/);
   assert.match(html, /The index signs nothing for it/);
+  assert.match(html, /lists it on its own/);
+  assert.match(html, /<button type="submit">List it, or save its city<\/button>/);
   const home = await (await h.get('/')).text();
   assert.match(home, /<a href="\/add\/nostr">Add it by its key<\/a>/);
 });

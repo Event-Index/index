@@ -187,6 +187,9 @@ export function directoryStore(index: IndexDb) {
     setKey: (d: string, pubkey: string) => void db.prepare('UPDATE directory SET pubkey = ? WHERE d = ?').run(pubkey, d),
     setOwnership: (d: string, o: Ownership) => void db.prepare('UPDATE directory SET mode = ?, owner = ?, claimed_at = ?, native_calendar = ? WHERE d = ?')
       .run(o.mode, o.owner, o.claimedAt, o.nativeCalendar, d),
+    // An organizer's own settings: where the calendar's events are.
+    setPlace: (d: string, location: string | null, g: string | null) => void db.prepare('UPDATE directory SET location = ?, g = ? WHERE d = ?').run(location, g, d),
+    setFoundVia: (d: string, foundVia: string) => void db.prepare('UPDATE directory SET found_via = ? WHERE d = ?').run(foundVia, d),
     setOwnerRelays: (d: string, relays: string[]) => void db.prepare('UPDATE directory SET owner_relays = ? WHERE d = ?').run(JSON.stringify(relays), d),
     setMeta(d: string, facts: CalendarFacts): void {
       db.prepare(`UPDATE directory SET name = coalesce(?, name), description = ?, page_url = coalesce(?, page_url), image = ? WHERE d = ?`)

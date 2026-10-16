@@ -147,8 +147,14 @@
   if (native) {
     native.addEventListener('submit', run(async () => {
       const answer = await post(native.dataset.native, { city: native.elements.city.value });
+      if (answer.status === 'updated') return `Saved. Your calendar's page: /calendar/${answer.local_name}`;
       const found = `${answer.events} calendar event${answer.events === 1 ? '' : 's'}`;
-      return `Received${answer.name ? `: ${answer.name}` : ''}, with ${found} found under your key. ${answer.message}`;
+      return `Listed${answer.name ? `: ${answer.name}` : ''}, with ${found} found under your key. Its page: /calendar/${answer.local_name}`;
     }));
+  }
+
+  const removeNow = document.querySelector('[data-remove-now]');
+  if (removeNow) {
+    removeNow.addEventListener('click', run(async () => (await post(removeNow.closest('[data-remove]').dataset.remove, {})).message));
   }
 })();
