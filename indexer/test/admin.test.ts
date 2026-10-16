@@ -9,6 +9,7 @@ import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
 import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, type Cities } from '../src/service/admin.ts';
+import { relayPauses } from '../src/service/publisher.ts';
 import type { Seed } from '../src/directory/seed.ts';
 import { NOW } from './helpers.ts';
 
@@ -135,6 +136,28 @@ test('the admin command runs against the data directory without any key', () => 
     const unknown = run('frobnicate');
     assert.equal(unknown.status, 2);
     assert.match(unknown.stderr, /usage/);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('relay pauses are kept in index.db, listed, set and cleared by the admin command', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const env = { ...process.env, EVENTINDEX_DATA_DIR: dataDir };
+    const run = (...args: string[]) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', ...args], { cwd: repo, env, encoding: 'utf8' });
+    assert.match(run('relays').stdout, /no relay is paused/);
+    const paused = run('pause-relay', 'wss://relay.example', '--hours', '24');
+    assert.equal(paused.status, 0, paused.stderr);
+    const db = openIndexDb(join(dataDir, 'index.db'));
+    const state = relayPauses(directoryStore(db)).get('wss://relay.example')!;
+    assert.equal(state.strikes, 1);
+    assert.ok(Math.abs(state.until! - (Math.floor(Date.now() / 1000) + 24 * 3600)) < 60);
+    db.close();
+    assert.match(run('relays').stdout, /wss:\/\/relay\.example\tpaused until 20\d\d-.*\t1 strike/);
+    assert.equal(run('resume-relay', 'wss://relay.example').status, 0);
+    assert.match(run('relays').stdout, /no relay is paused/);
+    assert.equal(run('pause-relay', 'not-a-relay').status, 2);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

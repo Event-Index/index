@@ -177,8 +177,10 @@ creates the calendar key.
   service keeps ([`relay.md`](relay.md)): the index key, each calendar key
   (named before its first events go out) and removed calendars' keys.
 - Publishing beyond the index's own relay is off unless the operator turns it
-  on. Then each event also goes to the sets of relays its kind calls for,
-  each set from a queue of its own at a bounded rate:
+  on. Then each event also goes to the sets of relays its kind calls for.
+  Every relay has a queue of its own, drained at its set's pace: a small
+  burst, then a steady rate (a general relay: three events, then one every
+  three seconds):
 
   | Kind | Search relays | List relays | Profile relays | General relays |
   |---|---|---|---|---|
@@ -192,13 +194,15 @@ creates the calendar key.
   ¹ Only once publishing the directory outside is turned on of its own;
   until then the directory stays on the index's relay.
 
-  When it goes on, what the index's relay holds of those kinds (deletions
-  excepted) is sent once through the same table (the directory's kinds when
-  the directory goes outside), so past events reach the
-  search relays and never the general relays. A relay that answers
-  `rate-limited` gets the event again later, more slowly; other refusals are
-  logged. The index key's kind 0 and 10002 go to the profile and general
-  relays even while outside publishing is off.
+  Each relay gets, once, what the index's relay holds of the kinds its set
+  takes (deletions excepted; the directory's kinds once the directory goes
+  outside), so past events reach the search relays and never the general
+  relays, and a relay added later gets it too. A relay that answers
+  `rate-limited` or `banned` is paused for 24 hours and keeps its queue; after
+  the pause it is tried again at half its pace, and a second such answer
+  leaves it off until the operator resumes it. Pauses are kept in
+  `index.db`. Other refusals are logged. The index key's kind 0 and 10002 go
+  to the profile and general relays even while outside publishing is off.
 - The index key's kind 3 follows every calendar key the index holds (`p` with
   the index relay as hint); a removed calendar is unfollowed.
 - On SIGTERM the service stops after the poll in progress.

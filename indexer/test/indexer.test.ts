@@ -27,18 +27,23 @@ function entryFor(fixture: string, extra: Partial<Entry> = {}): Entry {
 
 function harness(options: { fixtures: string[]; texts?: Record<string, string>; failing?: string[]; publishGeneral?: boolean; rsvps?: Set<string>; dataDir?: string;
   onPublish?: (list: VerifiedEvent[], audience: Audience) => void; db?: ReturnType<typeof openIndexDb>; vault?: ReturnType<typeof openVault>; indexKey?: Uint8Array;
-  fetchOwn?: Publisher['fetchOwn']; pending?: () => number; publishDirectory?: boolean }) {
+  fetchOwn?: Publisher['fetchOwn']; pendingFor?: (relay: string) => number; publishDirectory?: boolean; generalRelays?: string }) {
   const db = options.db ?? openIndexDb(':memory:');
   const dir = directoryStore(db);
   const queues = queueStore(db);
   const events = eventStore(db);
   const vault = options.vault ?? openVault(':memory:', new Uint8Array(randomBytes(32)));
   const indexKey = options.indexKey ?? generateSecretKey();
-  const sent: Array<{ audience: Audience; event: VerifiedEvent }> = [];
+  const sent: Array<{ audience: Audience; event: VerifiedEvent; relays?: string[] }> = [];
   const fetched: string[] = [];
   const clock = { now: NOW };
   const urls = new Map(options.fixtures.map((f) => [identify(feedUrlFor(f)).feedUrl, f]));
-  const settings = { ...loadSettings({ EVENTINDEX_DATA_DIR: options.dataDir ?? '/nonexistent' }), publishToGeneralRelays: options.publishGeneral ?? false, publishDirectoryOutside: options.publishDirectory ?? false };
+  const settings = {
+    ...loadSettings({ EVENTINDEX_DATA_DIR: options.dataDir ?? '/nonexistent', EVENTINDEX_SEARCH_RELAYS: 'wss://search.test', EVENTINDEX_LIST_RELAYS: 'wss://lists.test',
+      ...(options.generalRelays ? { EVENTINDEX_GENERAL_RELAYS: options.generalRelays } : {}) }),
+    publishToGeneralRelays: options.publishGeneral ?? false,
+    publishDirectoryOutside: options.publishDirectory ?? false,
+  };
   const indexer = createIndexer({
     db, dir, queues, events, vault, indexKey, settings,
     now: () => clock.now,
@@ -49,13 +54,13 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
       return { status: 'ok', text: options.texts?.[fixture] ?? readFixture(fixture), etag: null, lastModified: null, finalUrl: url };
     },
     publisher: {
-      publish: async (list, audience) => {
+      publish: async (list, audience, relays) => {
         options.onPublish?.(list, audience);
-        sent.push(...list.map((event) => ({ audience, event })));
+        sent.push(...list.map((event) => ({ audience, event, ...(relays ? { relays } : {}) })));
       },
       rsvps: async () => options.rsvps ?? new Set(),
       ...(options.fetchOwn ? { fetchOwn: options.fetchOwn } : {}),
-      ...(options.pending ? { pending: options.pending } : {}),
+      ...(options.pendingFor ? { pendingFor: options.pendingFor } : {}),
       close: () => {},
     },
     log: () => {},
@@ -141,33 +146,47 @@ test('the index key follows every calendar key it holds', async () => {
   assert.deepEqual(after.tags, [['p', h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!, 'wss://relay.eventindex.space']], 'a removed calendar is unfollowed');
 });
 
-test('turning outside publishing on sends what the index\'s relay holds once, through the same routing', async () => {
+test('turning outside publishing on sends what the index\'s relay holds to each relay once, marked when its queue drains', async () => {
   const first = harness({ fixtures: ['meetup-pythonsd.ics'] });
   await first.indexer.tick();
   const held = first.sent.filter((s) => s.audience === 'own').map((s) => s.event);
-  let pending = 5;
+  const waiting = new Map<string, number>([['wss://search.test', 5], ['wss://nos.lol', 5]]);
   const fetched: string[][] = [];
   const h = harness({ fixtures: [], publishGeneral: true, db: first.db, vault: first.vault, indexKey: first.indexKey,
     fetchOwn: async (filter) => { fetched.push(filter.authors ?? []); return held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)); },
-    pending: () => pending });
+    pendingFor: (relay) => waiting.get(relay) ?? 0 });
   await h.indexer.tick();
   const calendar = first.dir.get('meetup:pythonsd')!.pubkey!;
   assert.deepEqual(fetched.flat().sort(), [first.indexPubkey, calendar].sort());
-  assert.deepEqual(outside(h.sent, 'search', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-  // The relay list changes as outside publishing goes on (it names the general
-  // relays now): the new one is published, and this test's stand-in for the
-  // index's relay still hands out the old one too.
-  assert.deepEqual(outside(h.sent, 'search', first.indexPubkey), [0, 3, 10002, 10002], 'the directory is held');
-  assert.deepEqual(outside(h.sent, 'lists'), []);
-  assert.equal(h.dir.fact('outside_backfill'), null, 'not done while events wait in the queues');
-  pending = 0;
+  const backfill = h.sent.filter((s) => s.relays);
+  const to = (relay: string, pubkey?: string) => backfill.filter((s) => s.relays!.includes(relay) && (!pubkey || s.event.pubkey === pubkey)).map((s) => s.event.kind).sort((a, b) => a - b);
+  assert.deepEqual(to('wss://search.test', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+  assert.deepEqual(to('wss://search.test', first.indexPubkey), [0, 3, 10002], 'the directory is held');
+  assert.deepEqual(to('wss://purplepag.es'), [0, 0, 3, 10002, 10002]);
+  assert.deepEqual(to('wss://nos.lol', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+  assert.deepEqual(to('wss://lists.test'), []);
   h.clock.now = NOW + 30;
   await h.indexer.tick();
-  assert.equal(h.dir.fact('outside_backfill'), '1');
-  const before = h.sent.length;
+  assert.equal(h.dir.fact('outside_backfill wss://purplepag.es'), '1', 'drained at once');
+  assert.equal(h.dir.fact('outside_backfill wss://search.test'), null, 'not done while its events wait');
+  waiting.clear();
   h.clock.now = NOW + 60;
   await h.indexer.tick();
-  assert.equal(h.sent.filter((s) => s.audience === 'search').length, outside(h.sent.slice(0, before), 'search').length, 'sent once');
+  for (const relay of ['wss://search.test', 'wss://purplepag.es', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.damus.io']) {
+    assert.equal(h.dir.fact(`outside_backfill ${relay}`), '1', relay);
+  }
+  const before = h.sent.filter((s) => s.relays).length;
+  h.clock.now = NOW + 90;
+  await h.indexer.tick();
+  assert.equal(h.sent.filter((s) => s.relays).length, before, 'sent once');
+
+  // A relay added later gets the backfill alone.
+  const later = harness({ fixtures: [], publishGeneral: true, db: first.db, vault: first.vault, indexKey: first.indexKey, generalRelays: 'wss://nos.lol,wss://new.test',
+    fetchOwn: async (filter) => held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)), pendingFor: () => 0 });
+  later.clock.now = NOW + 120;
+  await later.indexer.tick();
+  const targets = new Set(later.sent.filter((s) => s.relays).flatMap((s) => s.relays!));
+  assert.deepEqual([...targets], ['wss://new.test']);
 });
 
 test('a calendar is polled again only when it is due', async () => {
@@ -327,13 +346,15 @@ test('the directory stays on the index\'s relay until publishing it outside is o
   assert.ok(first.sent.some((s) => s.audience === 'search' && s.event.kind === 31923), 'everything else goes out');
   const held = first.sent.filter((s) => s.audience === 'own').map((s) => s.event);
   const h = harness({ fixtures: [], publishGeneral: true, publishDirectory: true, db: first.db, vault: first.vault, indexKey: first.indexKey,
-    fetchOwn: async (filter) => held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)), pending: () => 0 });
-  first.dir.setFact('outside_backfill', '1');
+    fetchOwn: async (filter) => held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)), pendingFor: () => 0 });
+  for (const relay of ['wss://search.test', 'wss://purplepag.es', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.damus.io']) first.dir.setFact(`outside_backfill ${relay}`, '1');
   h.clock.now = NOW + 60;
   await h.indexer.tick();
-  assert.deepEqual(outside(h.sent, 'lists'), [39998, 39998, 39999]);
-  assert.deepEqual(outside(h.sent, 'search'), [39998, 39998, 39999], 'only the directory is backfilled');
+  const backfill = h.sent.filter((s) => s.relays);
+  assert.deepEqual(backfill.filter((s) => s.relays!.includes('wss://lists.test')).map((s) => s.event.kind).sort(), [39998, 39998, 39999]);
+  assert.deepEqual(backfill.filter((s) => s.relays!.includes('wss://search.test')).map((s) => s.event.kind).sort(), [39998, 39998, 39999], 'only the directory is backfilled');
   h.clock.now = NOW + 90;
   await h.indexer.tick();
-  assert.equal(h.dir.fact('outside_backfill_directory'), '1');
+  assert.equal(h.dir.fact('outside_backfill_directory wss://lists.test'), '1');
+  assert.equal(h.dir.fact('outside_backfill_directory wss://search.test'), '1');
 });

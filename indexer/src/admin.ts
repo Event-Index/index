@@ -10,6 +10,9 @@
 //   node indexer/src/admin.ts approve-removal <id>
 //   node indexer/src/admin.ts reject-removal <id>
 //   node indexer/src/admin.ts remove <local name or d> [--message <text>]
+//   node indexer/src/admin.ts relays
+//   node indexer/src/admin.ts pause-relay <wss://…> [--hours <n>]
+//   node indexer/src/admin.ts resume-relay <wss://…>
 //
 // Settings come from the environment, as for the services.
 
@@ -23,6 +26,7 @@ import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
 import { importSeeds, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, status, type AdminStores, type Cities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
+import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 
 const USAGE = `usage: admin.ts <command>
   status
@@ -33,7 +37,10 @@ const USAGE = `usage: admin.ts <command>
   removals
   approve-removal <id>
   reject-removal <id>
-  remove <local name or d> [--message <text>]`;
+  remove <local name or d> [--message <text>]
+  relays
+  pause-relay <wss://…> [--hours <n>]
+  resume-relay <wss://…>`;
 
 class UsageError extends Error {}
 
@@ -120,6 +127,27 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       out(`remove request ${r.id} approved; the poll service removes the calendar on its next tick`);
       return;
     }
+    case 'relays': {
+      const paused = relayPauses(s.dir).all();
+      if (paused.length === 0) out('no relay is paused');
+      for (const { relay, state } of paused) {
+        out(`${relay}\t${state.until === null ? 'left off' : `paused until ${time(state.until)}`}\t${state.strikes} strike${state.strikes === 1 ? '' : 's'}`);
+      }
+      return;
+    }
+    case 'pause-relay': {
+      const hours = Number(option(args, '--hours') ?? PAUSE_SECONDS / 3600);
+      if (!args[0] || !/^wss?:\/\//.test(args[0]) || !(hours > 0)) throw new UsageError('pause-relay needs a relay URL and a positive number of hours');
+      const until = now + Math.round(hours * 3600);
+      relayPauses(s.dir).set(args[0], { until, strikes: 1 });
+      out(`${args[0]} paused until ${time(until)}; a refusal after that leaves it off`);
+      return;
+    }
+    case 'resume-relay':
+      if (!args[0]) throw new UsageError('resume-relay needs a relay URL');
+      relayPauses(s.dir).set(args[0], null);
+      out(`${args[0]} resumed; it gets new events from the next publish`);
+      return;
     default:
       throw new UsageError(command ? `unknown command ${command}` : 'no command');
   }

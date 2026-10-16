@@ -157,10 +157,10 @@ test('turning outside publishing on fills each set of relays with its kinds, fro
     const indexKey = generateSecretKey();
     const id = identify(feedUrlFor('luma-calendar-craftnook.ics'));
     dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null, location: 'New York, US', g: 'dr5r', foundVia: 'maintainer', addedAt: NOW });
-    const fast = { search: 500, lists: 500, profiles: 500, general: 500 };
+    const fast = { search: { perSecond: 500, burst: 50 }, lists: { perSecond: 500, burst: 50 }, profiles: { perSecond: 500, burst: 50 }, general: { perSecond: 500, burst: 50 } };
     const run = async (publish: boolean, now: number) => {
       const settings = { ...loadSettings(env), publishToGeneralRelays: publish };
-      const publisher = relayPublisher(settings, () => {}, fast);
+      const publisher = relayPublisher(settings, () => {}, { pace: fast });
       const indexer = createIndexer({
         db, dir, queues: queueStore(db), events: eventStore(db), vault, indexKey, settings, publisher, now: () => now,
         fetch: async (u) => ({ status: 'ok', text: readFixture('luma-calendar-craftnook.ics'), etag: null, lastModified: null, finalUrl: u }),
@@ -180,7 +180,7 @@ test('turning outside publishing on fills each set of relays with its kinds, fro
     assert.deepEqual(await kinds('profiles', [indexPubkey]), [0, 10002], 'off: the index key\'s profile still goes out');
 
     await run(true, NOW + 60);
-    assert.equal(dir.fact('outside_backfill'), '1');
+    for (const name of ['search', 'profiles', 'general']) assert.equal(dir.fact(`outside_backfill ${relays[name]!.url}`), '1', name);
     // craftnook at NOW: four events in the window, one of them past.
     assert.deepEqual(await kinds('search', [calendar]), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
     assert.deepEqual(await kinds('search', [indexPubkey]), [0, 3, 10002], 'the directory is held');

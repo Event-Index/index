@@ -11,7 +11,7 @@ import { getPublicKey } from 'nostr-tools/pure';
 import { loadSettings } from './config.ts';
 import { acquireLock } from './service/lock.ts';
 import { createIndexer } from './service/indexer.ts';
-import { relayPublisher } from './service/publisher.ts';
+import { relayPublisher, relayPauses } from './service/publisher.ts';
 import { fetchFeed } from './poller/fetch.ts';
 import { openIndexDb } from './store/index-db.ts';
 import { openVault } from './store/vault-db.ts';
@@ -45,7 +45,8 @@ async function main(): Promise<void> {
   const db = openIndexDb(settings.indexDb);
   const vault = openVault(settings.vaultDb, readSecret(settings.calendarSecretFile));
   const indexKey = readIndexKey(settings.indexKeyFile);
-  const publisher = relayPublisher(settings, log);
+  const dir = directoryStore(db);
+  const publisher = relayPublisher(settings, log, { pauses: relayPauses(dir) });
   const controller = new AbortController();
   const stop = (signal: string) => {
     if (controller.signal.aborted) return;
@@ -57,7 +58,7 @@ async function main(): Promise<void> {
 
   const indexer = createIndexer({
     db,
-    dir: directoryStore(db),
+    dir,
     queues: queueStore(db),
     events: eventStore(db),
     vault,

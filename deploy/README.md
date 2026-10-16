@@ -247,6 +247,15 @@ eventindex-admin remove meetup-pythonsd --message "asked by email"
 eventindex-admin status
 ```
 
+Outside relays that rate-limit or ban the index are paused for a day, then
+tried again at half pace; a second refusal leaves them off:
+
+```sh
+eventindex-admin relays                                  # paused and left-off relays
+eventindex-admin pause-relay wss://relay.example --hours 24
+eventindex-admin resume-relay wss://relay.example
+```
+
 `--city` takes a slug from `seeds/cities.json` and gives the entry that
 city's area. A request is verified once its token appears in the calendar's
 feed; approve unverified ones only on other proof. The poll service carries

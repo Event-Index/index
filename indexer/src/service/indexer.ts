@@ -33,14 +33,17 @@ export type Audience = 'own' | RelaySet;
 
 export interface Publisher {
   // For `own`, resolves once the relay took the events, and a rejection fails
-  // the poll so it is retried; outside sets are queued.
-  publish(events: VerifiedEvent[], audience: Audience): Promise<void>;
+  // the poll so it is retried; outside sets are queued, for all of the set's
+  // relays or only those named.
+  publish(events: VerifiedEvent[], audience: Audience, relays?: string[]): Promise<void>;
   // Addresses of the calendar key's events that have RSVPs.
   rsvps(pubkey: string): Promise<Set<string>>;
   // What the index's own relay holds, for re-sending to outside relays.
   fetchOwn?(filter: Filter): Promise<VerifiedEvent[]>;
-  // Events still queued for outside relays.
+  // Events still queued for outside relays that are not paused, and for one
+  // outside relay.
   pending?(): number;
+  pendingFor?(relay: string): number;
   close(): void;
 }
 
@@ -193,39 +196,64 @@ export function createIndexer(deps: IndexerDeps) {
     for (const r of results) if (r.status === 'rejected') deps.log(`outside relays: ${(r.reason as Error).message}`);
   }
 
-  // When outside publishing starts, what the index's relay already holds goes
-  // out once, through the same routing (no deletions); the directory's kinds
-  // go once the directory goes outside. Each part is done once the queues
-  // have drained; a restart before that sends it again.
-  let queued: string[] = [];
+  // Every outside relay gets, once, what the index's relay already holds of
+  // the kinds its set takes (through the same routing, no deletions), and the
+  // directory's kinds once the directory goes outside. A relay is marked done
+  // when its queue has drained; a restart before that sends it again, and a
+  // relay added later gets it alone.
+  const relaysOf: Record<RelaySet, string[]> = {
+    search: settings.searchRelays, lists: settings.listRelays, profiles: settings.profileRelays, general: settings.generalRelays,
+  };
+  const inFlight = new Map<string, string>();
   async function maybeBackfill(now: number): Promise<void> {
     if (!settings.publishToGeneralRelays || !publisher.fetchOwn) return;
-    if (queued.length) {
-      if ((publisher.pending?.() ?? 0) === 0) {
-        for (const fact of queued) dir.setFact(fact, BACKFILL_VERSION);
-        deps.log(`outside relays: backfill sent (${queued.join(', ')})`);
-        queued = [];
+    for (const [fact, relay] of inFlight) {
+      if ((publisher.pendingFor?.(relay) ?? 0) === 0) {
+        dir.setFact(fact, BACKFILL_VERSION);
+        inFlight.delete(fact);
+        deps.log(`outside relays: backfill sent to ${relay}`);
       }
-      return;
     }
-    const kinds: number[] = [];
-    if (dir.fact('outside_backfill') !== BACKFILL_VERSION) {
-      kinds.push(...BACKFILL_KINDS);
-      queued.push('outside_backfill');
+    const needs = (prefix: string, relay: string) => {
+      const fact = `${prefix} ${relay}`;
+      return !inFlight.has(fact) && dir.fact(fact) !== BACKFILL_VERSION ? fact : null;
+    };
+    const plan = new Map<RelaySet, { relays: string[]; directory: string[] }>();
+    const facts: Array<[string, string]> = [];
+    for (const set of Object.keys(relaysOf) as RelaySet[]) {
+      const entry = { relays: [] as string[], directory: [] as string[] };
+      for (const relay of relaysOf[set]) {
+        const fact = set !== 'lists' ? needs('outside_backfill', relay) : null;
+        if (fact) { entry.relays.push(relay); facts.push([fact, relay]); }
+        const dfact = settings.publishDirectoryOutside && (set === 'search' || set === 'lists') ? needs('outside_backfill_directory', relay) : null;
+        if (dfact) { entry.directory.push(relay); facts.push([dfact, relay]); }
+      }
+      if (entry.relays.length || entry.directory.length) plan.set(set, entry);
     }
-    if (settings.publishDirectoryOutside && dir.fact('outside_backfill_directory') !== BACKFILL_VERSION) {
-      kinds.push(...DIRECTORY_KINDS);
-      queued.push('outside_backfill_directory');
-    }
-    if (kinds.length === 0) return;
+    if (plan.size === 0) return;
+    const kinds = [...BACKFILL_KINDS, ...(settings.publishDirectoryOutside ? DIRECTORY_KINDS : [])];
+    const ctx = { indexPubkey, now, outside: true, directory: settings.publishDirectoryOutside, backfill: true };
     const authors = [indexPubkey, ...allowed.live, ...allowed.removed];
     let count = 0;
     for (const author of authors) {
       const events = await publisher.fetchOwn({ authors: [author], kinds, limit: 500 });
-      await sendOutside(events, { indexPubkey, now, outside: true, directory: settings.publishDirectoryOutside, backfill: true });
+      const bySet = new Map<string, { set: RelaySet; relays: string[]; events: VerifiedEvent[] }>();
+      for (const event of events) {
+        for (const set of setsFor(event, ctx)) {
+          const entry = plan.get(set);
+          if (!entry) continue;
+          const relays = DIRECTORY_KINDS.includes(event.kind) ? entry.directory : entry.relays;
+          if (relays.length === 0) continue;
+          const key = `${set} ${relays.join(',')}`;
+          if (!bySet.has(key)) bySet.set(key, { set, relays, events: [] });
+          bySet.get(key)!.events.push(event);
+        }
+      }
+      for (const { set, relays, events: batch } of bySet.values()) await publisher.publish(batch, set, relays);
       count += events.length;
     }
-    deps.log(`outside relays: backfill of ${count} events from ${authors.length} keys queued`);
+    for (const [fact, relay] of facts) inFlight.set(fact, relay);
+    deps.log(`outside relays: backfill of ${count} events from ${authors.length} keys queued for ${[...new Set(facts.map(([, r]) => r))].join(', ')}`);
   }
 
   // Signs templates (hash-tracked unless `always`) with created_at moving
