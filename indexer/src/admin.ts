@@ -42,6 +42,7 @@ import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 import { discoveredStore, type Found } from './store/discovered.ts';
 import { coverage, formatCoverage, upcomingReferences } from './service/coverage.ts';
 import { decodeGeohash } from './project/geohash.ts';
+import { useSafeWebSockets } from './service/websocket.ts';
 import { nativeD } from './directory/id.ts';
 
 const USAGE = `usage: admin.ts <command>
@@ -304,6 +305,7 @@ async function runCoverage(s: AdminStores, settings: Settings, args: string[], n
 }
 
 async function main(): Promise<number> {
+  useSafeWebSockets();
   const [command, ...args] = process.argv.slice(2);
   const settings = loadSettings(process.env);
   mkdirSync(settings.dataDir, { recursive: true });

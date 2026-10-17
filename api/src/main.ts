@@ -17,6 +17,7 @@ import type { Cities } from '../../indexer/src/service/admin.ts';
 import { createApi } from './server.ts';
 import { poolReader } from '../../indexer/src/native/read.ts';
 import { SimplePool } from 'nostr-tools/pool';
+import { useSafeWebSockets } from '../../indexer/src/service/websocket.ts';
 
 function log(line: string): void {
   process.stdout.write(`${new Date().toISOString()} ${line}\n`);
@@ -24,6 +25,8 @@ function log(line: string): void {
 
 const settings = loadSettings(process.env);
 mkdirSync(settings.dataDir, { recursive: true });
+// Before any relay pool is made.
+useSafeWebSockets();
 const db = openIndexDb(settings.indexDb);
 const cities = JSON.parse(readFileSync(new URL('../../seeds/cities.json', import.meta.url), 'utf8')) as Cities;
 const server = createServer(createApi({

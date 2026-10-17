@@ -6,6 +6,7 @@
 // Settings come from the environment (deploy/templates/eventindex.env).
 
 import { mkdirSync, readFileSync } from 'node:fs';
+import { useSafeWebSockets } from './service/websocket.ts';
 import { decode, npubEncode } from 'nostr-tools/nip19';
 import { getPublicKey } from 'nostr-tools/pure';
 import { loadSettings } from './config.ts';
@@ -41,6 +42,7 @@ function readSecret(path: string): Uint8Array {
 }
 
 async function main(): Promise<void> {
+  useSafeWebSockets();
   const once = process.argv.includes('--once');
   const settings = loadSettings(process.env);
   mkdirSync(settings.dataDir, { recursive: true });
