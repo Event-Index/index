@@ -141,6 +141,22 @@ function vevent(event: NostrEvent): ICAL.Component | LogEntry {
 
 // The events (31922 and 31923 of one author) as a normalized feed, each
 // record naming the event it came from (X-EVENTINDEX-NOSTR).
+// A publisher's events in shares of at most `size` events by uid, every
+// version of one event in the same share: built a share at a time, a
+// publisher with thousands of events never holds them all as records at once.
+export function inUidChunks(found: Found[], size: number): Found[][] {
+  const byUid = new Map<string, Found[]>();
+  for (const f of found) {
+    const uid = nativeUid(f.event);
+    if (!byUid.has(uid)) byUid.set(uid, []);
+    byUid.get(uid)!.push(f);
+  }
+  const groups = [...byUid.values()];
+  const chunks: Found[][] = [];
+  for (let i = 0; i < groups.length; i += size) chunks.push(groups.slice(i, i + size).flat());
+  return chunks;
+}
+
 export function nativeFeed(found: Found[], ctx: NativeContext): NormalizedFeed {
   const calendar = new ICAL.Component('vcalendar');
   calendar.addPropertyWithValue('version', '2.0');

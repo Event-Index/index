@@ -37,7 +37,7 @@ import { nostrStore } from '../store/nostr-events.ts';
 import { nativeD } from '../directory/id.ts';
 import { occurrences, type Occurrence } from '../project/window.ts';
 import type { NostrEvent } from '../native/record.ts';
-import { nativeFeed } from '../native/record.ts';
+import { inUidChunks, nativeFeed } from '../native/record.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
 import { expand, cancelledCopy } from '../project/projector.ts';
 import { API_BASE } from '../project/nip52.ts';
@@ -593,14 +593,21 @@ export function createIndexer(deps: IndexerDeps) {
     const stored = store.eventsOf(pubkey);
     const entry = entryFor(pubkey, now, stored.length > 0);
     if (entry) {
-      const feed = nativeFeed(stored, {
-        d: entry.d, source: 'nostr', role: 'calendar', feedUrl: '', pageUrl: entry.pageUrl, entryName: entry.name,
+      const ctx = {
+        d: entry.d, source: 'nostr' as const, role: 'calendar' as const, feedUrl: '', pageUrl: entry.pageUrl, entryName: entry.name,
         calendarName: entry.name, calendarAddress: `39999:${indexPubkey}:${entry.d}`, claimedAt: entry.claimedAt,
-      });
-      for (const record of feed.records) {
-        db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+      };
+      // A share at a time: a publisher of thousands of events (an aggregator)
+      // built at once needs more memory than the service has.
+      const rows: EventRow[] = [];
+      for (const share of inUidChunks(stored, NATIVE_BUILD_SHARE)) {
+        const feed = nativeFeed(share, ctx);
+        for (const record of feed.records) {
+          db.putRecord({ calendarD: entry.d, uid: record.uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+        }
+        rows.push(...nativeRows(feed));
       }
-      events.replaceCalendar(entry.d, nativeRows(feed));
+      events.replaceCalendar(entry.d, rows);
       // Listed with its first upcoming event, and listed from then on.
       if (!entry.listed && events.hasUpcoming(entry.d, now)) {
         dir.setListed(entry.d);
@@ -628,6 +635,8 @@ export function createIndexer(deps: IndexerDeps) {
 
   // Builds the records of publishers whose events changed, a share at a time.
   const BUILD_BUDGET_MS = 20_000;
+// Events by uid built into records at once, for one publisher.
+const NATIVE_BUILD_SHARE = 500;
   function rebuildDirty(now: number): void {
     const until = Date.now() + BUILD_BUDGET_MS;
     for (const pubkey of store.dirty(500)) {

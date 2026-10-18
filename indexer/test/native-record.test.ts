@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import ICAL from 'ical.js';
 import { finalizeEvent, generateSecretKey, getPublicKey, type VerifiedEvent } from 'nostr-tools/pure';
 import { decode } from 'nostr-tools/nip19';
-import { nativeFeed, nativeUid } from '../src/native/record.ts';
+import { inUidChunks, nativeFeed, nativeUid } from '../src/native/record.ts';
 import { occurrences, projectionWindow } from '../src/project/window.ts';
 import { publicCalendar, toIcs, toJsonLd, publicContext } from '../src/project/public.ts';
 import { decodeGeohash } from '../src/project/geohash.ts';
@@ -121,3 +121,24 @@ test('the record is served through the public projections with its full descript
   assert.ok(String(ld['description']).length <= 300);
   assert.equal((ld['organizer'] as Record<string, unknown>)['name'], 'Lakeside Bitcoin Club');
 });
+
+test('a publisher\'s events built a share at a time make the same records as all at once', () => {
+  const events = [
+    sign(31923, [['d', 'a'], ['title', 'A'], ['start', String(START)]], '', NOW - 7200),
+    sign(31923, [['d', 'a'], ['title', 'A, moved'], ['start', String(START + 3600)]], '', NOW - 3600),
+    sign(31923, [['d', 'b'], ['title', 'B'], ['start', String(START + 86400)]]),
+    sign(31922, [['d', 'c'], ['title', 'C'], ['start', '2026-11-01']]),
+    sign(31923, [['d', 'e'], ['title', 'E'], ['start', String(START + 2 * 86400)]]),
+    sign(31923, [['d', 'f'], ['title', 'F'], ['start', String(START + 3 * 86400)]]),
+  ].map((event) => ({ event, relay: RELAY }));
+  const named = { ...ctx, calendarName: ctx.entryName };
+  const whole = nativeFeed(events, named).records.map((r) => [r.uid, ICAL.stringify(r.component.toJSON())]);
+  const chunks = inUidChunks(events, 2);
+  assert.equal(chunks.length, 3);
+  // Both versions of one event stay together.
+  assert.ok(chunks.some((c) => c.filter((f) => tagOf(f.event, 'd') === 'a').length === 2));
+  const parts = chunks.flatMap((c) => nativeFeed(c, named).records.map((r) => [r.uid, ICAL.stringify(r.component.toJSON())]));
+  assert.deepEqual(parts.sort(), whole.sort());
+});
+
+const tagOf = (e: { tags: string[][] }, name: string) => e.tags.find((t) => t[0] === name)?.[1];
