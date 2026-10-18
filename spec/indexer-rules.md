@@ -282,10 +282,15 @@ creates the calendar key.
   are paused, no calendar key is made: a calendar without one is still polled
   and its records, events and pages are served, but nothing is projected or
   signed for it and its directory entry waits for its key. A calendar that
-  has a key publishes to the index's relay only; nothing a calendar key signs
-  goes to the outside relays or is sent to them again. No calendar key is
-  deleted: a removal or a claim withdraws the calendar's events on the
-  index's relay as at any time and keeps its key, and the key clears the
+  has a key signs only deletions, on the index's relay: a withdrawal its
+  source calls for; no new or changed event, calendar, profile or relay
+  list. What else changed is held, the feed's validators are dropped, and the
+  first poll after the pause publishes it from the feed read in full (a held
+  cancellation is decided again then). Its records, events and pages follow
+  the feed meanwhile. Nothing a calendar key signs goes to the outside
+  relays or is sent to them again. No calendar key is deleted: a removal or
+  a claim deletes the calendar's events on the index's relay, signs nothing
+  else there, keeps its key, and the key clears the
   calendar from the outside relays (search, general and profile relays): a
   last kind 0 with the name `Retired Event Index mirror`, no `nip05`,
   `website` or `picture`, and an `about` naming the calendar's page; and a

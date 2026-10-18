@@ -40,6 +40,9 @@ export interface PollDeps {
   // No calendar key is made: a calendar without one is read and its records
   // kept, but nothing is projected or signed for it.
   keyless?: boolean;
+  // The calendar key signs only deletions: what else changed is held, and
+  // published at the first poll after (which reads the feed in full).
+  deletionsOnly?: boolean;
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
   // A calendar published as its organizer: no profile or relay list of
@@ -165,6 +168,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   const pubkey = signer.pubkey;
   const relay = deps.delegated?.relay ?? INDEX_RELAY;
   const rsvps = await deps.rsvps(pubkey);
+  const previous = deps.db.loadPresence(entry.d);
   const result = projectFeed({
     feed,
     calendarPubkey: pubkey,
@@ -183,12 +187,14 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   // that stops answering half-way publishes nothing. Through a remote signer
   // a poll signs one batch, within a time budget; the rest is signed at the
   // next poll, which comes back soon.
+  const toSign = deps.deletionsOnly && !deps.delegated ? result.publish.filter((p) => p.template.kind === 5) : result.publish;
+  const holding = toSign.length < result.publish.length;
   const limit = deps.delegated?.batch ?? Infinity;
   const until = deps.delegated ? Date.now() + (deps.delegated.budgetMs ?? SIGN_BUDGET_MS) : Infinity;
   const signed: Array<{ planned: (typeof result.publish)[number]; event: VerifiedEvent }> = [];
   let unfinished = false;
   try {
-    for (const planned of result.publish) {
+    for (const planned of toSign) {
       if (signed.length >= limit || Date.now() > until) {
         unfinished = true;
         break;
@@ -210,7 +216,17 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   // withdrawals are decided again, and sent, at the next poll.
   if (!unfinished) {
     for (const w of result.withdrawn) if (w.status === 'deleted') deps.db.markWithdrawn(pubkey, w.kind, w.d, 'deleted');
-    deps.db.savePresence(entry.d, result.presence);
+    let presence = result.presence;
+    if (holding) {
+      // A cancellation that was held is decided again at the next poll.
+      const events = { ...presence.events };
+      for (const w of result.withdrawn) {
+        const coordinate = `${w.kind}:${w.d}`;
+        if (w.status === 'cancelled' && previous.events[coordinate]) events[coordinate] = previous.events[coordinate]!;
+      }
+      presence = { ...presence, events };
+    }
+    deps.db.savePresence(entry.d, presence);
   }
 
   keepRecords(pubkey, relay);
@@ -219,6 +235,8 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   // The rest is signed at the next poll, which reads the feed in full even
   // if it has not changed.
   if (unfinished) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), etag: null, lastModified: null, nextPollAt: now + RESUME_AFTER });
+  // What was held is published once its key may sign again, from the feed read in full.
+  else if (holding) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), etag: null, lastModified: null });
   return {
     status: 'published',
     published: signed.length,

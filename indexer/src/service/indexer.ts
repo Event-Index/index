@@ -413,6 +413,10 @@ export function createIndexer(deps: IndexerDeps) {
   // `e`, then its `a` and `k`), to the search, general and profile relays.
   // Nothing else of it goes there. The clearing is kept as a fact until the
   // outside relays have taken it, and sent again after a restart.
+  // While calendar keys are paused, a calendar key signs only deletions.
+  const whilePaused = <T extends { template: EventTemplate }>(items: T[]): T[] =>
+    (settings.calendarKeysPaused ? items.filter((i) => i.template.kind === 5) : items);
+
   const CLEARING = 'outside_clearing ';
   const clearingHere = new Set<string>();
   async function sendClearing(d: string, now: number): Promise<void> {
@@ -821,10 +825,11 @@ const NATIVE_BUILD_SHARE = 500;
       }),
       d: 'calendar', start: now,
     });
-    const published = await publishAs(key, (t) => vault.sign(entry.d, t), items, now);
+    const published = await publishAs(key, (t) => vault.sign(entry.d, t), whilePaused(items), now);
     await clearOutside(entry, key, now);
     for (const p of deleted) db.markWithdrawn(key, p.kind, p.d, 'deleted');
-    for (const p of kept) db.markWithdrawn(key, p.kind, p.d, 'cancelled');
+    // While calendar keys are paused they are not republished as cancelled.
+    if (!settings.calendarKeysPaused) for (const p of kept) db.markWithdrawn(key, p.kind, p.d, 'cancelled');
     // While calendar keys are paused no key is deleted: each signs its own
     // deletions outside first.
     if (!settings.calendarKeysPaused) vault.forget(entry.d);
@@ -1128,7 +1133,7 @@ const NATIVE_BUILD_SHARE = 500;
           start: now,
         },
       ];
-      published = await publishAs(pubkey, (t) => vault.sign(entry.d, t), items, now);
+      published = await publishAs(pubkey, (t) => vault.sign(entry.d, t), whilePaused(items), now);
       await clearOutside(entry, pubkey, now);
       for (const p of upcoming) db.markWithdrawn(pubkey, p.kind, p.d, 'deleted');
       // Nothing is signed for the calendar again; its backups age out. While
@@ -1210,6 +1215,7 @@ const NATIVE_BUILD_SHARE = 500;
           signer: () => openSigner(entry, sessions),
           keyOf,
           keyless: settings.calendarKeysPaused,
+          deletionsOnly: settings.calendarKeysPaused,
           originalOf: (id) => events.originalAddressOf(id),
           ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
         },

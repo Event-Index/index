@@ -515,7 +515,32 @@ test('"I publish myself" while calendar keys are paused: the old key clears its 
   assert.equal(JSON.parse(outside.find((e) => e.kind === 0)!.content).name, 'Retired Event Index mirror');
   assert.deepEqual(new Set(outside.filter((e) => e.kind === 5).map((e) => tag(e, 'a'))), signed);
   assert.equal(outside.length, signed.size + 1, 'the profile and one deletion per event, nothing else');
+  const onOurs = h.by(key, before).filter((x) => x.audience === 'own');
+  assert.ok(onOurs.length > 0 && onOurs.every((x) => x.event.kind === 5), 'on the index\'s relay the old key signs only deletions');
   assert.equal(h.vault.pubkeyFor(D), key, 'the key is kept');
+  h.close();
+});
+
+test('"publish for me, as me" while calendar keys are paused: the organizer\'s signer still publishes, the old key only deletes', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const bunker = 'bb'.repeat(32);
+  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), held: { [OWN]: [finalizeEvent({ kind: 10002, tags: [['r', HOME]], content: '', created_at: NOW }, organizerKey)] } });
+  await h.tickAt(NOW);
+  const key = h.dir.get(D)!.pubkey!;
+  h.settings.calendarKeysPaused = true;
+  h.settings.publishToGeneralRelays = true;
+  const sealed = sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fbunker.test&secret=one-time`);
+  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealed, at: NOW });
+  h.approve(claim);
+  const before = h.sent.length;
+  await h.tickAt(NOW + 60);
+  assert.equal(h.queues.claim(claim.id)!.status, 'done');
+  assert.deepEqual(h.by(organizer, before).filter((s) => s.audience === 'home').map((s) => s.event.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'the organizer\'s events go to their relays as before');
+  const old = h.by(key, before);
+  assert.ok(old.filter((x) => x.audience === 'own').every((x) => x.event.kind === 5));
+  assert.ok(old.some((x) => x.audience !== 'own' && x.event.kind === 0 && JSON.parse(x.event.content).name === 'Retired Event Index mirror'));
+  assert.equal(h.vault.pubkeyFor(D), key);
   h.close();
 });
 

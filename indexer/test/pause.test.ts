@@ -30,7 +30,7 @@ function stores(): Stores {
   return { db: openIndexDb(':memory:'), vault: openVault(':memory:', new Uint8Array(randomBytes(32))), indexKey: generateSecretKey() };
 }
 
-function service(s: Stores, env: Record<string, string>, options: { text?: string; fetchOwn?: () => void; other?: boolean; pending?: () => number } = {}) {
+function service(s: Stores, env: Record<string, string>, options: { text?: string; fetchOwn?: () => void; other?: boolean; pending?: () => number; etag?: boolean; at?: number; rsvps?: Set<string> } = {}) {
   const dir = directoryStore(s.db);
   const queues = queueStore(s.db);
   const sent: Array<{ audience: Audience; event: VerifiedEvent }> = [];
@@ -40,13 +40,18 @@ function service(s: Stores, env: Record<string, string>, options: { text?: strin
   const indexer = createIndexer({
     db: s.db, dir, queues, events: eventStore(s.db), vault: s.vault, indexKey: s.indexKey,
     settings: loadSettings({ EVENTINDEX_DATA_DIR: '/nonexistent', ...OUTSIDE, ...env }),
-    now: () => NOW,
-    fetch: async (u): Promise<FetchResult> => (u === url
-      ? { status: 'ok', text: options.text ?? readFixture(FIXTURE), etag: null, lastModified: null, finalUrl: u }
-      : u === otherUrl ? { status: 'ok', text: readFixture(OTHER_FIXTURE), etag: null, lastModified: null, finalUrl: u } : { status: 'error', code: 'http-404' }),
+    now: () => options.at ?? NOW,
+    fetch: async (u, validators): Promise<FetchResult> => {
+      const text = u === url ? options.text ?? readFixture(FIXTURE) : u === otherUrl ? readFixture(OTHER_FIXTURE) : null;
+      if (text === null) return { status: 'error', code: 'http-404' };
+      // A feed with an ETag answers 304 while it has not changed.
+      const etag = options.etag ? `"${text.length}"` : null;
+      if (etag && validators.etag === etag) return { status: 'not-modified' };
+      return { status: 'ok', text, etag, lastModified: null, finalUrl: u };
+    },
     publisher: {
       publish: async (list, audience) => void sent.push(...list.map((event) => ({ audience, event }))),
-      rsvps: async () => new Set(),
+      rsvps: async () => options.rsvps ?? new Set(),
       fetchOwn: async () => {
         options.fetchOwn?.();
         return [];
@@ -84,22 +89,89 @@ test('with calendar keys paused, a new calendar is read and its records kept, bu
   assert.ok(svc.log.some((l) => l.includes('calendar keys paused')), svc.log.join('\n'));
 });
 
-test('with calendar keys paused, a calendar that has a key publishes to the index\'s relay only', async () => {
+test('with calendar keys paused, a calendar that has a key signs nothing new, while its records, events and entry still update', async () => {
+  const s = stores();
+  await service(s, {}).indexer.tick();
+  const key = s.vault.pubkeyFor(D)!;
+
+  // The feed changes: its name and its events' titles.
+  s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0, etag: null, lastModified: null });
+  const text = readFixture(FIXTURE).replace(/^SUMMARY:(.*)$/gm, 'SUMMARY:$1 (moved)').replace(/^X-WR-CALNAME:.*$/m, 'X-WR-CALNAME:Craftnook Studio');
+  const paused = service(s, PAUSED, { text });
+  await paused.indexer.tick();
+  assert.deepEqual(paused.sent.filter((x) => x.event.pubkey === key).map((x) => `${x.audience} ${x.event.kind}`), [], 'nothing signed by the calendar key, anywhere');
+  assert.ok(paused.events.byCalendar(D, NOW, NOW + 365 * 86400).every((r) => r.title.endsWith('(moved)')), 'the events table follows the feed');
+  assert.ok(s.db.recordsOf(D).some((r) => r.ics.includes('(moved)')), 'and so do the records');
+  const entry = paused.sent.filter((x) => x.audience === 'own' && x.event.pubkey === paused.indexPubkey && x.event.kind === 39999 && x.event.tags.some((t) => t[0] === 'd' && t[1] === D)).at(-1);
+  assert.equal(entry?.event.tags.find((t) => t[0] === 'name')?.[1], 'Craftnook Studio', 'the index key still publishes the entry');
+  assert.equal(s.vault.pubkeyFor(D), key);
+});
+
+test('with calendar keys paused, an event its source withdrew is still deleted on the index\'s relay, and only there', async () => {
   const s = stores();
   const before = service(s, {});
   await before.indexer.tick();
   const key = s.vault.pubkeyFor(D)!;
-  assert.ok(before.sent.some((x) => x.audience !== 'own' && x.event.pubkey === key), 'outside, before the pause');
+  const blocks = readFixture(FIXTURE).split(/(?=^BEGIN:VEVENT$)/m);
+  const gone = blocks.find((b) => b.includes('SUMMARY:precious plushie taxidermy'))!;
+  const text = readFixture(FIXTURE).replace(gone.replace(/END:VCALENDAR\s*$/, ''), '');
+  const deletions: VerifiedEvent[] = [];
+  // Gone from three polls over more than a day.
+  for (const at of [NOW + 3600, NOW + 13 * 3600, NOW + 26 * 3600]) {
+    s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0, etag: null, lastModified: null });
+    const paused = service(s, PAUSED, { text, at });
+    await paused.indexer.tick();
+    const byKey = paused.sent.filter((x) => x.event.pubkey === key);
+    assert.ok(byKey.every((x) => x.event.kind === 5 && x.audience === 'own'), byKey.map((x) => `${x.audience} ${x.event.kind}`).join(', '));
+    deletions.push(...byKey.map((x) => x.event));
+  }
+  assert.equal(deletions.length, 1);
+  const address = deletions[0]!.tags.find((t) => t[0] === 'a')![1]!;
+  const original = before.sent.find((x) => x.audience === 'own' && x.event.pubkey === key && `${x.event.kind}:${key}:${x.event.tags.find((t) => t[0] === 'd')![1]}` === address)!;
+  assert.match(original.event.tags.find((t) => t[0] === 'title')![1]!, /plushie/);
+});
 
-  // The feed changes; the calendar is polled again with the pause on.
-  s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0, etag: null, lastModified: null });
+test('an event with RSVPs that its source withdrew during the pause is cancelled at the first poll after it', async () => {
+  const s = stores();
+  const before = service(s, {});
+  await before.indexer.tick();
+  const key = s.vault.pubkeyFor(D)!;
+  const plushie = before.sent.find((x) => x.audience === 'own' && x.event.pubkey === key && x.event.kind === 31923
+    && x.event.tags.find((t) => t[0] === 'title')![1]!.includes('plushie'))!.event;
+  const rsvps = new Set([`31923:${key}:${plushie.tags.find((t) => t[0] === 'd')![1]}`]);
+  const gone = readFixture(FIXTURE).split(/(?=^BEGIN:VEVENT$)/m).find((b) => b.includes('SUMMARY:precious plushie taxidermy'))!;
+  const text = readFixture(FIXTURE).replace(gone.replace(/END:VCALENDAR\s*$/, ''), '');
+  for (const at of [NOW + 3600, NOW + 13 * 3600, NOW + 26 * 3600]) {
+    s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0, etag: null, lastModified: null });
+    const paused = service(s, PAUSED, { text, at, rsvps });
+    await paused.indexer.tick();
+    assert.equal(paused.sent.filter((x) => x.event.pubkey === key).length, 0, 'a cancelled copy is a new version: held');
+  }
+  s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0 });
+  const resumed = service(s, {}, { text, at: NOW + 27 * 3600, rsvps });
+  await resumed.indexer.tick();
+  const cancelled = resumed.sent.find((x) => x.audience === 'own' && x.event.pubkey === key && x.event.kind === 31923
+    && x.event.tags.find((t) => t[0] === 'd')![1] === plushie.tags.find((t) => t[0] === 'd')![1]);
+  assert.match(cancelled?.event.tags.find((t) => t[0] === 'title')?.[1] ?? '', /^Cancelled: /);
+});
+
+test('after the pause, what changed during it is published at the calendar\'s next poll', async () => {
+  const s = stores();
+  await service(s, {}, { etag: true }).indexer.tick();
+  const key = s.vault.pubkeyFor(D)!;
   const text = readFixture(FIXTURE).replace(/^SUMMARY:(.*)$/gm, 'SUMMARY:$1 (moved)');
-  const paused = service(s, PAUSED, { text });
+  s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0, etag: null, lastModified: null });
+  const paused = service(s, PAUSED, { text, etag: true });
   await paused.indexer.tick();
-  const byKey = paused.sent.filter((x) => x.event.pubkey === key);
-  assert.ok(byKey.some((x) => x.audience === 'own' && (x.event.kind === 31923 || x.event.kind === 31922)), 'the update reaches the index\'s relay');
-  assert.deepEqual(byKey.filter((x) => x.audience !== 'own').map((x) => `${x.audience} ${x.event.kind}`), [], 'and no outside relay');
-  assert.equal(s.vault.pubkeyFor(D), key);
+  assert.equal(paused.sent.filter((x) => x.event.pubkey === key).length, 0);
+
+  // The pause ends; the feed is as it was during the pause (it would answer 304 to the last validators).
+  s.db.savePollState(D, { ...s.db.pollState(D), nextPollAt: 0 });
+  const resumed = service(s, {}, { text, etag: true });
+  await resumed.indexer.tick();
+  const updates = resumed.sent.filter((x) => x.event.pubkey === key && x.event.kind === 31923);
+  assert.ok(updates.some((x) => x.audience === 'own' && x.event.tags.find((t) => t[0] === 'title')![1]!.endsWith('(moved)')), 'the update reaches the index\'s relay');
+  assert.ok(updates.some((x) => x.audience !== 'own'), 'and the outside relays');
 });
 
 test('with calendar keys paused, nothing is sent again to outside relays, and once it is off they get all of it again', async () => {
@@ -175,10 +247,9 @@ test('a removal while calendar keys are paused clears that calendar from the out
   }
   assert.equal(s.vault.pubkeyFor(D), key, 'no key material is deleted');
   assert.equal(s.vault.pubkeyFor(OTHER), otherKey);
-  // On the index's relay the removal is as it always was.
-  assert.ok(paused.sent.some((x) => x.audience === 'own' && x.event.pubkey === key && x.event.kind === 0
-    && (JSON.parse(x.event.content) as Record<string, string>)['about']!.includes('at its organizer\'s request')));
-  assert.ok(!paused.sent.some((x) => x.audience === 'own' && x.event.pubkey === key && (JSON.parse(x.event.content || '{}') as Record<string, string>)['name'] === 'Retired Event Index mirror'));
+  // On the index's relay the key signs only its deletions.
+  const own = paused.sent.filter((x) => x.audience === 'own' && x.event.pubkey === key);
+  assert.ok(own.length > 0 && own.every((x) => x.event.kind === 5), own.map((x) => x.event.kind).join(', '));
 });
 
 test('the clearing of a calendar is sent again after a restart, until the outside relays have taken it', async () => {
