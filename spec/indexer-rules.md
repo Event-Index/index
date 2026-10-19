@@ -169,6 +169,28 @@ and is backed up as such.
   sign nothing new while paused.
 - The index key and the calendar-key secret are separate secrets.
 
+### Retirement
+
+Calendar keys are retired once the events they published are listed as items,
+in this order; each step waits for the one before it:
+
+1. **Signed once.** Each key signs its last profile (kind 0: the name
+   `Retired Event Index mirror`, no NIP-05, website or picture, and an about
+   line naming the calendar's page) and kind 5 deletions naming every version
+   (`e`) and address (`a`; a relay list as `10002:<key>:`) of every 31922,
+   31923, 31924 and 10002 it signed, with their kinds (`k`), at most 200 tags
+   in one deletion; all of them newer than anything the key signed. The index
+   keeps them signed, so they can be sent again without the key.
+2. **Sent.** To the index's relay, then the search, general and profile relays
+   at their pace, never the list relays; again after a restart until the
+   outside relays have taken them.
+3. **No longer named.** Once they have been taken, the index key follows no
+   one, NIP-05 and the API name no calendar key, and no page shows one.
+4. **Destroyed.** On the operator's request, every key is deleted from
+   `vault.db` with its space overwritten, the directory names none, and the
+   relay accepts none. Backups of `vault.db` are useless once the calendar-key
+   secret is gone.
+
 ## 9. Seeding
 
 `scripts/seed-entries.ts` turns a seed list into unsigned directory entries

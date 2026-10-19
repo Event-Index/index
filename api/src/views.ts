@@ -40,7 +40,8 @@ function calendarAddress(coordinate: string | null, relays: string[]): string | 
 function nostrFacts(deps: ViewDeps, entry: StoredEntry) {
   const { settings } = deps;
   if (entry.mode === 'mirrored') {
-    return entry.pubkey
+    // A retired calendar key is no longer the index's to name.
+    return entry.pubkey && !deps.dir.fact('calendar_keys_retired')
       ? { npub: npubEncode(entry.pubkey), nip05: `${entry.localName}@${settings.domain}`, calendar: naddrFor(entry.pubkey, 31924, 'calendar', [settings.publicRelay]) }
       : null;
   }

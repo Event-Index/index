@@ -338,9 +338,10 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
     const names: Record<string, string> = {};
     const indexPubkey = dir.fact('index_pubkey');
     if ((!name || name === '_') && indexPubkey) names['_'] = indexPubkey;
-    if (name && name !== '_') {
-      // Only a calendar key the index holds: a claimed calendar's old key is
-      // deleted, and an organizer's own key is theirs to name.
+    // Only a calendar key the index holds, until the keys are retired: a
+    // claimed calendar's old key is deleted, and an organizer's own key is
+    // theirs to name.
+    if (name && name !== '_' && !dir.fact('calendar_keys_retired')) {
       const entry = dir.byLocalName(name);
       if (entry?.pubkey && entry.mode === 'mirrored') names[name] = entry.pubkey;
     }

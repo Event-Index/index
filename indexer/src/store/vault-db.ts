@@ -50,6 +50,11 @@ export interface Vault {
   sign(d: string, template: EventTemplate): VerifiedEvent;
   // Deletes the key (after a removal or a claim).
   forget(d: string): void;
+  // Every calendar key's d and public key, by d.
+  keys(): Array<{ d: string; pubkey: string }>;
+  // Deletes every calendar key, overwriting what they took in the file, and
+  // returns how many there were (spec/indexer-rules.md § 8).
+  destroyKeys(): number;
   saveConnection(d: string, owner: string, connection: SignerConnection): void;
   connection(d: string): (SignerConnection & { owner: string }) | null;
   forgetConnection(d: string): void;
@@ -111,6 +116,15 @@ export function openVault(path: string, secret: Uint8Array): Vault {
     pubkeyFor: (d) => select.get(d)?.pubkey ?? null,
     sign: (d, template) => withKey(d, (sk) => finalizeEvent(template, sk)),
     forget: (d) => void remove.run(d),
+    keys: () => db.prepare<[], { d: string; pubkey: string }>('SELECT d, pubkey FROM calendar_keys ORDER BY d').all(),
+    destroyKeys() {
+      db.pragma('secure_delete = ON');
+      const n = db.prepare('DELETE FROM calendar_keys').run().changes;
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      db.exec('VACUUM');
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      return n;
+    },
     saveConnection(d, owner, connection) {
       const nonce = new Uint8Array(randomBytes(24));
       const plain = new TextEncoder().encode(JSON.stringify(connection));

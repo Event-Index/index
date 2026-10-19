@@ -198,6 +198,7 @@ export function directoryStore(index: IndexDb) {
       return db.prepare<string[], Row>(`SELECT * FROM directory WHERE ${where.join(' AND ')} ORDER BY name, d LIMIT ${limit}`).all(...params).map((r) => toEntry(r)!);
     },
     setKey: (d: string, pubkey: string) => void db.prepare('UPDATE directory SET pubkey = ? WHERE d = ?').run(pubkey, d),
+    clearKey: (d: string) => void db.prepare('UPDATE directory SET pubkey = NULL WHERE d = ?').run(d),
     setOwnership: (d: string, o: Ownership) => void db.prepare('UPDATE directory SET mode = ?, owner = ?, claimed_at = ?, native_calendar = ? WHERE d = ?')
       .run(o.mode, o.owner, o.claimedAt, o.nativeCalendar, d),
     // An organizer's own settings: where the calendar's events are.

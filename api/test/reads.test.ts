@@ -240,3 +240,16 @@ test('unknown paths and methods', async () => {
   assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
   assert.match(preflight.headers.get('access-control-allow-methods')!, /POST/);
 });
+
+test('once the calendar keys are retired, a mirrored calendar names no key of its own, on the API or its page', async () => {
+  const name = local('meetup:pythonsd');
+  h.dir.setFact('calendar_keys_retired', '1');
+  try {
+    const { body } = await json(`${API}/calendars/byslug/${name}`);
+    assert.equal(body.eventindex.nostr, null);
+    const page = await (await h.get(`/calendar/${name}`)).text();
+    assert.doesNotMatch(page, /npub1/);
+  } finally {
+    h.dir.deleteFact('calendar_keys_retired');
+  }
+});

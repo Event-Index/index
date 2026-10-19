@@ -143,3 +143,22 @@ test('what an organizer hands the index for it is sealed to the vault\'s intake 
   assert.throws(() => other.unseal(sealed));
   assert.match(vault.intakePubkey, /^[0-9a-f]{64}$/);
 });
+
+test('every calendar key is listed, then destroyed, leaving no trace of its ciphertext in the file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
+  try {
+    const path = join(dir, 'vault.db');
+    const vault = openVault(path, secret());
+    const keys = ['luma:cal-a', 'meetup:b', 'luma:cal-c'].map((d) => ({ d, pubkey: vault.createKey(d) }));
+    const ciphertexts = (vault.raw.prepare('SELECT ciphertext FROM calendar_keys').all() as Array<{ ciphertext: Buffer }>).map((r) => r.ciphertext);
+    assert.deepEqual(vault.keys(), [...keys].sort((x, y) => (x.d < y.d ? -1 : 1)));
+    assert.equal(vault.destroyKeys(), 3);
+    assert.deepEqual(vault.keys(), []);
+    assert.equal(vault.pubkeyFor('luma:cal-a'), null);
+    vault.close();
+    const bytes = Buffer.concat([readFileSync(path), ...['-wal'].map((s) => { try { return readFileSync(path + s); } catch { return Buffer.alloc(0); } })]);
+    for (const c of ciphertexts) assert.equal(bytes.indexOf(c), -1, 'a ciphertext is still in the file');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -32,6 +32,8 @@ import { discoveredStore } from '../store/discovered.ts';
 import { followed, FOLLOW_NEAR } from './follows.ts';
 import { eventItem } from '../project/items.ts';
 import { itemStore } from '../store/items.ts';
+import { retirementStore, RETIRE, RETIRED, DESTROY, DESTROYED } from '../store/retirement.ts';
+import { retirementTemplates } from '../project/retire.ts';
 import type { City } from './admin.ts';
 import { outsideRelay, readAuthor, type RelayReader } from '../native/read.ts';
 import { ingest, acceptable, type IngestSource } from '../native/ingest.ts';
@@ -280,6 +282,8 @@ export function createIndexer(deps: IndexerDeps) {
   }
 
   function follows(now: number): string[] {
+    // Once the calendar keys are retired, the index key follows no one.
+    if (dir.fact(RETIRED)) return [];
     const keys = followKeys(now);
     const cap = settings.followCap;
     if (keys.length >= cap * FOLLOW_NEAR && now - followNoticeAt >= DAY) {
@@ -527,6 +531,60 @@ export function createIndexer(deps: IndexerDeps) {
     await sendClearing(entry.d, now);
     deps.log(`outside relays: clearing ${entry.d}`);
   }
+  // The calendar keys' retirement (spec/indexer-rules.md § 8), once asked:
+  // every key signs its last profile and deletions of everything it signed,
+  // once; they go to the index's relay, the search relays, the general
+  // relays and the profile relays, again after a restart until the outside
+  // relays have taken them. Then, once asked, the keys are destroyed.
+  const retirement = retirementStore(db);
+  const RETIRED_KINDS = [31922, 31923, 31924, 10002];
+  let retirementSentHere = false;
+  async function retireKeys(now: number): Promise<void> {
+    if (!dir.fact(RETIRE)) return;
+    if (!retirement.count()) {
+      const signed: Array<{ calendarD: string; event: VerifiedEvent }> = [];
+      let deletions = 0;
+      const keys = vault.keys();
+      for (const { d, pubkey } of keys) {
+        const addresses = db.signedAddresses(pubkey, RETIRED_KINDS);
+        // Newer than everything it deletes, and than its last profile.
+        const newest = Math.max(0, ...db.signedAddresses(pubkey, [0, ...RETIRED_KINDS]).map((a) => db.lastCreatedAt(pubkey, a.kind, a.d) ?? 0));
+        const created_at = Math.max(now, newest + 1);
+        for (const template of retirementTemplates({ pubkey, localName: dir.get(d)?.localName ?? d, addresses })) {
+          signed.push({ calendarD: d, event: vault.sign(d, { ...template, created_at }) });
+          if (template.kind === 5) deletions += 1;
+        }
+      }
+      retirement.put(signed);
+      deps.log(`calendar keys: ${signed.length} retirement events signed for ${keys.length} keys (${keys.length} profiles, ${deletions} deletions)`);
+    }
+    if (!dir.fact(RETIRED)) {
+      if (!retirementSentHere) {
+        const events = retirement.all();
+        await publisher.publish(events, 'own');
+        const sets = (['search', 'general', 'profiles'] as RelaySet[]).filter((set) => relaysOf[set].length);
+        for (const set of sets) await publisher.publish(events, set);
+        retirementSentHere = true;
+        deps.log(`calendar keys: ${events.length} retirement events sent to the index's relay and queued for ${sets.join(', ')}`);
+      } else if ((publisher.pending?.() ?? 0) === 0) {
+        dir.setFact(RETIRED, String(now));
+        deps.log('calendar keys: retirement sent');
+      }
+    }
+    if (dir.fact(DESTROY) && !dir.fact(DESTROYED) && dir.fact(RETIRED)) {
+      const n = vault.destroyKeys();
+      for (const entry of dir.list({ includeRemoved: true, includeUnlisted: true })) {
+        if (!entry.pubkey) continue;
+        allowed.live.delete(entry.pubkey);
+        allowed.removed.delete(entry.pubkey);
+        dir.clearKey(entry.d);
+      }
+      writeAllowlist();
+      dir.setFact(DESTROYED, String(now));
+      deps.log(`calendar keys: ${n} destroyed; the directory names none, and the relay allows none`);
+    }
+  }
+
   async function keepClearing(now: number): Promise<void> {
     for (const { key } of dir.factsWithPrefix(CLEARING)) {
       const d = key.slice(CLEARING.length);
@@ -1419,6 +1477,11 @@ const NATIVE_BUILD_SHARE = 500;
         await keepClearing(now);
       } catch (error) {
         deps.log(`outside relays: clearing: ${(error as Error).message}`);
+      }
+      try {
+        await retireKeys(now);
+      } catch (error) {
+        deps.log(`calendar keys: retirement: ${(error as Error).message}`);
       }
       try {
         report.published += await publishItems(now);

@@ -3,6 +3,7 @@
 // key; the poll service publishes what these change.
 
 import { identify } from '../directory/id.ts';
+import { RETIRE, RETIRED, DESTROY, DESTROYED } from '../store/retirement.ts';
 import { seedFeedUrl, type Seed } from '../directory/seed.ts';
 import type { Source } from '../types.ts';
 import { encodeGeohash } from '../project/geohash.ts';
@@ -241,6 +242,23 @@ export function rejectClaim(s: AdminStores, id: number, now: number): void {
 // A nostr publisher that publishes other organizers' events under its own
 // key: its entry gets the role aggregator, and an organizer's own original of
 // one of its events becomes canonical (spec/indexer-rules.md § 15).
+// The calendar keys' retirement (spec/indexer-rules.md § 8): asked here,
+// carried out by the indexer, which holds the keys.
+export function retireCalendarKeys(s: AdminStores, now: number): string {
+  const asked = s.dir.fact(RETIRE);
+  if (asked) return `already asked at ${new Date(Number(asked) * 1000).toISOString()}`;
+  s.dir.setFact(RETIRE, String(now));
+  return 'asked: at its next tick the indexer signs every calendar key\'s last profile and deletions, then sends them';
+}
+
+// Refused until the retirement has reached every relay.
+export function destroyCalendarKeys(s: AdminStores, now: number): string {
+  if (s.dir.fact(DESTROYED)) return 'already destroyed';
+  if (!s.dir.fact(RETIRED)) return 'not yet: the retirement has not reached every relay';
+  s.dir.setFact(DESTROY, String(now));
+  return 'asked: at its next tick the indexer destroys every calendar key';
+}
+
 export function markAggregator(s: AdminStores, pubkey: string): void {
   const entry = s.dir.get(`nostr:${pubkey}`);
   if (!entry) throw new Error(`nostr:${pubkey} is not listed`);

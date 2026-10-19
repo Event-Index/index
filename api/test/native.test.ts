@@ -79,3 +79,16 @@ test('a native calendar\'s past events stay served, however long ago', async () 
   assert.ok(spring, 'listed');
   assert.equal((await h.get(`${API}/events/byid/${spring.eventindex.id}.ics`)).status, 200);
 });
+
+test('once the calendar keys are retired, NIP-05 names none of them; the index\'s own name stays', async () => {
+  const d = 'meetup:pythonsd';
+  const name = h.dir.get(d)!.localName;
+  assert.deepEqual(Object.keys((await json(`/.well-known/nostr.json?name=${name}`)).body.names), [name]);
+  h.dir.setFact('calendar_keys_retired', '1');
+  try {
+    assert.deepEqual((await json(`/.well-known/nostr.json?name=${name}`)).body, { names: {} });
+    assert.ok((await json('/.well-known/nostr.json?name=_')).body.names['_'] || !h.dir.fact('index_pubkey'));
+  } finally {
+    h.dir.deleteFact('calendar_keys_retired');
+  }
+});
