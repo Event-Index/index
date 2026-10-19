@@ -4,10 +4,9 @@
 
 import { find, setCache } from 'geo-tz/all';
 
-// Boundary cells read from disk are kept, a bounded number of them.
-const CELLS = 5000;
-const cells = new Map<string, unknown>();
-setCache({ store: { get: (key: string) => cells.get(key), set: (key: string, value: unknown) => { if (cells.size >= CELLS) cells.clear(); cells.set(key, value); } } });
+// No boundary cell is kept in memory: a cell read from disk again costs less
+// than a millisecond, and keeping those of every venue costs some 85 MB.
+setCache({ store: { get: () => undefined, set: () => {} } });
 
 // The zone at a point, or null off the map, at sea (Etc/GMT±n) or for a zone
 // this runtime does not know.
