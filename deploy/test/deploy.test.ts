@@ -92,6 +92,22 @@ test('every service runs as the service user, sandboxed', () => {
   }
 });
 
+test('every unit that runs strfry allows the open files strfry.conf asks for', () => {
+  // strfry raises its own limit to nofiles on every command, not only the
+  // relay, and stops if the unit's hard limit is lower (systemd's default is 524288).
+  const nofiles = Number(/^\s*nofiles = (\d+)$/m.exec(readFileSync(`${repo}relay/strfry.conf`, 'utf8'))![1]);
+  const units = readdirSync(`${deploy}templates/systemd`).filter((unit) => {
+    const exec = /^ExecStart=(\S+)/m.exec(read(`templates/systemd/${unit}`))?.[1] ?? '';
+    const script = exec.startsWith('${APP_DIR}/deploy/') ? read(exec.slice('${APP_DIR}/deploy/'.length)) : '';
+    return /\/usr\/local\/bin\/strfry\b/.test(`${exec}\n${script}`);
+  });
+  assert.deepEqual(units.sort(), ['eventindex-relay-export.service', 'strfry.service']);
+  for (const unit of units) {
+    const limit = /^LimitNOFILE=(\d+)$/m.exec(read(`templates/systemd/${unit}`))?.[1];
+    assert.ok(Number(limit) >= nofiles, `${unit}: LimitNOFILE=${limit ?? '(systemd default)'} is below strfry's nofiles = ${nofiles}`);
+  }
+});
+
 test('the API cannot read the secrets, and the indexer has time to finish its poll on stop', () => {
   const api = read('templates/systemd/eventindex-api.service');
   assert.match(api, /^InaccessiblePaths=\$\{ETC\}$/m);

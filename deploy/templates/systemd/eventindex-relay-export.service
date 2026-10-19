@@ -8,6 +8,8 @@ User=${SERVICE_USER}
 Group=${SERVICE_USER}
 EnvironmentFile=${ETC}/bucket.env
 ExecStart=${APP_DIR}/deploy/relay-export.sh
+# strfry export raises its limit to strfry.conf's nofiles, as the relay does.
+LimitNOFILE=1000000
 ReadWritePaths=${DATA_DIR}/exports /var/lib/strfry
 ReadOnlyPaths=${ETC}
 NoNewPrivileges=yes
