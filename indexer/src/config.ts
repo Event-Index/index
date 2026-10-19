@@ -53,6 +53,12 @@ export interface Settings {
   // goes to outside relays (or is sent again to them), until it is turned off.
   // Calendars are still read and served; keys are never deleted meanwhile.
   calendarKeysPaused: boolean;
+  // Off unless set: the index key publishes an item of the Events list per
+  // upcoming event of each mirrored calendar (spec/event-items.md), and the
+  // directory names no calendar key. `eventsHeader` is that list's header,
+  // 39998:<maintainer's key>:events.
+  eventItems: boolean;
+  eventsHeader: string | null;
   // Off unless set: read every public NIP-52 event by kind (native/ingest.ts)
   // from these relays, and from these search relays with their include:spam
   // extension, and list each publisher in the directory.
@@ -86,6 +92,12 @@ function count(value: string | undefined, fallback: number, name: string): numbe
 function pubkey(value: string | undefined, name: string): string | null {
   if (!value?.trim()) return null;
   if (!/^[0-9a-f]{64}$/.test(value.trim())) throw new Error(`${name}: not a hex public key: ${value}`);
+  return value.trim();
+}
+
+function eventsHeader(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  if (!/^39998:[0-9a-f]{64}:events$/.test(value.trim())) throw new Error(`EVENTINDEX_EVENTS_HEADER: not the Events list's header coordinate: ${value}`);
   return value.trim();
 }
 
@@ -128,6 +140,8 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
     hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',
     calendarKeysPaused: env['EVENTINDEX_CALENDAR_KEYS_PAUSED'] === '1',
+    eventItems: env['EVENTINDEX_EVENT_ITEMS'] === '1',
+    eventsHeader: eventsHeader(env['EVENTINDEX_EVENTS_HEADER']),
     ingestNip52: env['EVENTINDEX_INGEST_NOSTR'] === '1',
     ingestRelays: relays(env['EVENTINDEX_INGEST_RELAYS'], INGEST_RELAYS, 'EVENTINDEX_INGEST_RELAYS'),
     // The search relays unless set.

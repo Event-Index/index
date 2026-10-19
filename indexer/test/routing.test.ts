@@ -53,3 +53,10 @@ test('with outside publishing off, only the index key\'s profile and relay list 
 test('anything else goes nowhere outside', () => {
   for (const kind of [1, 7, 31925, 1111]) assert.deepEqual(setsFor(event(CAL, kind), on), []);
 });
+
+test('a deletion of a list item goes where list items go, never to the general relays', () => {
+  const deletion = event(INDEX, 5, [['e', 'f'.repeat(64)], ['a', `39999:${INDEX}:x`], ['k', '39999']]);
+  assert.deepEqual(setsFor(deletion, on), ['search', 'lists']);
+  assert.deepEqual(setsFor(deletion, { ...on, directory: false }), []);
+  assert.deepEqual(setsFor(event(CAL, 5, [['k', '31923']]), on), ['search', 'general']);
+});

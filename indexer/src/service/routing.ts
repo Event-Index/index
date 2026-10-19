@@ -68,7 +68,10 @@ export function setsFor(event: Routable, ctx: RouteContext): RelaySet[] {
       return start >= ctx.now - WINDOW_PAST ? ['search'] : [];
     }
     case 5:
-      return ctx.backfill ? [] : ['search', 'general'];
+      if (ctx.backfill) return [];
+      // A deletion of a list item goes where list items go.
+      if (event.tags.some((t) => t[0] === 'k' && t[1] === '39999')) return index && ctx.directory ? ['search', 'lists'] : [];
+      return ['search', 'general'];
     default:
       return [];
   }

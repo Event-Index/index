@@ -141,6 +141,10 @@ export function eventStore(index: IndexDb) {
     calendarsWithTag: (tag: string) => db.prepare<[string], { d: string }>("SELECT DISTINCT calendar_d AS d FROM events WHERE tags LIKE ? ESCAPE '\\'")
       .all(`%${escape(JSON.stringify(tag.toLowerCase()))}%`).map((r) => r.d),
     count: () => db.prepare<[], { n: number }>('SELECT count(*) AS n FROM events').get()!.n,
+    // A calendar's occurrences that have not ended, for its event items.
+    ongoing: (calendarD: string, now: number) => db.prepare<[string, number], Record<string, unknown>>(
+      'SELECT * FROM events WHERE calendar_d = ? AND coalesce("end", start) >= ? ORDER BY start, id',
+    ).all(calendarD, now).map(of),
     // Occurrences that start in a span (both ends included), for the coverage report.
     startingBetween: (from: number, to: number) => db.prepare<[number, number], Record<string, unknown>>('SELECT * FROM events WHERE start >= ? AND start <= ? ORDER BY start, id')
       .all(from, to).map(of),

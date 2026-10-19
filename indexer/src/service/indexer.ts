@@ -2,7 +2,7 @@
 // and claims, poll the calendars that are due, keep the events table and the
 // directory on nostr up to date, and write the daily dump.
 
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import ICAL from 'ical.js';
 import { dirname } from 'node:path';
 import { finalizeEvent, getPublicKey, type VerifiedEvent } from 'nostr-tools/pure';
@@ -15,7 +15,7 @@ import { pollCalendar } from '../poller/poll.ts';
 import type { FetchResult, Validators } from '../poller/fetch.ts';
 import { cohostPlan, cohostsIn, projectable, type CohostPlan } from '../project/projector.ts';
 import { calendarProfile, calendarList, deletionFor, retiredProfile, INDEX_NAME } from '../project/profile.ts';
-import { geoOf, locationsOf, summaryOf, venueHidden, type EventTemplate } from '../project/nip52.ts';
+import { geoOf, imageOf, locationsOf, summaryOf, venueHidden, type EventTemplate } from '../project/nip52.ts';
 import { encodeGeohash } from '../project/geohash.ts';
 import { projectionHash } from '../project/hash.ts';
 import { spreadCreatedAt } from '../rules/limits.ts';
@@ -30,6 +30,9 @@ import { setsFor, type RelaySet } from './routing.ts';
 import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
 import { followed, FOLLOW_NEAR } from './follows.ts';
+import { eventItem } from '../project/items.ts';
+import { itemStore } from '../store/items.ts';
+import type { City } from './admin.ts';
 import { outsideRelay, readAuthor, type RelayReader } from '../native/read.ts';
 import { ingest, acceptable, type IngestSource } from '../native/ingest.ts';
 import { loadAggregators, PUBLIC_SECRET_KEYS, shortNpub } from '../native/publishers.ts';
@@ -103,6 +106,11 @@ export interface IndexerDeps {
   // The most events signed through a remote signer in one poll.
   signBatch?: number;
   maxPollsPerTick?: number;
+  // The seeded cities (seeds/cities.json), for the zone of an event item.
+  cities?: City[];
+  // Event items signed in one tick, and created_at seconds they are spread over.
+  itemsPerTick?: number;
+  itemsPerSecond?: number;
   // Aborted on shutdown: the tick stops between polls.
   signal?: AbortSignal;
 }
@@ -126,6 +134,13 @@ const DIRECTORY_KINDS = [39999];
 const BACKFILL_VERSION = '1';
 // Feeds discovery checks in one tick.
 const DISCOVERY_CHECKS_PER_TICK = 5;
+// Event items: signed at most so many a tick, created_at spread so many a
+// second; all of them looked at again this often; and one missing from its
+// calendar this long is withdrawn (a feed may drop an event for a while).
+const ITEMS_PER_TICK = 2000;
+const ITEMS_PER_SECOND = 100;
+const ITEMS_EVERY = 600;
+const ITEM_MISSING_GRACE = DAY;
 
 // No co-hosts: a native calendar's events are its organizer's own.
 const NO_PLAN: CohostPlan = { yields: new Map(), cohostsOf: new Map(), cohosted: new Map(), canonicalOf: new Map() };
@@ -413,6 +428,74 @@ export function createIndexer(deps: IndexerDeps) {
   // `e`, then its `a` and `k`), to the search, general and profile relays.
   // Nothing else of it goes there. The clearing is kept as a fact until the
   // outside relays have taken it, and sent again after a restart.
+  // Event items (spec/event-items.md): one per upcoming event of each
+  // mirrored calendar, signed by the index key, republished when it changes,
+  // withdrawn when its event leaves its calendar for a day or its calendar is
+  // no longer mirrored, and left to expire once its event has ended.
+  const items = itemStore(db);
+  const cities = deps.cities ?? (JSON.parse(readFileSync(new URL('../../../seeds/cities.json', import.meta.url), 'utf8')) as { cities: City[] }).cities;
+  let itemsDueAt = 0;
+  const mirrored = (e: StoredEntry) => e.role === 'calendar' && e.source !== 'nostr' && e.mode === 'mirrored' && !e.removed && !dir.doNotIndex(e.d);
+  function recordImage(recordId: string, uid: string): string | null {
+    const stored = db.record(recordId);
+    if (!stored) return null;
+    try {
+      const master = recordFromText(stored.ics, uid, recordId).master;
+      return master ? imageOf(master) : null;
+    } catch {
+      return null;
+    }
+  }
+  async function publishItems(now: number): Promise<number> {
+    if (!settings.eventItems || !settings.eventsHeader || now < itemsDueAt) return 0;
+    const header = settings.eventsHeader;
+    const listed = dir.list().filter(mirrored);
+    const wanted = new Map<string, { template: EventTemplate; d: string; start: number; ends: number; expires: number; calendarD: string }>();
+    for (const entry of listed) {
+      const calendar = { d: entry.d, name: entry.name, source: entry.source, feedUrl: entry.feedUrl, location: entry.location, owner: entry.owner };
+      const images = adapterFor(entry.source).policy.images;
+      for (const row of events.ongoing(entry.d, now)) {
+        const built = eventItem(row, { header, indexPubkey, calendar, cities, image: images ? recordImage(row.recordId, row.uid) : null });
+        if ('skip' in built) continue;
+        wanted.set(row.id, { template: built.template, d: row.id, start: row.start, ends: built.ends, expires: built.expires, calendarD: entry.d });
+      }
+    }
+    const kept = new Set(listed.map((e) => e.d));
+    const withdrawals: Array<{ template: EventTemplate; d: string; start: number; always: true }> = [];
+    for (const live of items.all()) {
+      if (wanted.has(live.d)) {
+        if (live.missingSince !== null) items.present(live.d);
+        continue;
+      }
+      // Relays drop it once it expires (NIP-40); an ended event is left to it.
+      if (live.expiresAt < now) items.forget(live.d);
+      if (live.endsAt < now) continue;
+      if (kept.has(live.calendarD)) {
+        items.missing(live.d, now);
+        if (now - (live.missingSince ?? now) < ITEM_MISSING_GRACE) continue;
+      }
+      withdrawals.push({
+        template: deletionFor({ versions: db.versions(indexPubkey, 39999, live.d), coordinate: `39999:${indexPubkey}:${live.d}`, kind: 39999 }),
+        d: live.d, start: now, always: true,
+      });
+    }
+    const perTick = deps.itemsPerTick ?? ITEMS_PER_TICK;
+    const due = [...wanted.values()].filter((w) => db.shouldPublish(indexPubkey, 39999, w.d, projectionHash(w.template)));
+    const batch = due.slice(0, perTick);
+    const sign = (t: EventTemplate & { created_at: number }) => finalizeEvent(t, deps.indexKey);
+    const published = await publishAs(indexPubkey, sign, [...withdrawals, ...batch.map(({ template, d, start }) => ({ template, d, start }))], now, deps.itemsPerSecond ?? ITEMS_PER_SECOND);
+    for (const w of withdrawals) {
+      db.markWithdrawn(indexPubkey, 39999, w.d, 'deleted');
+      items.forget(w.d);
+    }
+    for (const b of batch) items.put({ d: b.d, calendarD: b.calendarD, endsAt: b.ends, expiresAt: b.expires });
+    // What was published before and has not changed is still tracked.
+    for (const w of wanted.values()) if (!items.has(w.d) && !db.shouldPublish(indexPubkey, 39999, w.d, projectionHash(w.template))) items.put({ d: w.d, calendarD: w.calendarD, endsAt: w.ends, expiresAt: w.expires });
+    if (published) deps.log(`event items: ${batch.length} published, ${withdrawals.length} withdrawn, ${due.length - batch.length} to come, ${items.count()} live`);
+    itemsDueAt = due.length > batch.length ? now : now + ITEMS_EVERY;
+    return published;
+  }
+
   // While calendar keys are paused, a calendar key signs only deletions.
   const whilePaused = <T extends { template: EventTemplate }>(items: T[]): T[] =>
     (settings.calendarKeysPaused ? items.filter((i) => i.template.kind === 5) : items);
@@ -1309,6 +1392,11 @@ const NATIVE_BUILD_SHARE = 500;
         await keepClearing(now);
       } catch (error) {
         deps.log(`outside relays: clearing: ${(error as Error).message}`);
+      }
+      try {
+        report.published += await publishItems(now);
+      } catch (error) {
+        deps.log(`event items: ${(error as Error).stack ?? error}`);
       }
       maybeDump(now);
       return report;
