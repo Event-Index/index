@@ -44,7 +44,8 @@ unit cannot see `/etc/eventindex/`: it needs no secret.
 | `/etc/eventindex/deploy.env` | configuration (from `config.example.env`) |
 | `/etc/eventindex/index-key.nsec` | the Event Index key (secret) |
 | `/etc/eventindex/bucket.env` | the bucket keys (secret) |
-| `/etc/eventindex/calendar-key.secret` | the vault's master secret (secret) |
+| `/etc/eventindex/signer.secret` | seals signer connections in `vault.db` (secret) |
+| `/etc/eventindex/calendar-key.secret` | the calendar keys' secret, until they are destroyed (secret) |
 | `/etc/eventindex/eventindex.env` | settings for the indexer and the API (rendered) |
 | `/opt/eventindex/app` | the code at `REPO_REF` |
 | `/var/lib/eventindex/index.db`, `vault.db` | the databases |
@@ -69,12 +70,13 @@ keeps the indexer from publishing anywhere but its own relay; with it set to
 
 ## Secrets
 
-Three files, none of them in the repository or the bucket:
+None of these files is in the repository or the bucket:
 
 | File | Comes from | Contents |
 |---|---|---|
 | `index-key.nsec` | the operator, by hand | one line, the Event Index key as `nsec1…` |
 | `bucket.env` | the operator, by hand | `BUCKET_ACCESS_KEY_ID=…` and `BUCKET_SECRET_ACCESS_KEY=…` |
+| `signer.secret` | `setup.sh`, on the server, whenever it is missing | 64 hex digits |
 | `calendar-key.secret` | `setup.sh first`, on the server | 64 hex digits |
 
 Place the operator's files without leaving them in shell history, for example
@@ -86,17 +88,18 @@ scp index-key.nsec bucket.env root@SERVER:/etc/eventindex/
 
 The setup then sets their owner and mode.
 
-**The calendar-key secret decrypts every calendar key in `vault.db`.** It is
-created once, on first setup, and never again. Copy it off the server as soon
-as the setup ends, and keep it in two places that are not the bucket:
+**The signer secret seals the connections to organizers' remote signers in
+`vault.db`, and the intake key derives from it.** It needs no copy: if it is
+lost, `setup.sh` makes a new one, and an organizer whose signer was connected
+connects it again; a claim sealed to the old intake key is made again.
 
-```sh
-scp root@SERVER:/etc/eventindex/calendar-key.secret .
-```
-
-A restored `vault.db` is useless without the secret it was created with, and
-`setup.sh` refuses to create a new one where a vault already exists or on a
-restore.
+**The calendar-key secret decrypts the calendar keys in `vault.db`.** It is
+created on first setup only. While the vault holds calendar keys, keep a copy
+off the server, not in the bucket; a restored `vault.db` that holds them is
+useless without it. Once they are destroyed (`eventindex-admin
+destroy-calendar-keys`, spec/indexer-rules.md § 8) the indexer no longer reads
+it: delete it from the server with `shred -u`, then delete every copy. From
+then on, no backup of `vault.db` can give a calendar key back.
 
 The bucket keys should be scoped to the one bucket. Keep the bucket's
 versioning off: Litestream's retention (`BACKUP_RETENTION`) is what lets a
@@ -197,8 +200,9 @@ It never overwrites an existing database.
    ahead.
 2. **New server**: create it, clone the repository, write
    `/etc/eventindex/deploy.env` with the same bucket settings, and put the
-   secrets back: `index-key.nsec`, `bucket.env`, and the original
-   `calendar-key.secret`.
+   secrets back: `index-key.nsec`, `bucket.env`, `signer.secret` (or let the
+   setup make a new one), and, while the vault holds calendar keys, the
+   original `calendar-key.secret`.
 3. **Certificate**: copy `/etc/letsencrypt` from the old server
    (`tar -czf le.tgz /etc/letsencrypt`, copy, `tar -xzf le.tgz -C /`), so the
    new server has a certificate before DNS moves.

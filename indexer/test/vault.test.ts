@@ -162,3 +162,62 @@ test('every calendar key is listed, then destroyed, leaving no trace of its ciph
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('signer connections and the intake key come from the signer secret, calendar keys from the calendar-key secret', () => {
+  const signer = secret();
+  const calendar = secret();
+  const vault = openVault(':memory:', signer, calendar);
+  const pubkey = vault.createKey('luma:cal-x');
+  vault.saveConnection('meetup:a', 'a0'.repeat(32), CONNECTION);
+  const raw = vault.raw;
+  const row = raw.prepare('SELECT nonce, ciphertext FROM calendar_keys').get() as { nonce: Buffer; ciphertext: Buffer };
+  const sealing = new Uint8Array(hkdfSync('sha256', calendar, new Uint8Array(0), 'event-index/calendar-key/v1', 32));
+  const sk = xchacha20poly1305(sealing, new Uint8Array(row.nonce), new TextEncoder().encode('luma:cal-x')).decrypt(new Uint8Array(row.ciphertext));
+  assert.equal(getPublicKey(sk), pubkey);
+  // The same intake key whatever the calendar-key secret.
+  assert.equal(openVault(':memory:', signer, secret()).intakePubkey, vault.intakePubkey);
+});
+
+test('without the calendar-key secret the vault opens once it holds no calendar key, and refuses while it does', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
+  try {
+    const path = join(dir, 'vault.db');
+    const signer = secret();
+    const calendar = secret();
+    const vault = openVault(path, signer, calendar);
+    vault.createKey('luma:cal-x');
+    vault.close();
+    assert.throws(() => openVault(path, signer, null), /calendar-key secret/);
+    const again = openVault(path, signer, calendar);
+    again.destroyKeys();
+    again.close();
+    const without = openVault(path, signer, null);
+    assert.deepEqual(without.keys(), []);
+    assert.throws(() => without.createKey('luma:cal-y'), /retired/);
+    without.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a signer connection sealed under the calendar-key secret is sealed again under the signer secret', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
+  try {
+    const path = join(dir, 'vault.db');
+    const old = secret();
+    // As before: one secret for everything.
+    const before = openVault(path, old);
+    before.saveConnection('meetup:a', 'a0'.repeat(32), CONNECTION);
+    before.close();
+    const signer = secret();
+    const moved = openVault(path, signer, old);
+    assert.deepEqual(moved.connection('meetup:a'), { owner: 'a0'.repeat(32), ...CONNECTION });
+    moved.close();
+    // The calendar-key secret is no longer needed to open it.
+    const after = openVault(path, signer, null);
+    assert.deepEqual(after.connection('meetup:a'), { owner: 'a0'.repeat(32), ...CONNECTION });
+    after.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

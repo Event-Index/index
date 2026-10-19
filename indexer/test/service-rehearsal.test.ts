@@ -5,7 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer, connect } from 'node:net';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -96,9 +96,14 @@ test('one tick publishes the directory, the calendar key\'s events and the calen
 function serviceEnv(dataDir: string): NodeJS.ProcessEnv {
   const keyFile = join(dataDir, 'index-key.nsec');
   const secretFile = join(dataDir, 'calendar-key.secret');
+  const signerFile = join(dataDir, 'signer.secret');
   writeFileSync(keyFile, `${nsecEncode(generateSecretKey())}\n`);
   writeFileSync(secretFile, `${randomBytes(32).toString('hex')}\n`);
-  return { ...process.env, EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: keyFile, EVENTINDEX_CALENDAR_SECRET_FILE: secretFile, EVENTINDEX_RELAY_URL: url };
+  writeFileSync(signerFile, `${randomBytes(32).toString('hex')}\n`);
+  return {
+    ...process.env, EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: keyFile, EVENTINDEX_CALENDAR_SECRET_FILE: secretFile,
+    EVENTINDEX_SIGNER_SECRET_FILE: signerFile, EVENTINDEX_RELAY_URL: url,
+  };
 }
 
 test('main.ts --once runs one tick, publishes the index key\'s events, and releases its lock', { skip }, async () => {
@@ -193,5 +198,29 @@ test('turning outside publishing on fills each set of relays with its kinds, fro
     db.close();
   } finally {
     for (const r of Object.values(relays)) { pool.close([r.url]); r.proc.kill(); }
+  }
+});
+
+test('main.ts refuses to start without the calendar-key secret while the vault holds calendar keys, and starts once it holds none', { skip }, async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'svc-'));
+  try {
+    const env = serviceEnv(dataDir);
+    const signer = Buffer.from(String(readFileSync(env['EVENTINDEX_SIGNER_SECRET_FILE']!, 'utf8')).trim(), 'hex');
+    const calendar = Buffer.from(String(readFileSync(env['EVENTINDEX_CALENDAR_SECRET_FILE']!, 'utf8')).trim(), 'hex');
+    const vault = openVault(join(dataDir, 'vault.db'), new Uint8Array(signer), new Uint8Array(calendar));
+    vault.createKey('luma:cal-x');
+    vault.close();
+    const without = { ...env, EVENTINDEX_CALENDAR_SECRET_FILE: join(dataDir, 'gone.secret'), EVENTINDEX_CALENDAR_KEYS_PAUSED: '1' };
+    const refused = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: without, encoding: 'utf8', timeout: 30_000 });
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stdout + refused.stderr, /holds 1 calendar keys, and the calendar-key secret is missing/);
+    const again = openVault(join(dataDir, 'vault.db'), new Uint8Array(signer), new Uint8Array(calendar));
+    again.destroyKeys();
+    again.close();
+    const run = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: without, encoding: 'utf8', timeout: 30_000 });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.match(run.stdout, /calendar keys paused/);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
   }
 });

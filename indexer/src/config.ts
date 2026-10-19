@@ -17,6 +17,8 @@ export interface Settings {
   relayAllowlist: string;
   indexKeyFile: string;
   calendarSecretFile: string;
+  // Seals signer connections and derives the intake key (spec/indexer-rules.md § 8).
+  signerSecretFile: string;
   // The index's own relay, as the services reach it, and as the world does.
   relayUrl: string;
   publicRelay: string;
@@ -150,6 +152,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     relayAllowlist: env['EVENTINDEX_RELAY_ALLOWLIST'] ?? join(dataDir, 'relay-allowlist.json'),
     indexKeyFile: env['EVENTINDEX_INDEX_KEY_FILE'] ?? '/etc/eventindex/index-key.nsec',
     calendarSecretFile: env['EVENTINDEX_CALENDAR_SECRET_FILE'] ?? '/etc/eventindex/calendar-key.secret',
+    signerSecretFile: env['EVENTINDEX_SIGNER_SECRET_FILE'] ?? '/etc/eventindex/signer.secret',
     relayUrl,
     publicRelay: env['EVENTINDEX_PUBLIC_RELAY'] ?? 'wss://relay.eventindex.space',
     apiPort: Number(env['EVENTINDEX_API_PORT'] ?? 8080),

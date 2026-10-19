@@ -7,7 +7,8 @@
 #   sudo deploy/restore.sh --skip-relay             the databases only
 #
 # Refuses to overwrite: move an existing index.db or vault.db aside first.
-# The calendar-key secret must be the one vault.db was created with.
+# A vault.db that still holds calendar keys needs the calendar-key secret it
+# was created with; signer connections need the signer secret.
 
 . "$(dirname "$0")/lib.sh"
 require_root "$@"
@@ -23,7 +24,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -s "$ETC/calendar-key.secret" ] || die "$ETC/calendar-key.secret is missing: put back the original secret first"
+[ -s "$ETC/signer.secret" ] || warn "$ETC/signer.secret is missing: setup.sh makes a new one, and organizers with a connected signer connect it again"
 [ -s "$ETC/bucket.env" ] || die "$ETC/bucket.env is missing"
 set -a
 . "$ETC/bucket.env"

@@ -152,12 +152,14 @@ and is backed up as such.
 - `vault.db` also keeps, for a calendar the index publishes as its organizer,
   the connection to their remote signer (§ 13): the index's own client key
   for it and the signer's key, relays and secret, encrypted the same way under
-  a key of its own (info `event-index/signer-connection/v1`), with the entry's
-  `d` and the organizer's key as associated data. It is deleted when the
+  a key derived from the **signer secret** (info
+  `event-index/signer-connection/v1`), with the entry's `d` and the
+  organizer's key as associated data. A connection sealed under the
+  calendar-key secret is sealed again under the signer secret. It is deleted when the
   organizer disconnects the signer, or the calendar is removed.
 - Organizers seal what they hand the index for the poll service alone (a
   signer's address) with NIP-44 to the **intake key**, a key derived from the
-  calendar-key secret (info `event-index/intake/v1`) whose public key the poll
+  signer secret (info `event-index/intake/v1`) whose public key the poll
   service writes to `index.db`; the HTTP service seals, and only the poll
   service can open it.
 - A key leaves the vault only as a signature; it is never handed to anyone.
@@ -167,7 +169,9 @@ and is backed up as such.
 - With event items ([`event-items.md`](event-items.md)) the index lists events
   under its own key, and the directory names no calendar key; calendar keys
   sign nothing new while paused.
-- The index key and the calendar-key secret are separate secrets.
+- The index key, the signer secret and the calendar-key secret are separate
+  secrets. The calendar-key secret is needed only while `vault.db` holds
+  calendar keys; the poll service refuses to start without it until then.
 
 ### Retirement
 
@@ -188,8 +192,8 @@ in this order; each step waits for the one before it:
    one, NIP-05 and the API name no calendar key, and no page shows one.
 4. **Destroyed.** On the operator's request, every key is deleted from
    `vault.db` with its space overwritten, the directory names none, and the
-   relay accepts none. Backups of `vault.db` are useless once the calendar-key
-   secret is gone.
+   relay accepts none. The calendar-key secret is then deleted; backups of
+   `vault.db` are useless once its last copy is gone.
 
 ## 9. Seeding
 

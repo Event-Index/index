@@ -173,3 +173,14 @@ test('the index relay takes events of 512 KB, so its own limit is never the tigh
   assert.ok(value('maxWebsocketPayloadSize') > value('maxEventSize'), 'a frame holds the largest event and its envelope');
   assert.ok(value('maxNumTags') >= 2000);
 });
+
+test('the signer secret is made on any setup when missing, and the calendar-key secret is not required once retired', () => {
+  const secrets = read('steps/secrets.sh');
+  const signer = /signer="\$ETC\/signer\.secret"\nif \[ ! -s "\$signer" \]; then\n([\s\S]*?)\nfi/.exec(secrets);
+  assert.ok(signer, 'secrets.sh makes signer.secret');
+  assert.doesNotMatch(signer[1]!, /mode|first|die/, 'on any setup, without condition');
+  assert.match(signer[1]!, /openssl rand -hex 32 >"\$signer"/);
+  // A missing calendar-key secret stops only a first setup over an existing vault, never later setups.
+  assert.doesNotMatch(secrets, /secret is missing\. On a restore/);
+  assert.doesNotMatch(read('restore.sh'), /die "\$ETC\/calendar-key\.secret is missing/);
+});

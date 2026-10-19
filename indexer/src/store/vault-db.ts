@@ -2,11 +2,13 @@
 // XChaCha20-Poly1305 under a key derived (HKDF-SHA256) from the calendar-key
 // secret. The entry's `d` is the associated data, so a ciphertext copied to
 // another row does not decrypt. The file is never dumped; keys leave it only
-// as a signature.
+// as a signature. Once the calendar keys are destroyed, the calendar-key
+// secret is no longer needed (spec/indexer-rules.md § 8).
 //
 // It also keeps, for a calendar its organizer has the index publish as them,
 // the connection to their remote signer (NIP-46), sealed the same way under a
-// key of its own; and it opens what organizers seal to its intake key.
+// key derived from the signer secret; and it opens what organizers seal to its
+// intake key, derived from the signer secret too.
 
 import Database from 'better-sqlite3';
 import { hkdfSync, randomBytes } from 'node:crypto';
@@ -64,23 +66,35 @@ export interface Vault {
   close(): void;
 }
 
-export function openVault(path: string, secret: Uint8Array): Vault {
-  if (secret.length !== 32) throw new Error('the calendar-key secret must be 32 bytes');
-  const key = new Uint8Array(hkdfSync('sha256', secret, new Uint8Array(0), INFO, 32));
-  const connectionKey = new Uint8Array(hkdfSync('sha256', secret, new Uint8Array(0), CONNECTION_INFO, 32));
-  const intakeSecret = new Uint8Array(hkdfSync('sha256', secret, new Uint8Array(0), INTAKE_INFO, 32));
+const derive = (secret: Uint8Array, info: string) => new Uint8Array(hkdfSync('sha256', secret, new Uint8Array(0), info, 32));
+
+// `calendarSecret`: the calendar-key secret, the signer secret when left out,
+// or null once the calendar keys are destroyed.
+export function openVault(path: string, signerSecret: Uint8Array, calendarSecret: Uint8Array | null = signerSecret): Vault {
+  if (signerSecret.length !== 32) throw new Error('the signer secret must be 32 bytes');
+  if (calendarSecret && calendarSecret.length !== 32) throw new Error('the calendar-key secret must be 32 bytes');
+  const key = calendarSecret ? derive(calendarSecret, INFO) : null;
+  const connectionKey = derive(signerSecret, CONNECTION_INFO);
+  const intakeSecret = derive(signerSecret, INTAKE_INFO);
   const db = new Database(path);
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
+  const held = db.prepare<[], { n: number }>('SELECT count(*) AS n FROM calendar_keys').get()!.n;
+  if (!key && held) {
+    db.close();
+    throw new Error(`vault.db holds ${held} calendar keys, and the calendar-key secret is missing`);
+  }
 
   const select = db.prepare<[string], { pubkey: string; nonce: Buffer; ciphertext: Buffer }>('SELECT pubkey, nonce, ciphertext FROM calendar_keys WHERE d = ?');
   const insert = db.prepare('INSERT INTO calendar_keys (d, pubkey, nonce, ciphertext, created_at) VALUES (?, ?, ?, ?, ?)');
   const remove = db.prepare('DELETE FROM calendar_keys WHERE d = ?');
   const aad = (d: string) => new TextEncoder().encode(d);
 
+  const RETIRED = 'calendar keys are retired: there is no calendar-key secret';
   const withKey = <T>(d: string, use: (sk: Uint8Array) => T): T => {
     const row = select.get(d);
     if (!row) throw new Error(`no key for ${d}`);
+    if (!key) throw new Error(RETIRED);
     const sk = xchacha20poly1305(key, new Uint8Array(row.nonce), aad(d)).decrypt(new Uint8Array(row.ciphertext));
     try {
       if (getPublicKey(sk) !== row.pubkey) throw new Error(`key mismatch for ${d}`);
@@ -93,6 +107,7 @@ export function openVault(path: string, secret: Uint8Array): Vault {
   const create = db.transaction((d: string): string => {
     const existing = select.get(d);
     if (existing) return existing.pubkey;
+    if (!key) throw new Error(RETIRED);
     const sk = generateSecretKey();
     const pubkey = getPublicKey(sk);
     const nonce = new Uint8Array(randomBytes(24));
@@ -108,6 +123,29 @@ export function openVault(path: string, secret: Uint8Array): Vault {
   // The owner is sealed in with the connection, so a row cannot be given to
   // another owner either.
   const connectionAad = (d: string, owner: string) => new TextEncoder().encode(`${d}\u0000${owner}`);
+
+  // A connection sealed under the calendar-key secret, as before the signer
+  // secret, is sealed again under the signer secret.
+  if (calendarSecret && Buffer.compare(Buffer.from(calendarSecret), Buffer.from(signerSecret)) !== 0) {
+    const oldKey = derive(calendarSecret, CONNECTION_INFO);
+    const rows = db.prepare<[], { d: string; owner: string; nonce: Buffer; ciphertext: Buffer; created_at: number }>('SELECT * FROM signer_connections').all();
+    for (const row of rows) {
+      const open = (k: Uint8Array) => {
+        try {
+          return xchacha20poly1305(k, new Uint8Array(row.nonce), connectionAad(row.d, row.owner)).decrypt(new Uint8Array(row.ciphertext));
+        } catch {
+          return null;
+        }
+      };
+      if (open(connectionKey)) continue;
+      const plain = open(oldKey);
+      if (!plain) continue;
+      const nonce = new Uint8Array(randomBytes(24));
+      const ciphertext = xchacha20poly1305(connectionKey, nonce, connectionAad(row.d, row.owner)).encrypt(plain);
+      plain.fill(0);
+      upsertConnection.run(row.d, row.owner, Buffer.from(nonce), Buffer.from(ciphertext), row.created_at);
+    }
+  }
 
   return {
     raw: db,

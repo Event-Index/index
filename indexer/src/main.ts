@@ -5,7 +5,7 @@
 //
 // Settings come from the environment (deploy/templates/eventindex.env).
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { useSafeWebSockets } from './service/websocket.ts';
 import { decode, npubEncode } from 'nostr-tools/nip19';
 import { getPublicKey } from 'nostr-tools/pure';
@@ -48,7 +48,9 @@ async function main(): Promise<void> {
   mkdirSync(settings.dataDir, { recursive: true });
   const lock = acquireLock(settings.lockFile);
   const db = openIndexDb(settings.indexDb);
-  const vault = openVault(settings.vaultDb, readSecret(settings.calendarSecretFile));
+  // The calendar-key secret only while calendar keys remain in the vault; it
+  // refuses to open without it until then.
+  const vault = openVault(settings.vaultDb, readSecret(settings.signerSecretFile), existsSync(settings.calendarSecretFile) ? readSecret(settings.calendarSecretFile) : null);
   const indexKey = readIndexKey(settings.indexKeyFile);
   const dir = directoryStore(db);
   const publisher = relayPublisher(settings, log, { pauses: relayPauses(dir) });
