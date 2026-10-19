@@ -121,6 +121,19 @@ test('a claim records the organizer\'s key and mode, and gives a token to place 
   assert.deepEqual([claim.d, claim.pubkey, claim.kind, claim.mode, claim.status, claim.signer], ['meetup:pythonsd', organizer, 'claim', 'own', 'pending', null]);
 });
 
+test('a claim to verify and link a key takes no signer, even from a key that already publishes a calendar', async () => {
+  const name = local('luma:cal-BvuRd9eaZnDGBwy');
+  h.clock.now += 1;
+  const claimed = await signed(`${API}/calendars/${name}/claim`, { mode: 'link' });
+  assert.equal(claimed.status, 202, JSON.stringify(claimed.body));
+  const claim = h.queues.claim(claimed.body.claim)!;
+  assert.deepEqual([claim.mode, claim.signer], ['link', null]);
+  h.clock.now += 1;
+  const wrong = await signed(`${API}/calendars/${name}/claim`, { mode: 'take' });
+  assert.equal(wrong.status, 400);
+  assert.match(wrong.body.message, /"link"/);
+});
+
 test('a proof is used once', async () => {
   const path = `${API}/calendars/${local('meetup:pythonsd')}/claim`;
   const text = JSON.stringify({ mode: 'own' });

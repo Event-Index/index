@@ -46,6 +46,8 @@ test('the claim page signs in with the organizer\'s key and offers both ways to 
   assert.match(html, /<h1>Claim San Diego Python Users Group<\/h1>/);
   assert.match(html, new RegExp(`<form[^>]+data-claim="/api/1.0/calendars/${name}/claim"`));
   assert.match(html, /<button type="button" data-sign-in>Sign in with your nostr key<\/button>/);
+  assert.match(html, /<input type="radio" name="mode" value="link" checked>/, 'naming the organizer comes first');
+  assert.match(html, /never publishes as you/);
   assert.match(html, /<input type="radio" name="mode" value="own"/);
   assert.match(html, /<input type="radio" name="mode" value="delegated"/);
   assert.match(html, /name="bunker"[^>]*placeholder="bunker:\/\/…"/);

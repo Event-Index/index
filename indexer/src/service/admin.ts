@@ -227,7 +227,8 @@ export function approveClaim(s: AdminStores, id: number, now: number): void {
   if (!claim.verifiedAt) throw new Error(`claim ${id}: its organizer has not shown control of the calendar yet`);
   const entry = s.dir.get(claim.d);
   if (!entry || entry.removed || entry.mode !== 'mirrored') throw new Error(`claim ${id}: ${claim.d} is no longer a mirrored calendar`);
-  const clash = ownershipClash(s.dir.byOwner(claim.pubkey), claim.d, claim.mode ?? 'own');
+  // Naming a key publishes nothing as it, so it clashes with nothing.
+  const clash = claim.mode === 'link' ? null : ownershipClash(s.dir.byOwner(claim.pubkey), claim.d, claim.mode ?? 'own');
   if (clash) throw new Error(`claim ${id}: the key already publishes ${clash.d}, listed here`);
   s.queues.resolveClaim(id, 'approved', now);
 }

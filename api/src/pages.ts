@@ -552,7 +552,8 @@ ${SIGN_IN}
 <form class="box" data-claim="${api}/claim" data-after-sign-in hidden>
 <fieldset>
 <legend>How should the calendar be published?</legend>
-<label class="choice"><input type="radio" name="mode" value="own" checked><span><strong>I publish it myself.</strong> You post its events from your own nostr app. The index stops reading the feed and reads your events instead. Its key's upcoming events are withdrawn, kept as cancelled where people have answered them.</span></label>
+<label class="choice"><input type="radio" name="mode" value="link" checked><span><strong>Name me as its organizer.</strong> You keep using ${where}, and the index keeps listing the calendar's events from it, naming your key as their organizer's. It never publishes as you.</span></label>
+<label class="choice"><input type="radio" name="mode" value="own"><span><strong>I publish it myself.</strong> You post its events from your own nostr app. The index stops reading the feed and reads your events instead; the events it listed from the feed are withdrawn.</span></label>
 <label class="choice"><input type="radio" name="mode" value="delegated"><span><strong>Publish it for me, as me.</strong> You keep using ${where}; the index keeps reading the feed and publishes each event as you, through a remote signer you connect (NIP-46). It asks only for ${KINDS}, and you can disconnect it at any time.</span></label>
 </fieldset>
 <div class="field" data-when="delegated"><label for="bunker">Your signer's connection</label><input id="bunker" name="bunker" placeholder="bunker://…" autocomplete="off"></div>

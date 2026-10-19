@@ -60,7 +60,9 @@ export type ClaimStatus = 'pending' | 'approved' | 'rejected' | 'done' | 'failed
 export type ClaimKind = 'claim' | 'connect' | 'disconnect';
 // `own`: the organizer publishes from their own key; `delegated`: the index
 // publishes as them, through their signer.
-export type ClaimMode = 'own' | 'delegated';
+// own: the organizer publishes it; delegated: the index publishes as them;
+// link: the index keeps mirroring it and names their key as its organizer's.
+export type ClaimMode = 'own' | 'delegated' | 'link';
 
 export interface Claim {
   id: number;

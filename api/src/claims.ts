@@ -28,7 +28,7 @@ export interface ClaimDeps extends WriteDeps {
 const fail = (status: number, error: string, message: string, extra: Record<string, unknown> = {}): Outcome =>
   ({ status, body: { error, message, ...extra } });
 
-const MODES = new Set<ClaimMode>(['own', 'delegated']);
+const MODES = new Set<ClaimMode>(['own', 'delegated', 'link']);
 const OPEN_CLAIMS_PER_CALENDAR = 10;
 
 function usualRelays(settings: Settings): string[] {
@@ -114,8 +114,9 @@ export function requestClaim(deps: ClaimDeps, entry: StoredEntry | null, pubkey:
   const calendar = entry!;
   if (calendar.mode !== 'mirrored') return fail(409, 'already-claimed', 'This calendar is already published by its organizer.');
   const mode = body['mode'] as ClaimMode;
-  if (!MODES.has(mode)) return fail(400, 'invalid-mode', 'mode is "own" (you publish yourself) or "delegated" (the index publishes as you).');
-  const clash = ownershipClash(deps.dir.byOwner(pubkey), calendar.d, mode);
+  if (!MODES.has(mode)) return fail(400, 'invalid-mode', 'mode is "own" (you publish yourself), "delegated" (the index publishes as you) or "link" (the index names your key as the organizer\'s).');
+  // Naming a key publishes nothing as it, so it clashes with nothing.
+  const clash = mode === 'link' ? null : ownershipClash(deps.dir.byOwner(pubkey), calendar.d, mode);
   if (clash) {
     return fail(409, 'already-owner', 'This key already publishes a calendar listed here; the index reads all of its events as that calendar\'s.', { d: clash.d, local_name: clash.localName });
   }

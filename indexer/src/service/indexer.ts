@@ -435,6 +435,8 @@ export function createIndexer(deps: IndexerDeps) {
   const items = itemStore(db);
   const cities = deps.cities ?? (JSON.parse(readFileSync(new URL('../../../seeds/cities.json', import.meta.url), 'utf8')) as { cities: City[] }).cities;
   let itemsDueAt = 0;
+  // A calendar removed or claimed has its items looked at in the same tick.
+  const itemsSoon = () => { itemsDueAt = 0; };
   const mirrored = (e: StoredEntry) => e.role === 'calendar' && e.source !== 'nostr' && e.mode === 'mirrored' && !e.removed && !dir.doNotIndex(e.d);
   function recordImage(recordId: string, uid: string): string | null {
     const stored = db.record(recordId);
@@ -998,6 +1000,15 @@ const NATIVE_BUILD_SHARE = 500;
     return connection;
   }
 
+  // "Verify and link": the index keeps mirroring the calendar and names the
+  // organizer's key, on its entry and on each of its event items.
+  async function claimLink(claim: Claim, entry: StoredEntry, now: number): Promise<Outcome> {
+    dir.setOwnership(entry.d, { mode: 'mirrored', owner: claim.pubkey, claimedAt: now, nativeCalendar: null });
+    itemsSoon();
+    deps.log(`${entry.d}: its organizer's key is named, ${claim.pubkey.slice(0, 12)}…`);
+    return 'done';
+  }
+
   // "I publish myself": the index reads the organizer's own events.
   async function claimOwn(claim: Claim, entry: StoredEntry, now: number): Promise<Outcome> {
     if (!deps.reader) return { failed: 'the index cannot read relays' };
@@ -1015,7 +1026,9 @@ const NATIVE_BUILD_SHARE = 500;
       const copy = last ? ownCopy(last, read.events) : null;
       if (copy) matched.set(p.d, copy);
     }
-    await retireKey(entry, owner, now, {
+    // With event items no calendar key is retired here: its events stay until
+    // every key retires together.
+    if (!settings.eventItems) await retireKey(entry, owner, now, {
       ownerCalendar,
       ownerRelay,
       copyOf: (_template, _kind, d) => {
@@ -1024,6 +1037,7 @@ const NATIVE_BUILD_SHARE = 500;
       },
     });
     dir.setOwnership(entry.d, { mode: 'own', owner, claimedAt: now, nativeCalendar: ownerCalendar });
+    itemsSoon();
     feeds.delete(entry.d);
     for (const [oldD, copy] of matched) pointRecord(entry, oldD, publicEventId(entry.d, nostrD(nativeUid(copy.event))), now);
     applyOwnRead(dir.get(entry.d)!, read, now);
@@ -1041,12 +1055,13 @@ const NATIVE_BUILD_SHARE = 500;
       if (read.ok) dir.setOwnerRelays(entry.d, read.writeRelays);
     }
     const home = homeOf(dir.get(entry.d)!);
-    await retireKey(entry, owner, now, {
+    if (!settings.eventItems) await retireKey(entry, owner, now, {
       ownerCalendar: `31924:${owner}:${entry.d}`,
       ownerRelay: home.hint,
       copyOf: (_template, kind, d) => `${kind}:${owner}:${d}`,
     });
     dir.setOwnership(entry.d, { mode: 'delegated', owner, claimedAt: now, nativeCalendar: `31924:${owner}:${entry.d}` });
+    itemsSoon();
     rehost();
     // Its events go out as the organizer's at this tick's poll.
     pollAgain(entry.d);
@@ -1058,6 +1073,7 @@ const NATIVE_BUILD_SHARE = 500;
     if (!entry || entry.removed || entry.role !== 'calendar') return { failed: 'the calendar is no longer in the directory' };
     if (claim.kind === 'claim') {
       if (entry.mode !== 'mirrored') return { failed: 'the calendar is already published by its organizer' };
+      if (claim.mode === 'link') return claimLink(claim, entry, now);
       if (ownershipClash(dir.byOwner(claim.pubkey), entry.d, claim.mode ?? 'own')) return { failed: 'the organizer\'s key already publishes another calendar listed here' };
       return claim.mode === 'delegated' ? claimDelegated(claim, entry, now) : claimOwn(claim, entry, now);
     }
@@ -1230,6 +1246,7 @@ const NATIVE_BUILD_SHARE = 500;
       deps.log(`removed ${entry.d}: ${upcoming.length} upcoming events deleted, calendar key deleted`);
     }
     dir.retire(entry.d, REMOVED, now);
+    itemsSoon();
     if (entry.mode === 'delegated') rehost();
     events.removeCalendar(entry.d);
     feeds.delete(entry.d);

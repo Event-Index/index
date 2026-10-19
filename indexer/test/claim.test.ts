@@ -544,3 +544,53 @@ test('"publish for me, as me" while calendar keys are paused: the organizer\'s s
   h.close();
 });
 
+
+const ITEMS_HEADER = `39998:${'ab'.repeat(32)}:events`;
+const isItem = (e: VerifiedEvent) => e.kind === 39999 && e.tags.some((t) => t[0] === 'z' && t[1] === ITEMS_HEADER);
+
+test('verify and link: the organizer\'s key is named on the calendar and its items, which the index keeps mirroring', async () => {
+  const organizer = getPublicKey(generateSecretKey());
+  const h = claimHarness();
+  h.settings.eventItems = true;
+  h.settings.eventsHeader = ITEMS_HEADER;
+  await h.tickAt(NOW);
+  const key = h.dir.get(D)!.pubkey!;
+  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'link', signer: null, at: NOW });
+  h.approve(claim);
+  const before = h.sent.length;
+  await h.tickAt(NOW + 60);
+  assert.equal(h.queues.claim(claim.id)!.status, 'done');
+  const entry = h.dir.get(D)!;
+  assert.deepEqual([entry.mode, entry.owner], ['mirrored', organizer]);
+  assert.equal(h.vault.pubkeyFor(D), key, 'no calendar key is retired');
+  assert.ok(!h.by(key, before).some((x) => x.event.kind === 5 || (x.event.kind === 0 && /now publishes as/.test(x.event.content))));
+  const items = h.by(h.indexPubkey, before).filter((x) => x.audience === 'own' && isItem(x.event)).map((x) => x.event);
+  assert.ok(items.length > 0 && items.every((e) => tag(e, 'p') === organizer), 'its items name the organizer');
+  const listed = h.by(h.indexPubkey, before).filter((x) => x.event.kind === 39999 && !isItem(x.event) && tag(x.event, 'd') === D).at(-1)!.event;
+  assert.deepEqual(listed.tags.filter((t) => t[0] === 'p'), [['p', organizer]]);
+  h.close();
+});
+
+test('"I publish myself" with event items on: no calendar key is retired, and the calendar\'s items are withdrawn', async () => {
+  const organizerKey = generateSecretKey();
+  const organizer = getPublicKey(organizerKey);
+  const own = finalizeEvent({ kind: 31923, tags: [['d', 'sdpy-nov'], ['title', 'SDPy Monthly Meetup'], ['start', '1792720800']], content: '', created_at: NOW }, organizerKey);
+  const h = claimHarness({ held: { [OWN]: [finalizeEvent({ kind: 10002, tags: [['r', HOME]], content: '', created_at: NOW }, organizerKey)], [HOME]: [own] } });
+  h.settings.eventItems = true;
+  h.settings.eventsHeader = ITEMS_HEADER;
+  await h.tickAt(NOW);
+  const key = h.dir.get(D)!.pubkey!;
+  const items = h.by(h.indexPubkey).filter((x) => x.audience === 'own' && isItem(x.event)).map((x) => tag(x.event, 'd')!);
+  assert.ok(items.length > 0);
+  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'own', signer: null, at: NOW });
+  h.approve(claim);
+  const before = h.sent.length;
+  await h.tickAt(NOW + 60);
+  assert.equal(h.queues.claim(claim.id)!.status, 'done');
+  assert.equal(h.dir.get(D)!.mode, 'own');
+  assert.equal(h.vault.pubkeyFor(D), key, 'the key stays, for its own retirement later');
+  assert.ok(!h.by(key, before).some((x) => x.event.kind === 0 || x.event.kind === 5 || x.event.kind === 31924), 'the key signs no last events');
+  const withdrawn = h.by(h.indexPubkey, before).filter((x) => x.audience === 'own' && x.event.kind === 5).map((x) => tag(x.event, 'a')!.split(':')[2]);
+  assert.deepEqual(withdrawn.sort(), items.sort());
+  h.close();
+});
