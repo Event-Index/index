@@ -220,3 +220,30 @@ test('subcomponents keep no address and no index property, and X- properties kee
   assert.equal(event.getFirstPropertyValue('x-flag'), 'kept');
   assert.equal(event.getFirstSubcomponent('participant')!.getFirstPropertyValue('description'), 'Keynote');
 });
+
+// The zone of a venue
+const LUMA = 'https://api.luma.com/ics/get?entity=calendar&id=cal-TestZone00001';
+function lumaFeed(vevent: string[]): NormalizedFeed {
+  const text = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'X-WR-CALNAME:Dev Days', 'BEGIN:VEVENT', 'DTSTAMP:20261015T000000Z', ...vevent, 'END:VEVENT', 'END:VCALENDAR'].join('\n');
+  const id = identify(LUMA);
+  return normalizeFeed(text, { ...id, calendarAddress: `39999:${'ab'.repeat(32)}:${id.d}` });
+}
+
+test('an event in UTC at a known venue records the venue\'s zone; a hidden venue\'s too, and nothing else of its place', () => {
+  const shown = lumaFeed(['UID:evt-a@events.lu.ma', 'DTSTART:20261021T163000Z', 'SUMMARY:Dev Days | Stockholm', 'LOCATION:Kungsgatan 1, Stockholm', 'GEO:59.3293;18.0686']);
+  assert.equal(shown.records[0]!.master!.getFirstPropertyValue('x-eventindex-tzid'), 'Europe/Stockholm');
+  const hidden = lumaFeed(['UID:evt-b@events.lu.ma', 'DTSTART:20261021T030000Z', 'SUMMARY:Dev Days | Calamba, Philippines', 'LOCATION:https://luma.com/event/evt-AbCdEf123',
+    'DESCRIPTION:Get up-to-date information at: https://luma.com/x\\n\\nAddress:\\nCheck event page for more details.', 'GEO:14.2117;121.1653']);
+  const master = hidden.records[0]!.master!;
+  assert.equal(master.getFirstPropertyValue('x-eventindex-tzid'), 'Asia/Manila');
+  assert.equal(master.getFirstPropertyValue('x-eventindex-venue'), 'hidden');
+  assert.ok(!master.hasProperty('geo') && !master.hasProperty('location'), 'the coordinates only named the zone');
+  assert.doesNotMatch(master.toString(), /14\.21|121\.16/);
+});
+
+test('a feed\'s own zone, or a floating time, gets no zone from the venue', () => {
+  const zoned = lumaFeed(['UID:evt-c@events.lu.ma', 'DTSTART;TZID=Europe/Paris:20261021T180000', 'SUMMARY:Paris', 'GEO:59.3293;18.0686']);
+  assert.equal(zoned.records[0]!.master!.getFirstPropertyValue('x-eventindex-tzid'), null);
+  const floating = lumaFeed(['UID:evt-d@events.lu.ma', 'DTSTART:20261021T180000', 'SUMMARY:Floating', 'GEO:59.3293;18.0686']);
+  assert.equal(floating.records[0]!.master!.getFirstPropertyValue('x-eventindex-tzid'), null);
+});

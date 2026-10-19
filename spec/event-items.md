@@ -40,7 +40,7 @@ Tags in this order; a tag with no value is left out. `content` is empty.
 | `title` | `SUMMARY`; prefixed `Cancelled: ` when the event is cancelled |
 | `start`, `end` | unix seconds; for an all-day event `YYYY-MM-DD`, the end the day after the last day (exclusive) |
 | `when` | when it happens, written out in its local time: `Wed 28 Oct 2026, 5:30 PM-8:00 PM EDT`; across days `Wed 16 Sep, 7:00 AM to Thu 17 Sep 2026, 6:00 PM EDT`; with no end `Wed 28 Oct 2026, 5:30 PM EDT`; all-day `Wed 28 Oct 2026, all day` or `Mon 19 Oct to Sat 24 Oct 2026`. The zone's abbreviation where one is in use, else its offset (`GMT-3`) |
-| `start_tzid` | not for an all-day event: the zone the event happens in: the feed's `TZID`, else that of the nearest seeded city within 150 km of the venue (`seeds/cities.json`), else that of the calendar's city, else `UTC` |
+| `start_tzid` | not for an all-day event: the zone the event happens in: the feed's `TZID`; for a time in UTC, the zone at the venue the record names (`X-EVENTINDEX-TZID`, [`icalendar-profile.md`](icalendar-profile.md) § 3.5), else the feed's own zone; else the zone at the venue's `g`; else that of the calendar's city; else `UTC`. The zone at a point comes from the time-zone boundaries (below); a point at sea names none |
 | `organizer` | the calendar's name |
 | `calendar` | the calendar's entry, `39999:<index key>:<calendar d>` |
 | `source` | `luma`, `meetup`, `google`, `mobilizon` or `gancio`; for any other calendar, its feed's host |
@@ -57,6 +57,10 @@ Tags in this order; a tag with no value is left out. `content` is empty.
 | `i`, `k` | the event's page as a NIP-73 identifier, kind `web` |
 | `expiration` | NIP-40: the event's end (all-day: its exclusive end date at 00:00 UTC; with no end, its start) plus 30 days |
 | `alt` | `<calendar name>: <title>` |
+
+The time-zone boundaries are those of timezone-boundary-builder, read through
+geo-tz. A zone named from them contains information from timezone-boundary-builder,
+which is made available under the Open Database License (ODbL).
 
 ## 3. Publishing
 

@@ -192,7 +192,8 @@ function rowOf(feed: NormalizedFeed, o: Occurrence, plan: CohostPlan): EventRow 
     kind: o.allDay ? 31922 : 31923,
     start: o.start,
     end: o.end,
-    tzid: o.startTzid,
+    // A UTC time is in its venue's zone, where the record names it.
+    tzid: (o.event.getFirstPropertyValue('x-eventindex-tzid') as string | null) ?? o.startTzid,
     title: String(o.event.getFirstPropertyValue('summary') ?? '').trim(),
     summary: summaryOf(o.event, adapter) || null,
     location: hidden ? null : locationsOf(o.event)[0] ?? null,

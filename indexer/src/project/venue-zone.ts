@@ -1,0 +1,24 @@
+// The time zone at a venue, from the time-zone boundaries (geo-tz, its full
+// dataset, so a place is named by its own zone: Europe/Stockholm, not the
+// zone it has shared a clock with since 1970).
+
+import { find, setCache } from 'geo-tz/all';
+
+// Boundary cells read from disk are kept, a bounded number of them.
+const CELLS = 5000;
+const cells = new Map<string, unknown>();
+setCache({ store: { get: (key: string) => cells.get(key), set: (key: string, value: unknown) => { if (cells.size >= CELLS) cells.clear(); cells.set(key, value); } } });
+
+// The zone at a point, or null off the map, at sea (Etc/GMT±n) or for a zone
+// this runtime does not know.
+export function zoneAt(lat: number, lon: number): string | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  const zone = find(lat, lon)[0];
+  if (!zone || zone.startsWith('Etc/')) return null;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return zone;
+  } catch {
+    return null;
+  }
+}

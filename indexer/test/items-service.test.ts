@@ -219,3 +219,26 @@ test('with a cap on items, no more than so many are live; those keep being updat
   assert.equal(added.length, 0);
   assert.throws(() => loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_MAX: 'many' }), /EVENTINDEX_EVENT_ITEMS_MAX/);
 });
+
+test('an event in UTC takes its venue\'s zone, a hidden venue\'s too, whose coordinates are kept nowhere', async () => {
+  const s = stores();
+  // The calendar's city is New York; this event is in Stockholm, its venue shown only to guests.
+  const hidden = readFixture(FIXTURES[0]!)
+    .replace('LOCATION:haricot vert\'s dreamworld, 119 N 1st St, Brooklyn, NY 11249, USA\nGEO:40.7155365;-73.9619548\nSEQUENCE:214250816\nSTATUS:TENTATIVE\nEND:VEVENT\nEND:VCALENDAR',
+      'LOCATION:https://luma.com/event/evt-PDzqdd9OU1nQXYz\nGEO:59.3293;18.0686\nSEQUENCE:214250816\nSTATUS:TENTATIVE\nEND:VEVENT\nEND:VCALENDAR');
+  assert.notEqual(hidden, readFixture(FIXTURES[0]!));
+  const svc = service(s, ITEMS, { texts: { [FIXTURES[0]!]: hidden } });
+  await svc.indexer.tick();
+  const row = svc.events.byCalendar(D, NOW, NOW + 400 * 86400).find((r) => r.title === 'craftyween party')!;
+  assert.equal(row.tzid, 'Europe/Stockholm');
+  assert.equal(row.g, null);
+  const item = svc.sent.find((x) => isItem(x.event) && x.audience === 'own' && tag(x.event, 'd') === row.id)!.event;
+  assert.equal(tag(item, 'start_tzid'), 'Europe/Stockholm');
+  assert.equal(tag(item, 'when'), 'Sat 24 Oct 2026, 6:00 PM-10:00 PM CEST');
+  assert.equal(tag(item, 'g'), undefined);
+  assert.doesNotMatch(s.db.record(row.recordId)!.ics, /59\.3|18\.06/);
+  assert.ok(!JSON.stringify(item).includes('59.3'));
+  // A shown venue in UTC is written in its own zone too: Brooklyn's.
+  const shown = svc.sent.find((x) => isItem(x.event) && x.audience === 'own' && tag(x.event, 'title') !== 'craftyween party' && tag(x.event, 'g'))!.event;
+  assert.equal(tag(shown, 'start_tzid'), 'America/New_York');
+});

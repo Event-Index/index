@@ -8,7 +8,9 @@ import { adapterFor, type Adapter, type CalendarSide } from '../adapters/index.t
 import { registerZones, vtimezoneFor, canonicalZone, type ZoneReport } from '../ical/zones.ts';
 import { htmlToText, looksLikeHtml, markdownToText } from '../ical/text.ts';
 import { nostrD, publicEventId } from '../project/ids.ts';
-import { occurrenceKey } from '../project/time.ts';
+import { isFloating, occurrenceKey } from '../project/time.ts';
+import { geoOf } from '../project/nip52.ts';
+import { zoneAt } from '../project/venue-zone.ts';
 import type { Role, Source } from '../types.ts';
 
 export const PRODID = '-//Event Index//index//EN';
@@ -142,6 +144,14 @@ function applyProfile(vevent: ICAL.Component): ICAL.Component {
       : c))
     .map(scrubSubcomponent);
   return new ICAL.Component(['vevent', properties, subcomponents]);
+}
+
+// The zone at the venue of an event whose times are in UTC, from its GEO.
+function zoneOfVenue(vevent: ICAL.Component): string | null {
+  const start = vevent.getFirstPropertyValue('dtstart');
+  if (!(start instanceof ICAL.Time) || start.isDate || isFloating(start) || start.zone?.tzid !== 'UTC') return null;
+  const geo = geoOf(vevent);
+  return geo ? zoneAt(geo[0], geo[1]) : null;
 }
 
 // Markup in DESCRIPTION moves to STYLED-DESCRIPTION (RFC 9073), and
@@ -421,9 +431,12 @@ export function normalizeFeed(text: string, ctx: FeedContext): NormalizedFeed {
     if (bad.has('dtstart')) return;
     // A feed cannot speak for the index.
     const working = filtered(clone(source), (p) => !p[0].startsWith('x-eventindex-') && !bad.has(p[0]));
+    // Read before an adapter hides the venue; its coordinates go no further.
+    const venueZone = zoneOfVenue(working);
     adapter.event?.(working, side);
     splitDescription(working, adapter);
     const vevent = applyProfile(working);
+    if (venueZone) vevent.addPropertyWithValue('x-eventindex-tzid', venueZone);
 
     const organizer = organizerName(vevent);
     if (organizer && !adapter.isDefaultOrganizerName?.(organizer) && !holdsEmail(organizer)) {

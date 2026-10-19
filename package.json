@@ -15,6 +15,7 @@
   "dependencies": {
     "@noble/ciphers": "2.4.0",
     "better-sqlite3": "13.0.3",
+    "geo-tz": "8.1.9",
     "ical.js": "2.2.1",
     "nostr-tools": "2.25.2",
     "timezones-ical-library": "2.3.2"

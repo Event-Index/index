@@ -111,6 +111,7 @@ On every VEVENT of a record:
 | `X-EVENTINDEX-CALENDAR` | the address of the calendar's directory entry, `39999:<index key>:<d>` |
 | `X-EVENTINDEX-SOURCE` | the entry's source (`luma`, `meetup`, `mobilizon`, `gancio`, `google`, `ics`, `nostr`) |
 | `X-EVENTINDEX-ID` | the public event id (§ 6) of the event, or of the occurrence an override stands for |
+| `X-EVENTINDEX-TZID` | on an event whose `DTSTART` is in UTC and that the feed gave a `GEO`: the time zone at that point, from the time-zone boundaries ([`event-items.md`](event-items.md) § 2). It is read before a hidden venue is dropped, and is all the record keeps of its place. |
 | `X-EVENTINDEX-VENUE` | `hidden` when the source shows the venue only to registered guests ([`platform-adapters.md`](platform-adapters.md)). Such an event keeps no `LOCATION` or `GEO`, and no projection carries a place for it. |
 | `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL (a co-host's copy; a copy of a more original event, [`indexer-rules.md`](indexer-rules.md) § 15); on an old record of a calendar claimed to publish itself, the URL of the organizer's record that replaces it |
 | `X-EVENTINDEX-NOSTR` | the `naddr` of the event's NIP-52 projection, once published; on a record read from its organizer's own key, the `naddr` of their event |

@@ -8,7 +8,7 @@ import type { EventRow } from '../store/events.ts';
 import type { City } from '../service/admin.ts';
 import type { Source } from '../types.ts';
 import { decodeGeohash } from './geohash.ts';
-import { distanceKm } from '../service/coverage.ts';
+import { zoneAt } from './venue-zone.ts';
 import { citySlug } from '../directory/entry.ts';
 import { PLATFORMS } from './profile.ts';
 import { adapterFor } from '../adapters/index.ts';
@@ -17,8 +17,6 @@ import { adapterFor } from '../adapters/index.ts';
 export const LONGEST_DAYS = 92;
 // An item expires (NIP-40) this long after its event ends.
 export const EXPIRE_AFTER = 30 * 86400;
-// A venue this close to a seeded city takes the city's zone.
-const ZONE_RADIUS_KM = 150;
 const DAY = 86400;
 
 export interface ItemCalendar {
@@ -44,20 +42,14 @@ export interface ItemContext {
 
 export type ItemResult = { template: EventTemplate; ends: number; expires: number } | { skip: 'copy' | 'longer-than-92-days' };
 
-// The zone an event's local time is written in: the feed's, else that of a
-// seeded city near the venue, else the calendar's city's, else UTC.
+// The zone an event's local time is written in: the feed's (or the one its
+// record names from the venue), else the one at the venue, else the
+// calendar's city's, else UTC.
 export function zoneFor(tzid: string | null, g: string | null, calendarLocation: string | null, cities: City[]): string {
   if (tzid) return tzid;
   const point = g ? decodeGeohash(g) : null;
-  if (point) {
-    let best: { city: City; km: number } | null = null;
-    for (const city of cities) {
-      if (!city.timezone) continue;
-      const km = distanceKm(point[0], point[1], city.latitude, city.longitude);
-      if (!best || km < best.km) best = { city, km };
-    }
-    if (best && best.km <= ZONE_RADIUS_KM) return best.city.timezone!;
-  }
+  const venue = point ? zoneAt(point[0], point[1]) : null;
+  if (venue) return venue;
   const own = cities.find((c) => `${c.name}, ${c.country}` === calendarLocation);
   return own?.timezone ?? 'UTC';
 }

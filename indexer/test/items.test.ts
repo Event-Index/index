@@ -141,12 +141,24 @@ test('an event with no end expires 30 days after its start, and is written with 
   assert.equal(tag(tags, 'expiration'), String(1793223000 + 30 * 86400));
 });
 
-test('the zone comes from the feed, then a seeded city near the venue, then the calendar\'s city, then UTC', () => {
+test('the zone comes from the feed, then the boundaries at the venue, then the calendar\'s city, then UTC', () => {
   assert.equal(zoneFor('Europe/Paris', 'dqcjr2dhg', 'New York, US', cities), 'Europe/Paris');
   assert.equal(zoneFor(null, 'dqcjr2dhg', 'New York, US', cities), 'America/New_York');
-  // A venue far from every seeded city.
+  // Venues far from their calendar's city, and from any seeded city.
+  assert.equal(zoneFor(null, 'u6sce0t4h', 'Istanbul, TR', cities), 'Europe/Stockholm');
+  assert.equal(zoneFor(null, 'wdw0v5jvh', 'Istanbul, TR', cities), 'Asia/Manila');
+  assert.equal(zoneFor(null, 'e9rtkcumt', 'Auckland, NZ', cities), 'Africa/Freetown');
+  assert.equal(zoneFor(null, 'u0qvtxjtn', 'Istanbul, TR', cities), 'Europe/Vienna');
+  // A venue at sea.
   assert.equal(zoneFor(null, 'kzzzzzzzz', 'Austin, US', cities), 'America/Chicago');
   assert.equal(zoneFor(null, null, 'Nowhere, ZZ', cities), 'UTC');
+});
+
+test('Dev Days in Stockholm, from a calendar elsewhere, is written in Stockholm\'s time', () => {
+  const tags = item(row({ start: 1792600200, end: 1792618200, location: 'Kungsgatan 1, Stockholm', g: 'u6sce0t4h', url: 'https://luma.com/devdays-sthlm' }),
+    { ...pubkey, name: 'Dev Days', location: 'Istanbul, TR' });
+  assert.equal(tag(tags, 'start_tzid'), 'Europe/Stockholm');
+  assert.equal(tag(tags, 'when'), 'Wed 21 Oct 2026, 6:30 PM-11:30 PM CEST');
 });
 
 test('the "when" text of an all-day event of one day, and of one across years', () => {
