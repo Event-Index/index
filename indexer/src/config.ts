@@ -59,6 +59,8 @@ export interface Settings {
   // 39998:<maintainer's key>:events.
   eventItems: boolean;
   eventsHeader: string | null;
+  // At most this many event items live at once (a pilot); null for no cap.
+  eventItemsMax: number | null;
   // Off unless set: read every public NIP-52 event by kind (native/ingest.ts)
   // from these relays, and from these search relays with their include:spam
   // extension, and list each publisher in the directory.
@@ -145,6 +147,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     calendarKeysPaused: env['EVENTINDEX_CALENDAR_KEYS_PAUSED'] === '1',
     eventItems: env['EVENTINDEX_EVENT_ITEMS'] === '1',
     eventsHeader: eventsHeader(env['EVENTINDEX_EVENTS_HEADER']),
+    eventItemsMax: env['EVENTINDEX_EVENT_ITEMS_MAX']?.trim() ? count(env['EVENTINDEX_EVENT_ITEMS_MAX'], 0, 'EVENTINDEX_EVENT_ITEMS_MAX') : null,
     ingestNip52: env['EVENTINDEX_INGEST_NOSTR'] === '1',
     ingestRelays: relays(env['EVENTINDEX_INGEST_RELAYS'], INGEST_RELAYS, 'EVENTINDEX_INGEST_RELAYS'),
     // The search relays unless set.

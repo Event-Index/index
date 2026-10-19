@@ -98,7 +98,7 @@ export function whenText(input: { start: number; end: number | null; allDay: boo
 
 const dateOf = (at: number) => new Date(at * 1000).toISOString().slice(0, 10);
 const LUMA_EVENT = /^https:\/\/(?:lu\.ma|luma\.com)\/([^/?#]+)\/?$/;
-const MEETUP_EVENT = /^https:\/\/www\.meetup\.com\/([^/?#]+)\/events\/(\d+)\/?/;
+const MEETUP_EVENT = /^https:\/\/www\.meetup\.com\/([^/?#]+)\/events\/([A-Za-z0-9]+)\/?/;
 
 export function eventItem(row: EventRow, ctx: ItemContext): ItemResult {
   if (row.canonical) return { skip: 'copy' };

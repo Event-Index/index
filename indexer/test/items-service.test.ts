@@ -205,3 +205,17 @@ test('with event items on, a record names its event\'s item as its nostr address
   const naddr = naddrEncode({ kind: 39999, pubkey: svc.indexPubkey, identifier: tag(item, 'd')!, relays: ['wss://relay.eventindex.space'] });
   assert.match(record.ics.replace(/\r\n /g, ''), new RegExp(`X-EVENTINDEX-NOSTR:${naddr}`));
 });
+
+test('with a cap on items, no more than so many are live; those keep being updated and withdrawn', async () => {
+  const s = stores();
+  const svc = service(s, { ...ITEMS, EVENTINDEX_EVENT_ITEMS_MAX: '2' });
+  await svc.indexer.tick();
+  const first = svc.sent.filter((x) => isItem(x.event) && x.audience === 'own').map((x) => x.event);
+  assert.equal(first.length, 2);
+  // A later pass adds none, the cap being reached.
+  const later = service(s, { ...ITEMS, EVENTINDEX_EVENT_ITEMS_MAX: '2' }, { at: NOW + 3600 });
+  await later.indexer.tick();
+  const added = later.sent.filter((x) => isItem(x.event) && x.audience === 'own' && !first.some((f) => tag(f, 'd') === tag(x.event, 'd')));
+  assert.equal(added.length, 0);
+  assert.throws(() => loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_MAX: 'many' }), /EVENTINDEX_EVENT_ITEMS_MAX/);
+});

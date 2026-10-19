@@ -153,3 +153,10 @@ test('the "when" text of an all-day event of one day, and of one across years', 
   assert.equal(whenText({ start: Date.UTC(2026, 9, 28) / 1000, end: Date.UTC(2026, 9, 29) / 1000, allDay: true, zone: 'UTC' }), 'Wed 28 Oct 2026, all day');
   assert.equal(whenText({ start: Date.UTC(2026, 11, 30) / 1000, end: Date.UTC(2027, 0, 3) / 1000, allDay: true, zone: 'UTC' }), 'Wed 30 Dec 2026 to Sat 2 Jan 2027');
 });
+
+test('a Meetup event of a series, whose number is letters, still links to its page', () => {
+  const tags = item(row({ url: 'https://www.meetup.com/bitcoin-and-beer/events/zpskwtykcjbpb/' }),
+    { d: 'meetup:bitcoin-and-beer', name: 'Bitcoin & Beer', source: 'meetup', feedUrl: 'https://www.meetup.com/bitcoin-and-beer/events/ical/', location: 'Denver, US', owner: null });
+  assert.equal(tag(tags, 'meetup-group'), 'bitcoin-and-beer');
+  assert.equal(tag(tags, 'meetup-event'), 'zpskwtykcjbpb');
+});

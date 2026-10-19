@@ -65,6 +65,9 @@ Tags in this order; a tag with no value is left out. `content` is empty.
   before now, at most 100 a second. At most 2,000 are signed in one tick; the
   rest follow at the next ticks. All items are looked at again every
   10 minutes, and at once after a removal or a claim.
+- The operator may cap how many items are live at once (`EVENT_ITEMS_MAX`):
+  live items are kept up to date and withdrawn as usual, and a new one waits
+  for room.
 - **Withdrawal.** An item whose event has left its calendar for a day (a feed
   may drop an event for a while), or at once when its calendar is no longer
   listed or mirrored, is withdrawn with a kind 5 naming every version's `e`,

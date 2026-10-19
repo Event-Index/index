@@ -482,7 +482,12 @@ export function createIndexer(deps: IndexerDeps) {
       });
     }
     const perTick = deps.itemsPerTick ?? ITEMS_PER_TICK;
-    const due = [...wanted.values()].filter((w) => db.shouldPublish(indexPubkey, 39999, w.d, projectionHash(w.template)));
+    let due = [...wanted.values()].filter((w) => db.shouldPublish(indexPubkey, 39999, w.d, projectionHash(w.template)));
+    // Under a cap, a live item is kept up to date, and a new one waits for room.
+    if (settings.eventItemsMax !== null) {
+      let room = Math.max(0, settings.eventItemsMax - (items.count() - withdrawals.length));
+      due = due.filter((w) => items.has(w.d) || (room > 0 && room-- > 0));
+    }
     const batch = due.slice(0, perTick);
     const sign = (t: EventTemplate & { created_at: number }) => finalizeEvent(t, deps.indexKey);
     const published = await publishAs(indexPubkey, sign, [...withdrawals, ...batch.map(({ template, d, start }) => ({ template, d, start }))], now, deps.itemsPerSecond ?? ITEMS_PER_SECOND);
