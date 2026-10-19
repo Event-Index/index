@@ -47,6 +47,11 @@
       "location": "New York, US"
     },
     {
+      "d": "luma:cal-Or0NdeYS6Dd43c4",
+      "name": "The Dinner Table Club",
+      "location": "New York, US"
+    },
+    {
       "d": "meetup:bay-area-bitcoiners",
       "name": "Bay Area Bitcoiners",
       "location": "San Francisco, US"
@@ -54,6 +59,11 @@
     {
       "d": "luma:cal-oWJafai4qVBegex",
       "name": "Big Brain Lectures - Bay Area",
+      "location": "San Francisco, US"
+    },
+    {
+      "d": "luma:cal-twiOosdGMMY66DI",
+      "name": "tiat (the intersection of art & technology)",
       "location": "San Francisco, US"
     },
     {
@@ -90,11 +100,6 @@
       "d": "luma:cal-NkjMVEv0ECZ3dEZ",
       "name": "Festiwal Polska Teraz",
       "location": "London, GB"
-    },
-    {
-      "d": "luma:cal-0MrBei8zqMCGyZG",
-      "name": "We Are For Good",
-      "location": "Auckland, NZ"
     },
     {
       "d": "luma:cal-Bsrcc1mPgEO7fSn",
