@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import Database from 'better-sqlite3';
+import { hkdfSync } from 'node:crypto';
+import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 import { verifyEvent, getPublicKey } from 'nostr-tools/pure';
-import { decrypt as nip49Decrypt } from 'nostr-tools/nip49';
 import { openVault } from '../src/store/vault-db.ts';
 import { sealFor } from '../src/claim/seal.ts';
 
@@ -28,13 +29,18 @@ test('the vault file holds no key in the clear', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vault-'));
   try {
     const path = join(dir, 'vault.db');
-    const vault = openVault(path, secret());
-    vault.createKey('meetup:pythonsd');
-    const exported = nip49Decrypt(vault.exportNcryptsec('meetup:pythonsd', 'correct horse', 4), 'correct horse');
+    const calendarSecret = secret();
+    const vault = openVault(path, calendarSecret);
+    const pubkey = vault.createKey('meetup:pythonsd');
     vault.close();
+    // The key, opened as spec/indexer-rules.md § 8 says it is sealed.
+    const row = new Database(path, { readonly: true }).prepare('SELECT nonce, ciphertext FROM calendar_keys WHERE d = ?').get('meetup:pythonsd') as { nonce: Buffer; ciphertext: Buffer };
+    const sealing = new Uint8Array(hkdfSync('sha256', calendarSecret, new Uint8Array(0), 'event-index/calendar-key/v1', 32));
+    const sk = xchacha20poly1305(sealing, new Uint8Array(row.nonce), new TextEncoder().encode('meetup:pythonsd')).decrypt(new Uint8Array(row.ciphertext));
+    assert.equal(getPublicKey(sk), pubkey);
     const bytes = readFileSync(path);
-    assert.equal(bytes.indexOf(Buffer.from(exported)), -1);
-    assert.equal(bytes.indexOf(Buffer.from(Buffer.from(exported).toString('hex'))), -1);
+    assert.equal(bytes.indexOf(Buffer.from(sk)), -1);
+    assert.equal(bytes.indexOf(Buffer.from(Buffer.from(sk).toString('hex'))), -1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -78,12 +84,10 @@ test('a key moved to another calendar\'s row does not decrypt', () => {
   }
 });
 
-test('a key exports as ncryptsec and can then be forgotten', () => {
+test('a key leaves the vault only as a signature, and can be forgotten', () => {
   const vault = openVault(':memory:', secret());
-  const pubkey = vault.createKey('mobilizon:mobilizon.fr/@lyontechhub');
-  const ncryptsec = vault.exportNcryptsec('mobilizon:mobilizon.fr/@lyontechhub', 'organizer password', 4);
-  assert.match(ncryptsec, /^ncryptsec1/);
-  assert.equal(getPublicKey(nip49Decrypt(ncryptsec, 'organizer password')), pubkey);
+  vault.createKey('mobilizon:mobilizon.fr/@lyontechhub');
+  assert.equal((vault as unknown as Record<string, unknown>)['exportNcryptsec'], undefined, 'no key is handed over');
   vault.forget('mobilizon:mobilizon.fr/@lyontechhub');
   assert.equal(vault.pubkeyFor('mobilizon:mobilizon.fr/@lyontechhub'), null);
 });

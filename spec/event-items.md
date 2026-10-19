@@ -1,0 +1,92 @@
+# Event items
+
+How the index lists events on nostr: one item of the Events list per
+upcoming real-world event of a mirrored calendar, a kind 39999 signed by the
+index key. The index names each event's organizer and never publishes as
+them. Events their organizers publish on nostr themselves are read as they
+are ([`indexer-rules.md`](indexer-rules.md) § 14) and get no item.
+
+Items are published while the operator turns them on (`EVENT_ITEMS`); the
+Events list's header is a maintainer's, `39998:<maintainer's key>:events`.
+
+Status: draft.
+
+## 1. Which events
+
+- Every occurrence in the events table (the projection window,
+  [`nip52-mapping.md`](nip52-mapping.md) § 1) of a `calendar` entry that the
+  index mirrors from a feed and that is listed: not a native or aggregator
+  entry, not one its organizer claimed to publish themselves or to have
+  published as them ([`indexer-rules.md`](indexer-rules.md) § 13), not
+  removed.
+- Only events that have not ended (their end, or their start when they have
+  none, is not past).
+- **One item per real-world event.** An occurrence that is a copy of another
+  (a co-host's copy of the same event, [`nip52-mapping.md`](nip52-mapping.md)
+  § 5, or a feed's copy of an organizer's own NIP-52 event,
+  [`indexer-rules.md`](indexer-rules.md) § 14) has no item; its original is
+  the one listed or read.
+- An event that runs longer than 92 days is a listing, not an event: it has
+  no item, and stays a record.
+
+## 2. The item
+
+Tags in this order; a tag with no value is left out. `content` is empty.
+
+| Tag | Value |
+|---|---|
+| `d` | the occurrence's public id ([`icalendar-profile.md`](icalendar-profile.md) § 6) |
+| `z` | the Events list's header |
+| `title` | `SUMMARY`; prefixed `Cancelled: ` when the event is cancelled |
+| `start`, `end` | unix seconds; for an all-day event `YYYY-MM-DD`, the end the day after the last day (exclusive) |
+| `when` | when it happens, written out in its local time: `Wed 28 Oct 2026, 5:30 PM-8:00 PM EDT`; across days `Wed 16 Sep, 7:00 AM to Thu 17 Sep 2026, 6:00 PM EDT`; with no end `Wed 28 Oct 2026, 5:30 PM EDT`; all-day `Wed 28 Oct 2026, all day` or `Mon 19 Oct to Sat 24 Oct 2026`. The zone's abbreviation where one is in use, else its offset (`GMT-3`) |
+| `start_tzid` | not for an all-day event: the zone the event happens in: the feed's `TZID`, else that of the nearest seeded city within 150 km of the venue (`seeds/cities.json`), else that of the calendar's city, else `UTC` |
+| `organizer` | the calendar's name |
+| `calendar` | the calendar's entry, `39999:<index key>:<calendar d>` |
+| `source` | `luma`, `meetup`, `google`, `mobilizon` or `gancio`; for any other calendar, its feed's host |
+| `location`, `g` | the venue and its geohash, as the record gives them; none for a hidden venue ([`platform-adapters.md`](platform-adapters.md)) |
+| `summary` | the event's summary, under its source's content policy, at most 280 characters ([`nip52-mapping.md`](nip52-mapping.md) § 3) |
+| `status` | `cancelled` when the record is `STATUS:CANCELLED` |
+| `p` | the organizer's own key (hex), once they verified it (§ 5); none otherwise |
+| `luma-slug` | for a Luma event, its address on Luma (`https://luma.com/<slug>`) |
+| `meetup-group`, `meetup-event` | for a Meetup event, the group and the event's number in its address |
+| `index-id` | the public id again, for the Event Index link |
+| `url` | for any other source, the event's own page |
+| `image` | the event's image, only where its source's content policy allows images |
+| `t` | the calendar's city's slug, then the source |
+| `i`, `k` | the event's page as a NIP-73 identifier, kind `web` |
+| `expiration` | NIP-40: the event's end (all-day: its exclusive end date at 00:00 UTC; with no end, its start) plus 30 days |
+| `alt` | `<calendar name>: <title>` |
+
+## 3. Publishing
+
+- An item is published when it is new or its tags change (a hash per `d`),
+  with `created_at` after its last version's and spread over the seconds
+  before now, at most 100 a second. At most 2,000 are signed in one tick; the
+  rest follow at the next ticks. All items are looked at again every
+  10 minutes, and at once after a removal or a claim.
+- **Withdrawal.** An item whose event has left its calendar for a day (a feed
+  may drop an event for a while), or at once when its calendar is no longer
+  listed or mirrored, is withdrawn with a kind 5 naming every version's `e`,
+  then its `a` (`39999:<index key>:<d>`) and its `k` (`39999`). An item whose
+  event has ended is left to expire; the index forgets it after its
+  expiration.
+- **Where.** The index's relay; and, while the directory is published outside
+  ([`directory.md`](directory.md)), the search relays and the list relays,
+  each at its pace. Never the general or profile relays. Their deletions go
+  the same way.
+
+## 4. Records
+
+A single event's record names its item: `X-EVENTINDEX-NOSTR` is the item's
+`naddr` (kind 39999, the index key, its `d`, the index relay), from the
+calendar's first full read after the item is published.
+
+## 5. Organizers
+
+An organizer who proves a calendar and their key may have the index name
+them as its organizer ([`indexer-rules.md`](indexer-rules.md) § 13, `link`):
+their key is the `p` of the calendar's entry and of every one of its items,
+and the index goes on listing its events. Or they may publish the calendar
+themselves (`own`) or have it published as them (`delegated`); its events are
+then theirs, and its items are withdrawn.

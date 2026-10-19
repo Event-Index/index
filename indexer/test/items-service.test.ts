@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { generateSecretKey, getPublicKey, verifyEvent, type VerifiedEvent } from 'nostr-tools/pure';
+import { naddrEncode } from 'nostr-tools/nip19';
 import { openIndexDb, type IndexDb } from '../src/store/index-db.ts';
 import { openVault, type Vault } from '../src/store/vault-db.ts';
 import { directoryStore } from '../src/store/directory.ts';
@@ -190,4 +191,17 @@ test('an organizer who verified their key is the p of their calendar\'s entry an
   assert.deepEqual(entryOf(svc.sent, svc.indexPubkey, D)!.tags.filter((t) => t[0] === 'p'), [['p', owner]]);
   const items = svc.sent.filter((x) => isItem(x.event) && x.audience === 'own' && tag(x.event, 'calendar')!.endsWith(`:${D}`));
   assert.ok(items.length > 0 && items.every((x) => tag(x.event, 'p') === owner));
+});
+
+test('with event items on, a record names its event\'s item as its nostr address', async () => {
+  const s = stores();
+  const svc = service(s, ITEMS);
+  await svc.indexer.tick();
+  const item = svc.sent.find((x) => isItem(x.event) && x.audience === 'own' && tag(x.event, 'calendar')!.endsWith(`:${D}`))!.event;
+  // The calendar's next full read writes it into the record.
+  pollAgain(s, D);
+  await service(s, ITEMS, { at: NOW + 60 }).indexer.tick();
+  const record = s.db.record(tag(item, 'd')!)!;
+  const naddr = naddrEncode({ kind: 39999, pubkey: svc.indexPubkey, identifier: tag(item, 'd')!, relays: ['wss://relay.eventindex.space'] });
+  assert.match(record.ics.replace(/\r\n /g, ''), new RegExp(`X-EVENTINDEX-NOSTR:${naddr}`));
 });

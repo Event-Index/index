@@ -5,6 +5,12 @@ the projection, calendar keys, removal and claims) is specified in the Event
 Index protocol draft; where this document and the draft differ, the draft
 governs. This document fixes what the draft leaves to the index.
 
+Event items ([`event-items.md`](event-items.md)) are how the index lists
+events under its own key. This document gives the projection window, the
+summary and co-hosts they share, the NIP-52 events calendar keys sign (while
+calendar keys are paused, deletions only: [`indexer-rules.md`](indexer-rules.md)
+§ 11), and how an organizer's own NIP-52 events become records (§ 8).
+
 Reference values used below: index relay `wss://relay.eventindex.space`, API
 `https://api.eventindex.space/api/1.0`, domain `eventindex.space`, client name
 `eventindex`.

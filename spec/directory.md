@@ -21,8 +21,8 @@ The tags come in this order, and a tag with no value is left out:
 | `z` | the header's coordinate |
 | `name` | the calendar's name ([`icalendar-profile.md`](icalendar-profile.md) § 4) |
 | `role` | `calendar`; or `aggregator`, for a feed that only leads to calendars, or a nostr key that publishes other organizers' events under its own |
-| `p` | the key the calendar's events are signed with now (hex): the calendar key, or its organizer's own (below); for an aggregator on nostr, its key; none for a feed aggregator |
-| `p` | after a claim, the calendar key the index held, while events it signed are still to come (below) |
+| `p` | the key the calendar's events are signed with now (hex): the calendar key, or its organizer's own (below); for an aggregator on nostr, its key; none for a feed aggregator. With event items ([`event-items.md`](event-items.md)), only the organizer's own key: a nostr publisher's, or one a feed's organizer verified (`link`); never a calendar key |
+| `p` | after a claim, the calendar key the index held, while events it signed are still to come (below); none with event items |
 | `index-name` | the calendar's local name: its page is `eventindex.space/calendar/<name>`, and, while the index holds its key, its NIP-05 name `<name>@eventindex.space` |
 | `feed` | the feed URL the calendar is read from; none when its events are read from nostr |
 | `source` | `luma`, `meetup`, `mobilizon`, `gancio`, `google`, `ics`, or `nostr` when its events are read from its organizer's own key |

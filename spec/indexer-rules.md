@@ -160,10 +160,13 @@ and is backed up as such.
   calendar-key secret (info `event-index/intake/v1`) whose public key the poll
   service writes to `index.db`; the HTTP service seals, and only the poll
   service can open it.
-- A key leaves the vault only as a signature, or, when a claim hands it to its
-  organizer, as NIP-49 `ncryptsec` under the organizer's password. After a
-  hand-over or a removal the key is deleted, and backups of `vault.db` are kept
-  for a bounded time only, so a deleted key is eventually forgotten.
+- A key leaves the vault only as a signature; it is never handed to anyone.
+  After a removal or a claim the key is deleted (unless calendar keys are
+  paused, § 11), and backups of `vault.db` are kept for a bounded time only,
+  so a deleted key is eventually forgotten.
+- With event items ([`event-items.md`](event-items.md)) the index lists events
+  under its own key, and the directory names no calendar key; calendar keys
+  sign nothing new while paused.
 - The index key and the calendar-key secret are separate secrets.
 
 ## 9. Seeding
@@ -373,6 +376,10 @@ mirrors, so that its events are published from their own key.
   tick; one it cannot carry out yet (no relay answers for the organizer) is
   tried again at each tick, and fails a day after its approval.
 - **Modes.** The organizer chooses one when they claim:
+  - **`link`, "name me as its organizer".** The index keeps mirroring the
+    calendar and names the organizer's key: the `p` of its entry and of each
+    of its event items ([`event-items.md`](event-items.md) § 5). Nothing is
+    published as the key, so it clashes with no other calendar the key owns.
   - **`own`, "I publish myself".** The index stops polling the feed and reads
     the organizer's events instead (§ 12).
   - **`delegated`, "publish for me, as me".** The organizer gives the address
@@ -390,8 +397,11 @@ mirrors, so that its events are published from their own key.
     minutes, and the rest a minute later, at the next poll. While the signer
     does not answer, the calendar's polls fail and back off (§ 3), and nothing
     is signed for it.
-- **The calendar key retires**, either way, before anything is signed as the
-  organizer: its upcoming events are withdrawn (republished as cancelled where
+- **The calendar key retires**, in `own` or `delegated` mode while the index
+  does not list events as items, before anything is signed as the organizer.
+  With event items, no calendar key retires at a claim: the calendar's items
+  are withdrawn instead, and its key stays until all calendar keys retire
+  together. Otherwise: its upcoming events are withdrawn (republished as cancelled where
   they have RSVPs, else deleted; [`nip52-mapping.md`](nip52-mapping.md) § 4).
   A cancelled copy names the organizer's own copy of the event with
   `["q", "<kind>:<organizer>:<d>", "<relay>"]`: in `delegated` mode the same

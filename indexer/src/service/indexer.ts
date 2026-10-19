@@ -44,7 +44,7 @@ import { inUidChunks, nativeFeed } from '../native/record.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
 import { expand, cancelledCopy } from '../project/projector.ts';
 import { API_BASE } from '../project/nip52.ts';
-import { claimDate } from '../project/annotate.ts';
+import { claimDate, naddrFor } from '../project/annotate.ts';
 import { publicEventId, nostrD } from '../project/ids.ts';
 import { nativeUid, type Found } from '../native/record.ts';
 import { findCopies, AGGREGATOR, FEED, ORGANIZER, type Candidate } from '../rules/copies.ts';
@@ -1318,6 +1318,7 @@ const NATIVE_BUILD_SHARE = 500;
           keyOf,
           keyless: settings.calendarKeysPaused,
           deletionsOnly: settings.calendarKeysPaused,
+          ...(settings.eventItems ? { itemAddress: (id: string) => (items.has(id) ? naddrFor(indexPubkey, 39999, id, [settings.publicRelay]) : null) } : {}),
           originalOf: (id) => events.originalAddressOf(id),
           ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
         },

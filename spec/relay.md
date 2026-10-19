@@ -8,7 +8,7 @@ is refused with an `OK` message beginning `blocked: `.
 
 | Author | Kinds |
 |---|---|
-| the Event Index key | 0, 3, 5, 10002, 31922, 31923, 31924, 39998, 39999 |
+| the Event Index key | 0, 3, 5, 10002, 31922, 31923, 31924, 39998, 39999 (the directory's entries and, with event items, an item per upcoming event: thousands, in bulk) |
 | a calendar key the index holds | 0, 5, 10002, 31922, 31923, 31924 |
 | a removed or claimed calendar's old key | 0, 5 |
 | an organizer the index publishes as, through their signer, while the operator has the relay host them (`RELAY_HOSTS_CLAIMANTS=1`; `relay.eventindex.space` does) | 5, 31922, 31923, 31924 |

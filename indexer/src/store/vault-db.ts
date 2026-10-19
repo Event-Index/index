@@ -2,7 +2,7 @@
 // XChaCha20-Poly1305 under a key derived (HKDF-SHA256) from the calendar-key
 // secret. The entry's `d` is the associated data, so a ciphertext copied to
 // another row does not decrypt. The file is never dumped; keys leave it only
-// as a signature, or as NIP-49 `ncryptsec` when a claim hands one over.
+// as a signature.
 //
 // It also keeps, for a calendar its organizer has the index publish as them,
 // the connection to their remote signer (NIP-46), sealed the same way under a
@@ -12,7 +12,6 @@ import Database from 'better-sqlite3';
 import { hkdfSync, randomBytes } from 'node:crypto';
 import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 import { finalizeEvent, generateSecretKey, getPublicKey, type EventTemplate, type VerifiedEvent } from 'nostr-tools/pure';
-import { encrypt as nip49Encrypt } from 'nostr-tools/nip49';
 import { unsealWith } from '../claim/seal.ts';
 
 const SCHEMA = `
@@ -49,9 +48,7 @@ export interface Vault {
   createKey(d: string): string;
   pubkeyFor(d: string): string | null;
   sign(d: string, template: EventTemplate): VerifiedEvent;
-  // NIP-49, for handing a key to its organizer.
-  exportNcryptsec(d: string, password: string, logn?: number): string;
-  // Deletes the key (after a hand-over, or a removal).
+  // Deletes the key (after a removal or a claim).
   forget(d: string): void;
   saveConnection(d: string, owner: string, connection: SignerConnection): void;
   connection(d: string): (SignerConnection & { owner: string }) | null;
@@ -113,7 +110,6 @@ export function openVault(path: string, secret: Uint8Array): Vault {
     createKey: (d) => create.immediate(d),
     pubkeyFor: (d) => select.get(d)?.pubkey ?? null,
     sign: (d, template) => withKey(d, (sk) => finalizeEvent(template, sk)),
-    exportNcryptsec: (d, password, logn = 16) => withKey(d, (sk) => nip49Encrypt(sk, password, logn, 0x02)),
     forget: (d) => void remove.run(d),
     saveConnection(d, owner, connection) {
       const nonce = new Uint8Array(randomBytes(24));

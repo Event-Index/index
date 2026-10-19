@@ -249,7 +249,7 @@ pages of `eventindex.space` make them through a browser extension (NIP-07).
 |---|---|
 | `POST /calendars/native` with `{"city": "<city slug>"}` (optional) | lists the calendar the key publishes on nostr at once, when its relays hold NIP-52 events from it, or, when it is filed, lists it and sets its city ([`indexer-rules.md`](indexer-rules.md) § 12) |
 | `POST /calendars/<local name>/remove-request`, signed with the key the calendar is published with | removes the calendar at the poll service's next tick, with no review |
-| `POST /calendars/<local name>/claim` with `{"mode": "own"}` or `{"mode": "delegated", "bunker": "bunker://…"}` | claims a mirrored calendar for the key ([`indexer-rules.md`](indexer-rules.md) § 13): `own` to publish it yourself, `delegated` to have the index publish it as you through the remote signer (NIP-46) at that address |
+| `POST /calendars/<local name>/claim` with `{"mode": "link"}`, `{"mode": "own"}` or `{"mode": "delegated", "bunker": "bunker://…"}` | claims a mirrored calendar for the key ([`indexer-rules.md`](indexer-rules.md) § 13): `link` to be named as its organizer while the index keeps mirroring it, `own` to publish it yourself, `delegated` to have the index publish it as you through the remote signer (NIP-46) at that address |
 | `POST /calendars/<local name>/claim/<claim>/nip05` with `{"nip05": "<name>@<domain>"}` | verifies the key's claim by NIP-05 at the calendar's own domain |
 | `POST /calendars/<local name>/signer` with `{"action": "disconnect"}` or `{"action": "connect", "bunker": "bunker://…"}` | for the calendar's organizer: stops or starts the index publishing it as them, without review |
 

@@ -112,6 +112,9 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
   const relayUrl = env['EVENTINDEX_RELAY_URL'] ?? 'ws://127.0.0.1:7777';
   if (!/^wss?:\/\//.test(relayUrl)) throw new Error(`EVENTINDEX_RELAY_URL: not a relay URL: ${relayUrl}`);
   const searchRelays = relays(env['EVENTINDEX_SEARCH_RELAYS'], [], 'EVENTINDEX_SEARCH_RELAYS');
+  if (env['EVENTINDEX_EVENT_ITEMS'] === '1' && !eventsHeader(env['EVENTINDEX_EVENTS_HEADER'])) {
+    throw new Error('EVENTINDEX_EVENTS_HEADER: event items need the Events list\'s header, 39998:<key>:events');
+  }
   return {
     dataDir,
     indexDb: env['EVENTINDEX_INDEX_DB'] ?? join(dataDir, 'index.db'),

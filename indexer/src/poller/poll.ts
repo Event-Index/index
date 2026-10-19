@@ -43,6 +43,9 @@ export interface PollDeps {
   // The calendar key signs only deletions: what else changed is held, and
   // published at the first poll after (which reads the feed in full).
   deletionsOnly?: boolean;
+  // The address of a record's event item, when the index lists events as
+  // items: its X-EVENTINDEX-NOSTR, in place of the calendar key's event.
+  itemAddress?: (recordId: string) => string | null;
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
   // A calendar published as its organizer: no profile or relay list of
@@ -138,7 +141,10 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
       const notes = new Map<string, Annotation>();
       if (claimed) for (const vevent of record.component.getAllSubcomponents('vevent')) notes.set(String(vevent.getFirstPropertyValue('x-eventindex-id') ?? ''), { claimed });
       const single = record.master && !record.master.hasProperty('rrule') && !record.master.hasProperty('rdate');
-      if (single && pubkey) {
+      if (single && deps.itemAddress) {
+        const item = deps.itemAddress(record.id);
+        if (item) notes.set(record.id, { nostr: item });
+      } else if (single && pubkey) {
         const kind = (record.master!.getFirstPropertyValue('dtstart') as ICAL.Time).isDate ? 31922 : 31923;
         const d = nostrD(record.uid);
         if (deps.db.projection(pubkey, kind, d)) notes.set(record.id, { ...notes.get(record.id), nostr: naddrFor(pubkey, kind, d, relay ? [relay] : []) });

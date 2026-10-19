@@ -64,3 +64,11 @@ test('one indexer at a time: the lock is held until released, and a dead holder\
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('event items need the Events list\'s header, and take nothing else as one', () => {
+  assert.throws(() => loadSettings({ EVENTINDEX_EVENT_ITEMS: '1' }), /EVENTINDEX_EVENTS_HEADER/);
+  assert.throws(() => loadSettings({ EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: `39998:${'ab'.repeat(32)}:event-calendars` }), /not the Events list/);
+  const s = loadSettings({ EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: `39998:${'ab'.repeat(32)}:events` });
+  assert.deepEqual([s.eventItems, s.eventsHeader], [true, `39998:${'ab'.repeat(32)}:events`]);
+  assert.equal(loadSettings({}).eventItems, false);
+});

@@ -92,3 +92,11 @@ test('with no allowlist read yet, the index\'s own keys are refused like anyone'
   const d = await decide(event(LIVE, 31923), 'IP4', empty, nothingStored);
   assert.equal(d.action, 'reject');
 });
+
+test('the index key\'s event items are taken however many come, and their deletions too', async () => {
+  const items = Array.from({ length: 5000 }, (_, i) => event(INDEX, 39999, [['d', `item${i}`], ['z', `39998:${hex('9')}:events`], ['title', `Event ${i}`], ['start', '1793223000']]));
+  const started = Date.now();
+  for (const item of items) await accepts(item);
+  assert.ok(Date.now() - started < 5000, 'the policy keeps up with a full publish');
+  await accepts(event(INDEX, 5, [['e', hex('1')], ['a', `39999:${INDEX}:item0`], ['k', '39999']]));
+});
