@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { generateSecretKey, getPublicKey, verifyEvent, type VerifiedEvent } from 'nostr-tools/pure';
 import { naddrEncode } from 'nostr-tools/nip19';
 import { openIndexDb, type IndexDb } from '../src/store/index-db.ts';
@@ -241,4 +244,47 @@ test('an event in UTC takes its venue\'s zone, a hidden venue\'s too, whose coor
   // A shown venue in UTC is written in its own zone too: Brooklyn's.
   const shown = svc.sent.find((x) => isItem(x.event) && x.audience === 'own' && tag(x.event, 'title') !== 'craftyween party' && tag(x.event, 'g'))!.event;
   assert.equal(tag(shown, 'start_tzid'), 'America/New_York');
+});
+
+// A list of the calendars whose events are items, as the operator keeps it.
+function calendarList(calendars: unknown): string {
+  const file = join(mkdtempSync(join(tmpdir(), 'items-')), 'item-calendars.json');
+  writeFileSync(file, JSON.stringify({ description: 'Calendars listed as items.', calendars }));
+  return file;
+}
+
+test('with a list of calendars, only theirs are items; a calendar taken off it has its items withdrawn at once', async () => {
+  const s = stores();
+  const other = identify(feedUrlFor(FIXTURES[1]!)).d;
+  const svc = service(s, { ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: calendarList([{ d: other, name: 'Journaling' }]) });
+  await svc.indexer.tick();
+  const first = svc.sent.filter((x) => isItem(x.event) && x.audience === 'own').map((x) => x.event);
+  assert.ok(first.length > 0);
+  assert.ok(first.every((e) => tag(e, 'calendar')!.endsWith(`:${other}`)), 'only the listed calendar\'s events');
+  // Its entry and the other calendar's are both still listed in the directory.
+  const entries = svc.sent.filter((x) => x.event.kind === 39999 && x.audience === 'own' && !isItem(x.event)).map((x) => tag(x.event, 'd'));
+  assert.ok(entries.includes(D) && entries.includes(other));
+
+  // The list now names the other calendar only, as a plain d.
+  const later = service(s, { ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: calendarList([D]) }, { at: NOW + 3600 });
+  await later.indexer.tick();
+  const deletions = later.sent.filter((x) => x.audience === 'own' && x.event.kind === 5 && x.event.tags.some((t) => t[0] === 'k' && t[1] === '39999'));
+  const withdrawn = new Set(deletions.flatMap((x) => x.event.tags.filter((t) => t[0] === 'a').map((t) => t[1]!.split(':')[2])));
+  assert.deepEqual([...withdrawn].sort(), first.map((e) => tag(e, 'd')!).sort());
+  const added = later.sent.filter((x) => isItem(x.event) && x.audience === 'own');
+  assert.ok(added.length > 0 && added.every((x) => tag(x.event, 'calendar')!.endsWith(`:${D}`)));
+});
+
+test('a list of calendars that cannot be read, or is not a list, stops the service from starting', () => {
+  assert.throws(() => loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: '/nonexistent/item-calendars.json' }), /EVENTINDEX_EVENT_ITEMS_CALENDARS/);
+  assert.throws(() => loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: calendarList('luma:cal-x') }), /EVENTINDEX_EVENT_ITEMS_CALENDARS/);
+  assert.throws(() => loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: calendarList([{ name: 'no d' }]) }), /EVENTINDEX_EVENT_ITEMS_CALENDARS/);
+  assert.equal(loadSettings(ITEMS).eventItemsCalendars, null);
+  assert.deepEqual([...loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: calendarList(['meetup:a', { d: 'luma:cal-b' }]) }).eventItemsCalendars!], ['meetup:a', 'luma:cal-b']);
+});
+
+test('the calendars listed in seeds/item-calendars.json load by their path in the repository', () => {
+  const calendars = loadSettings({ ...ITEMS, EVENTINDEX_EVENT_ITEMS_CALENDARS: 'seeds/item-calendars.json' }).eventItemsCalendars!;
+  assert.ok(calendars.size > 0);
+  for (const d of calendars) assert.match(d, /^(luma:cal-[A-Za-z0-9]+|meetup:[a-z0-9-]+)$/);
 });

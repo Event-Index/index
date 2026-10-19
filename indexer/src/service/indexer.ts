@@ -452,7 +452,8 @@ export function createIndexer(deps: IndexerDeps) {
   async function publishItems(now: number): Promise<number> {
     if (!settings.eventItems || !settings.eventsHeader || now < itemsDueAt) return 0;
     const header = settings.eventsHeader;
-    const listed = dir.list().filter(mirrored);
+    const chosen = settings.eventItemsCalendars;
+    const listed = dir.list().filter((e) => mirrored(e) && (!chosen || chosen.has(e.d)));
     const wanted = new Map<string, { template: EventTemplate; d: string; start: number; ends: number; expires: number; calendarD: string }>();
     for (const entry of listed) {
       const calendar = { d: entry.d, name: entry.name, source: entry.source, feedUrl: entry.feedUrl, location: entry.location, owner: entry.owner };

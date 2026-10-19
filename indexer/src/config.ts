@@ -1,7 +1,9 @@
 // Settings for the indexer and the API, from the environment the deploy
 // units set (deploy/templates/eventindex.env).
 
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { GENERAL_RELAYS } from './project/profile.ts';
 import { FOLLOW_CAP } from './service/follows.ts';
 
@@ -59,8 +61,11 @@ export interface Settings {
   // 39998:<maintainer's key>:events.
   eventItems: boolean;
   eventsHeader: string | null;
-  // At most this many event items live at once (a pilot); null for no cap.
+  // At most this many event items live at once; null for no cap.
   eventItemsMax: number | null;
+  // Only these calendars' events are items, when set (a file listing their
+  // d, such as seeds/item-calendars.json); null for every mirrored calendar.
+  eventItemsCalendars: Set<string> | null;
   // Off unless set: read every public NIP-52 event by kind (native/ingest.ts)
   // from these relays, and from these search relays with their include:spam
   // extension, and list each publisher in the directory.
@@ -89,6 +94,25 @@ function count(value: string | undefined, fallback: number, name: string): numbe
   if (value === undefined || value.trim() === '') return fallback;
   if (!/^\d+$/.test(value.trim())) throw new Error(`${name}: not a whole number: ${value}`);
   return Number(value.trim());
+}
+
+// A JSON file, { "calendars": [<d> | { "d": <d>, ... }, ...] }; a relative
+// path is the repository's.
+function calendarList(path: string | undefined, name: string): Set<string> | null {
+  if (!path?.trim()) return null;
+  const file = resolve(fileURLToPath(new URL('../../', import.meta.url)), path.trim());
+  let list: unknown;
+  try {
+    list = (JSON.parse(readFileSync(file, 'utf8')) as { calendars?: unknown }).calendars;
+  } catch (error) {
+    throw new Error(`${name}: cannot read ${file}: ${(error as Error).message}`);
+  }
+  if (!Array.isArray(list)) throw new Error(`${name}: ${file} has no list of calendars`);
+  return new Set(list.map((c: unknown) => {
+    const d = typeof c === 'string' ? c : (c as { d?: unknown } | null)?.d;
+    if (typeof d !== 'string' || !d.trim()) throw new Error(`${name}: ${file}: not a calendar: ${JSON.stringify(c)}`);
+    return d.trim();
+  }));
 }
 
 function pubkey(value: string | undefined, name: string): string | null {
@@ -148,6 +172,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     eventItems: env['EVENTINDEX_EVENT_ITEMS'] === '1',
     eventsHeader: eventsHeader(env['EVENTINDEX_EVENTS_HEADER']),
     eventItemsMax: env['EVENTINDEX_EVENT_ITEMS_MAX']?.trim() ? count(env['EVENTINDEX_EVENT_ITEMS_MAX'], 0, 'EVENTINDEX_EVENT_ITEMS_MAX') : null,
+    eventItemsCalendars: calendarList(env['EVENTINDEX_EVENT_ITEMS_CALENDARS'], 'EVENTINDEX_EVENT_ITEMS_CALENDARS'),
     ingestNip52: env['EVENTINDEX_INGEST_NOSTR'] === '1',
     ingestRelays: relays(env['EVENTINDEX_INGEST_RELAYS'], INGEST_RELAYS, 'EVENTINDEX_INGEST_RELAYS'),
     // The search relays unless set.

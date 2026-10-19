@@ -1,0 +1,110 @@
+{
+  "description": "Calendars whose events the index lists as items while EVENT_ITEMS_CALENDARS names this file (spec/event-items.md § 3). Each is a calendar entry's d; the index reads only d. Directory data, dedicated to the public domain under CC0 1.0 (LICENSE).",
+  "calendars": [
+    {
+      "d": "luma:cal-dlSUfDiWBlONmiQ",
+      "name": "PubKey Bitcoin Events",
+      "location": "New York, US"
+    },
+    {
+      "d": "meetup:bitcoinpark",
+      "name": "Bitcoin Park Nashville",
+      "location": "Nashville, US"
+    },
+    {
+      "d": "meetup:bitcoin-park-austin",
+      "name": "Bitcoin Park Austin",
+      "location": "Austin, US"
+    },
+    {
+      "d": "meetup:ribitcoiners",
+      "name": "Rhode Island Bitcoin Meetup Group",
+      "location": "Providence, US"
+    },
+    {
+      "d": "meetup:atlantabitdevs",
+      "name": "Atlanta Bitcoin Community",
+      "location": "Atlanta, US"
+    },
+    {
+      "d": "meetup:sdbitcoiners",
+      "name": "San Diego Bitcoiners",
+      "location": "San Diego, US"
+    },
+    {
+      "d": "meetup:dallas-bitcoin-meetup-group",
+      "name": "Dallas Bitcoiners",
+      "location": "Dallas, US"
+    },
+    {
+      "d": "luma:cal-EDisCieHa0mXu0b",
+      "name": "AI After 5",
+      "location": "New York, US"
+    },
+    {
+      "d": "luma:cal-dGP82mVkrg1FRmr",
+      "name": "The New York Philosophy Club",
+      "location": "New York, US"
+    },
+    {
+      "d": "meetup:bay-area-bitcoiners",
+      "name": "Bay Area Bitcoiners",
+      "location": "San Francisco, US"
+    },
+    {
+      "d": "luma:cal-oWJafai4qVBegex",
+      "name": "Big Brain Lectures - Bay Area",
+      "location": "San Francisco, US"
+    },
+    {
+      "d": "luma:cal-gmMOid1Rsqc3Hih",
+      "name": "ClickHouse Events",
+      "location": "Austin, US"
+    },
+    {
+      "d": "luma:cal-8LJYo5N7QObN2DI",
+      "name": "Encode Club",
+      "location": "London, GB"
+    },
+    {
+      "d": "luma:cal-7sHKxsqqNNbPA7k",
+      "name": "Merantix AI Campus",
+      "location": "Berlin, DE"
+    },
+    {
+      "d": "luma:cal-H6qTsxbF3YBEDle",
+      "name": "Tokyo AI (TAI)",
+      "location": "Tokyo, JP"
+    },
+    {
+      "d": "luma:cal-SDJ8BXWwdvWpZlE",
+      "name": "Vibe Space",
+      "location": "São Paulo, BR"
+    },
+    {
+      "d": "luma:cal-RrWXCpmoDOe1a6N",
+      "name": "Debris Free Oceans Events",
+      "location": "Miami, US"
+    },
+    {
+      "d": "luma:cal-NkjMVEv0ECZ3dEZ",
+      "name": "Festiwal Polska Teraz",
+      "location": "London, GB"
+    },
+    {
+      "d": "luma:cal-0MrBei8zqMCGyZG",
+      "name": "We Are For Good",
+      "location": "Auckland, NZ"
+    },
+    {
+      "d": "luma:cal-Bsrcc1mPgEO7fSn",
+      "name": "京都◯◯酒場",
+      "location": "Osaka, JP"
+    },
+    {
+      "d": "luma:cal-K9IcbN14WTbkzOs",
+      "name": "WoMakersCode",
+      "location": "São Paulo, BR"
+    }
+  ]
+}

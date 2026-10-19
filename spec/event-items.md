@@ -72,6 +72,10 @@ which is made available under the Open Database License (ODbL).
 - The operator may cap how many items are live at once (`EVENT_ITEMS_MAX`):
   live items are kept up to date and withdrawn as usual, and a new one waits
   for room.
+- The operator may list the calendars whose events are items
+  (`EVENT_ITEMS_CALENDARS`, a file such as `seeds/item-calendars.json`): only
+  their events are items, and a calendar taken off the list has its items
+  withdrawn at once. The directory lists every calendar either way.
 - **Withdrawal.** An item whose event has left its calendar for a day (a feed
   may drop an event for a while), or at once when its calendar is no longer
   listed or mirrored, is withdrawn with a kind 5 naming every version's `e`,
