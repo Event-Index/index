@@ -162,3 +162,32 @@ test('with event items off, nothing is an item', async () => {
   await svc.indexer.tick();
   assert.ok(!svc.sent.some((x) => isItem(x.event)));
 });
+
+const entryOf = (sent: Array<{ audience: Audience; event: VerifiedEvent }>, indexPubkey: string, d: string) =>
+  sent.filter((x) => x.audience === 'own' && x.event.pubkey === indexPubkey && x.event.kind === 39999 && tag(x.event, 'd') === d && !isItem(x.event)).at(-1)?.event;
+
+test('with event items on, a calendar\'s entry names no calendar key, whether it has one or not', async () => {
+  // Without the pause the calendar gets a key; its entry still names none.
+  const s = stores();
+  const env = { ...ITEMS, EVENTINDEX_CALENDAR_KEYS_PAUSED: '0' };
+  const svc = service(s, env);
+  await svc.indexer.tick();
+  assert.ok(s.vault.pubkeyFor(D));
+  const entry = entryOf(svc.sent, svc.indexPubkey, D)!;
+  assert.deepEqual(entry.tags.filter((t) => t[0] === 'p'), []);
+  // A calendar filed while keys are paused has none, and is listed all the same.
+  const paused = service(stores(), ITEMS);
+  await paused.indexer.tick();
+  assert.ok(entryOf(paused.sent, paused.indexPubkey, D), 'listed without a key');
+});
+
+test('an organizer who verified their key is the p of their calendar\'s entry and of its items', async () => {
+  const s = stores();
+  const svc = service(s, ITEMS);
+  const owner = 'ee'.repeat(32);
+  svc.dir.setOwnership(D, { mode: 'mirrored', owner, claimedAt: NOW, nativeCalendar: null });
+  await svc.indexer.tick();
+  assert.deepEqual(entryOf(svc.sent, svc.indexPubkey, D)!.tags.filter((t) => t[0] === 'p'), [['p', owner]]);
+  const items = svc.sent.filter((x) => isItem(x.event) && x.audience === 'own' && tag(x.event, 'calendar')!.endsWith(`:${D}`));
+  assert.ok(items.length > 0 && items.every((x) => tag(x.event, 'p') === owner));
+});

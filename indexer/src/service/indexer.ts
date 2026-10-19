@@ -1143,15 +1143,17 @@ const NATIVE_BUILD_SHARE = 500;
     const held: typeof items = [];
     let sending = 0;
     for (const entry of dir.list({ includeRemoved: true })) {
-      const key = currentKey(entry);
-      if (entry.role === 'calendar' && !key) continue;
+      // With event items, an entry names only the organizer's own key: a
+      // publisher's, or one its organizer verified; never a calendar key.
+      const key = settings.eventItems ? entry.owner : currentKey(entry);
+      if (entry.role === 'calendar' && !key && !settings.eventItems) continue;
       const outside = nostrEntriesGoOutside(entry.d);
       const template = directoryEntry({
         identity: identityOf(entry),
         calendar: metaOf(entry, dir.calendarMeta(entry.d)),
         header,
         pubkey: key,
-        formerKey: formerKeyOf(entry, now),
+        formerKey: settings.eventItems ? null : formerKeyOf(entry, now),
         readFrom: entry.mode === 'own' ? 'nostr' : 'feed',
         nativeCalendar: entry.nativeCalendar,
         localName: entry.localName,
