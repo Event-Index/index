@@ -108,6 +108,14 @@ test('every unit that runs strfry allows the open files strfry.conf asks for', (
   }
 });
 
+test('rclone writes to the bucket without checking or creating it', () => {
+  // A key scoped to one bucket may not create buckets; rclone tries to before
+  // its first write unless told not to, and the write then fails with 403.
+  const remotes = scripts.filter((path) => /RCLONE_CONFIG_BUCKET_TYPE=s3/.test(read(path)));
+  assert.deepEqual(remotes.sort(), ['relay-export.sh', 'restore.sh']);
+  for (const path of remotes) assert.match(read(path), /RCLONE_CONFIG_BUCKET_NO_CHECK_BUCKET=true/, path);
+});
+
 test('the API cannot read the secrets, and the indexer has time to finish its poll on stop', () => {
   const api = read('templates/systemd/eventindex-api.service');
   assert.match(api, /^InaccessiblePaths=\$\{ETC\}$/m);
