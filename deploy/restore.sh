@@ -7,8 +7,8 @@
 #   sudo deploy/restore.sh --skip-relay             the databases only
 #
 # Refuses to overwrite: move an existing index.db or vault.db aside first.
-# A vault.db that still holds calendar keys needs the calendar-key secret it
-# was created with; signer connections need the signer secret.
+# Signer connections in vault.db open only with the signer secret they were
+# sealed under.
 
 . "$(dirname "$0")/lib.sh"
 require_root "$@"

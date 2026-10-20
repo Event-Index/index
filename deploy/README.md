@@ -45,7 +45,6 @@ unit cannot see `/etc/eventindex/`: it needs no secret.
 | `/etc/eventindex/index-key.nsec` | the Event Index key (secret) |
 | `/etc/eventindex/bucket.env` | the bucket keys (secret) |
 | `/etc/eventindex/signer.secret` | seals signer connections in `vault.db` (secret) |
-| `/etc/eventindex/calendar-key.secret` | the calendar keys' secret, until they are destroyed (secret) |
 | `/etc/eventindex/eventindex.env` | settings for the indexer and the API (rendered) |
 | `/opt/eventindex/app` | the code at `REPO_REF` |
 | `/var/lib/eventindex/index.db`, `vault.db` | the databases |
@@ -77,7 +76,6 @@ None of these files is in the repository or the bucket:
 | `index-key.nsec` | the operator, by hand | one line, the Event Index key as `nsec1…` |
 | `bucket.env` | the operator, by hand | `BUCKET_ACCESS_KEY_ID=…` and `BUCKET_SECRET_ACCESS_KEY=…` |
 | `signer.secret` | `setup.sh`, on the server, whenever it is missing | 64 hex digits |
-| `calendar-key.secret` | `setup.sh first`, on the server | 64 hex digits |
 
 Place the operator's files without leaving them in shell history, for example
 by copying them from your own machine:
@@ -93,17 +91,9 @@ The setup then sets their owner and mode.
 lost, `setup.sh` makes a new one, and an organizer whose signer was connected
 connects it again; a claim sealed to the old intake key is made again.
 
-**The calendar-key secret decrypts the calendar keys in `vault.db`.** It is
-created on first setup only. While the vault holds calendar keys, keep a copy
-off the server, not in the bucket; a restored `vault.db` that holds them is
-useless without it. Once they are destroyed (`eventindex-admin
-destroy-calendar-keys`, spec/indexer-rules.md § 8) the indexer no longer reads
-it: delete it from the server with `shred -u`, then delete every copy. From
-then on, no backup of `vault.db` can give a calendar key back.
-
 The bucket keys should be scoped to the one bucket. Keep the bucket's
-versioning off: Litestream's retention (`BACKUP_RETENTION`) is what lets a
-deleted calendar key leave the backups.
+versioning off: Litestream's retention (`BACKUP_RETENTION`) is what lets
+deleted data leave the backups.
 
 ## First setup
 
@@ -129,8 +119,7 @@ deleted calendar key leave the backups.
    certificate and starts the relay, but not the backups, the indexer or the
    API. Place the missing files and run `/root/index/deploy/setup.sh services`.
 
-5. Copy `calendar-key.secret` off the server (Secrets).
-6. Check:
+5. Check:
 
    ```sh
    systemctl --no-pager status strfry eventindex-indexer eventindex-api litestream
@@ -140,7 +129,7 @@ deleted calendar key leave the backups.
    litestream databases -config /etc/litestream.yml
    ```
 
-7. File the seed lists and watch the first polls (the poll service reads 20
+6. File the seed lists and watch the first polls (the poll service reads 20
    feeds every 30 seconds):
 
    ```sh
@@ -173,7 +162,7 @@ In the bucket, under `BUCKET_PREFIX`:
 | Key | What | Kept |
 |---|---|---|
 | `index.db/` | Litestream replica of `index.db` (history: feeds drop past events) | snapshots for `BACKUP_RETENTION` |
-| `vault.db/` | Litestream replica of `vault.db` (calendar keys, encrypted) | snapshots for `BACKUP_RETENTION` |
+| `vault.db/` | Litestream replica of `vault.db` (signer connections, encrypted) | snapshots for `BACKUP_RETENTION` |
 | `relay/relay-<time>.jsonl.zst` | nightly export of every relay event | `RELAY_EXPORT_KEEP_DAYS` |
 
 Run an export by hand with `systemctl start eventindex-relay-export.service`
@@ -192,7 +181,8 @@ mv /var/lib/eventindex/index.db /var/lib/eventindex/index.db.lost   # and -wal, 
 `restore.sh` restores both databases from the bucket (and checks their
 integrity), then imports the newest relay export into strfry. `--skip-relay`
 leaves the relay alone; `--relay-file FILE` imports a given export instead.
-It never overwrites an existing database.
+It never overwrites an existing database. Backups older than the index's
+signer secret may hold a vault with keys no secret opens; they are dropped.
 
 ## Moving to a new host
 
@@ -200,9 +190,8 @@ It never overwrites an existing database.
    ahead.
 2. **New server**: create it, clone the repository, write
    `/etc/eventindex/deploy.env` with the same bucket settings, and put the
-   secrets back: `index-key.nsec`, `bucket.env`, `signer.secret` (or let the
-   setup make a new one), and, while the vault holds calendar keys, the
-   original `calendar-key.secret`.
+   secrets back: `index-key.nsec`, `bucket.env` and `signer.secret` (or let
+   the setup make a new one).
 3. **Certificate**: copy `/etc/letsencrypt` from the old server
    (`tar -czf le.tgz /etc/letsencrypt`, copy, `tar -xzf le.tgz -C /`), so the
    new server has a certificate before DNS moves.
@@ -259,11 +248,11 @@ eventindex-admin reject-claim 8
 eventindex-admin status
 ```
 
-A claim hands a calendar to its organizer's own key
-([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 13): the poll
-service withdraws the calendar key's upcoming events, says where the calendar
-now publishes, and deletes the key from `vault.db`. It cannot be undone from
-here; the organizer can still have the calendar removed. Whether the index's
+A claim names a calendar's organizer, or hands the calendar to their own key
+([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 13): linked, it
+stays mirrored and its entry and items name them; published by themselves or
+as them, its items are withdrawn. It cannot be undone from here; the
+organizer can still have the calendar removed. Whether the index's
 relay also takes the events of organizers it publishes as is
 `RELAY_HOSTS_CLAIMANTS` in `deploy.env` (1 in the example: it does).
 

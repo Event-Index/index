@@ -1,13 +1,10 @@
 # /etc/eventindex/: the operator places the index key and the bucket keys by
-# hand; the signer secret is created here whenever it is missing, and the
-# calendar-key secret on first setup only.
+# hand; the signer secret is created here whenever it is missing.
 #   index-key.nsec         the Event Index key (operator)
 #   bucket.env             BUCKET_ACCESS_KEY_ID, BUCKET_SECRET_ACCESS_KEY (operator)
 #   signer.secret          64 hex digits: seals signer connections, derives the intake key
-#   calendar-key.secret    64 hex digits: the calendar keys' secret, until they are destroyed
 #   eventindex.env         the services' settings (rendered)
 
-mode="$1"
 log "secrets in $ETC"
 chown "$SERVICE_USER:$SERVICE_USER" "$ETC"
 chmod 700 "$ETC"
@@ -17,14 +14,6 @@ signer="$ETC/signer.secret"
 if [ ! -s "$signer" ]; then
   log "creating the signer secret"
   (umask 077 && openssl rand -hex 32 >"$signer")
-fi
-
-# Needed only while vault.db holds calendar keys: the indexer refuses to start
-# without it until they are destroyed (README.md, Secrets).
-secret="$ETC/calendar-key.secret"
-if [ ! -s "$secret" ] && [ "$mode" = first ] && [ ! -e "$DATA_DIR/vault.db" ]; then
-  log "creating the calendar-key secret"
-  (umask 077 && openssl rand -hex 32 >"$secret")
 fi
 
 missing=0
