@@ -44,7 +44,7 @@ Tags in this order; a tag with no value is left out. `content` is empty.
 | `organizer` | the calendar's name |
 | `calendar` | the calendar's entry, `39999:<index key>:<calendar d>` |
 | `source` | `luma`, `meetup`, `google`, `mobilizon` or `gancio`; for any other calendar, its feed's host |
-| `location`, `g` | the venue and its geohash, as the record gives them; none for a hidden venue ([`platform-adapters.md`](platform-adapters.md)) |
+| `location`, `g` | the venue and its geohash, as the record gives them; none for a hidden venue ([`platform-adapters.md`](platform-adapters.md)). A Meetup event's `location` may come from its page, as text with no `g` (there, Event pages) |
 | `summary` | the event's summary, under its source's content policy, at most 280 characters ([`nip52-mapping.md`](nip52-mapping.md) § 3) |
 | `status` | `cancelled` when the record is `STATUS:CANCELLED` |
 | `p` | the organizer's own key (hex), once they verified it (§ 5); none otherwise |

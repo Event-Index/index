@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openIndexDb } from '../src/store/index-db.ts';
+import { eventPagesStore } from '../src/store/event-pages.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
@@ -162,6 +163,35 @@ test('relay pauses are kept in index.db, listed, set and cleared by the admin co
     assert.equal(run('resume-relay', 'wss://relay.example').status, 0);
     assert.match(run('relays').stdout, /no relay is paused/);
     assert.equal(run('pause-relay', 'not-a-relay').status, 2);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('the Meetup page reader\'s state is shown, and a stop is cleared, by the admin command', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const env = { ...process.env, EVENTINDEX_DATA_DIR: dataDir };
+    const run = (...args: string[]) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', ...args], { cwd: repo, env, encoding: 'utf8' });
+    const db = openIndexDb(join(dataDir, 'index.db'));
+    const pages = eventPagesStore(db);
+    const feed = { location: null, status: null, stamp: '|' };
+    pages.observe({ calendarD: 'meetup:g', uid: 'a', url: 'https://www.meetup.com/g/events/1/', start: 2_000_000_000, end: 2_000_003_600, feed });
+    pages.observe({ calendarD: 'meetup:g', uid: 'b', url: 'https://www.meetup.com/g/events/2/', start: 2_000_000_000, end: 2_000_003_600, feed });
+    pages.read('meetup:g', 'a', { stamp: '|', at: 1_900_000_000, outcome: 'read', facts: { location: 'Hall', cancelled: false } });
+    pages.refused(5, null, 1_900_000_000);
+    db.close();
+    const shown = run('meetup-pages');
+    assert.equal(shown.status, 0, shown.stderr);
+    assert.match(shown.stdout, /stopped since 20\d\d-/);
+    assert.match(shown.stdout, /read\s+1/);
+    assert.match(shown.stdout, /not yet read\s+1/);
+    assert.equal(run('meetup-pages', 'resume').status, 0);
+    assert.match(run('meetup-pages').stdout, /reading/);
+    const again = openIndexDb(join(dataDir, 'index.db'));
+    assert.equal(eventPagesStore(again).state().stoppedAt, null);
+    again.close();
+    assert.equal(run('meetup-pages', 'frobnicate').status, 2);
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

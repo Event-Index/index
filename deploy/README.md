@@ -270,6 +270,22 @@ batch goes (`journalctl -u eventindex-indexer | grep 'directory: sending'`). Nos
 publishers of other organizers' events are listed in
 `seeds/nostr-aggregators.json`, or marked with `eventindex-admin aggregator`.
 
+## Meetup event pages
+
+Meetup feeds give no place. With `MEETUP_PAGES=1` the poll service reads
+each upcoming Meetup event's page, once when the event is first seen and
+again when its feed changes the event, and takes the venue as text and a
+cancellation from the page's schema.org data only
+([`../spec/platform-adapters.md`](../spec/platform-adapters.md), Meetup). It
+asks for what robots.txt allows, reads robots.txt once a day, and sends at
+most one request to meetup.com every 5 seconds, feeds included. A 403 or 429
+pauses the reading, longer each time; five in a row stop it:
+
+```sh
+eventindex-admin meetup-pages          # reading, paused or stopped; pages by outcome
+eventindex-admin meetup-pages resume   # after a stop
+```
+
 ## Discovery and coverage
 
 ```sh

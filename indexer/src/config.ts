@@ -69,6 +69,9 @@ export interface Settings {
   // Off unless set: the directory entries of publishers listed that way go
   // to the list and search relays too; until then they stay on the index's.
   publishNostrEntriesOutside: boolean;
+  // Off unless set: Meetup event pages are read for their venue and status
+  // (spec/platform-adapters.md, Meetup).
+  meetupPages: boolean;
 }
 
 export const INGEST_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.formstr.app'];
@@ -170,5 +173,6 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     // The search relays unless set.
     ingestSearchRelays: relays(env['EVENTINDEX_INGEST_SEARCH_RELAYS'], searchRelays, 'EVENTINDEX_INGEST_SEARCH_RELAYS'),
     publishNostrEntriesOutside: env['EVENTINDEX_PUBLISH_NOSTR_ENTRIES_OUTSIDE'] === '1',
+    meetupPages: env['EVENTINDEX_MEETUP_PAGES'] === '1',
   };
 }

@@ -52,6 +52,9 @@ import { limited, PERMISSIONS, type RemoteSession, type RemoteSigners } from '..
 import { authoredText, parseBunkerUrl } from '../claim/proof.ts';
 import type { Claim } from '../store/queues.ts';
 import type { SignerConnection } from '../store/vault-db.ts';
+import { applyPage, feedSays, isMeetupEventPage } from '../enrich/apply.ts';
+import { createPageReader } from '../enrich/meetup-pages.ts';
+import { eventPagesStore } from '../store/event-pages.ts';
 
 // Where an event goes: the index's own relay (always), or a set of outside
 // relays (service/routing.ts).
@@ -96,6 +99,9 @@ export interface IndexerDeps {
   relayAllowed?: (url: string) => Promise<boolean>;
   // Connects to organizers' remote signers (NIP-46).
   signers?: RemoteSigners;
+  // Fetches an event's page, spaced with the feeds of its site
+  // (enrich/pace.ts); Meetup pages are read only with it and MEETUP_PAGES.
+  fetchPage?: (url: string, validators: Validators) => Promise<FetchResult>;
   // Keys that publish other organizers' events (default:
   // seeds/nostr-aggregators.json).
   aggregators?: Set<string>;
@@ -125,6 +131,10 @@ const REMOVED = 'organizer request';
 const RETIRED_KEY = 'a calendar key the index once held';
 // The most events signed through an organizer's remote signer in one poll.
 const SIGN_BATCH = 100;
+// Meetup event pages read in one tick, and how long one is remembered after
+// its event ends.
+const PAGES_PER_TICK = 4;
+const PAGE_KEPT = 30 * 86400;
 // The index key's kinds re-sent from the index's relay when outside
 // publishing starts, and the directory's, re-sent when it goes outside.
 const BACKFILL_KINDS = [0, 3, 10002];
@@ -264,6 +274,51 @@ export function createIndexer(deps: IndexerDeps) {
     writeAllowlist();
   }
 
+  // Meetup event pages (spec/platform-adapters.md, Meetup): a mirrored
+  // calendar's events get the venue and status their pages show.
+  const pages = settings.meetupPages && deps.fetchPage ? eventPagesStore(db) : null;
+  const pageReader = pages ? createPageReader({ store: pages, fetch: deps.fetchPage!, log: deps.log }) : null;
+  const readsPages = (e: StoredEntry) => e.role === 'calendar' && e.source === 'meetup' && e.mode === 'mirrored' && !e.removed;
+  function* pageEvents(feed: NormalizedFeed) {
+    for (const record of feed.records) {
+      const master = record.master;
+      if (!master || master.hasProperty('rrule') || master.hasProperty('rdate')) continue;
+      const url = master.getFirstPropertyValue('url');
+      if (typeof url !== 'string' || !isMeetupEventPage(url)) continue;
+      const start = (master.getFirstPropertyValue('dtstart') as ICAL.Time).toUnixTime();
+      const dtend = master.getFirstPropertyValue('dtend') as ICAL.Time | null;
+      const duration = master.getFirstPropertyValue('duration') as ICAL.Duration | null;
+      yield { record, master, url, start, end: dtend ? dtend.toUnixTime() : start + (duration?.toSeconds() ?? 0) };
+    }
+  }
+  // At a poll: what the feed says of each event is kept, and what its page
+  // said is added.
+  function enrichFeed(entry: StoredEntry, feed: NormalizedFeed): void {
+    if (!pages || !readsPages(entry)) return;
+    for (const { record, master, url, start, end } of pageEvents(feed)) {
+      const said = feedSays(master);
+      pages.observe({ calendarD: entry.d, uid: record.uid, url, start, end, feed: said });
+      applyPage(master, said, pages.get(entry.d, record.uid)!.facts, url);
+    }
+  }
+  // Pages read in this tick: their events' records and rows are updated.
+  async function readPages(now: number): Promise<void> {
+    if (!pages || !pageReader) return;
+    pages.forgetBefore(now - PAGE_KEPT);
+    const touched = new Set<string>();
+    for (const { calendarD, uid } of await pageReader.step(now, PAGES_PER_TICK)) {
+      const entry = dir.get(calendarD);
+      const feed = feeds.get(calendarD);
+      const row = pages.get(calendarD, uid);
+      const record = feed?.records.find((r) => r.uid === uid);
+      if (!entry || !readsPages(entry) || !row || !record?.master) continue;
+      applyPage(record.master, row.feed, row.facts, row.url);
+      db.putRecord({ calendarD, uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
+      touched.add(calendarD);
+    }
+    for (const d of touched) events.replaceCalendar(d, eventRows(feeds.get(d)!, cohostPlan([...feeds.values()], now), now));
+  }
+
   // The co-host plan needs every calendar's events; until a calendar polls,
   // its stored records stand in for its feed.
   for (const entry of dir.list()) {
@@ -280,6 +335,18 @@ export function createIndexer(deps: IndexerDeps) {
       });
     } catch (error) {
       deps.log(`stored records of ${entry.d}: ${(error as Error).message}`);
+    }
+  }
+  // Events stored before their pages were read are read from now on; a
+  // record a page already added to has its row.
+  if (pages) {
+    for (const entry of dir.list()) {
+      const feed = feeds.get(entry.d);
+      if (!feed || !readsPages(entry)) continue;
+      for (const { record, master, url, start, end } of pageEvents(feed)) {
+        if (pages.get(entry.d, record.uid) || master.hasProperty('x-eventindex-enriched')) continue;
+        pages.observe({ calendarD: entry.d, uid: record.uid, url, start, end, feed: feedSays(master) });
+      }
     }
   }
 
@@ -1095,6 +1162,7 @@ const NATIVE_BUILD_SHARE = 500;
           keyOf,
           ...(settings.eventItems ? { itemAddress: (id: string) => (items.has(id) ? naddrFor(indexPubkey, 39999, id, [settings.publicRelay]) : null) } : {}),
           originalOf: (id) => events.originalAddressOf(id),
+          enrich: (feed) => enrichFeed(entry, feed),
           ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
         },
       );
@@ -1160,6 +1228,14 @@ const NATIVE_BUILD_SHARE = 500;
           await discovery.step(now);
         } catch (error) {
           deps.log(`discovery: ${(error as Error).stack ?? error}`);
+        }
+      }
+
+      if (!deps.signal?.aborted) {
+        try {
+          await readPages(now);
+        } catch (error) {
+          deps.log(`meetup pages: ${(error as Error).stack ?? error}`);
         }
       }
 

@@ -44,6 +44,7 @@ import { coverage, formatCoverage, upcomingReferences } from './service/coverage
 import { decodeGeohash } from './project/geohash.ts';
 import { useSafeWebSockets } from './service/websocket.ts';
 import { nativeD } from './directory/id.ts';
+import { eventPagesStore } from './store/event-pages.ts';
 
 const USAGE = `usage: admin.ts <command>
   status
@@ -66,7 +67,8 @@ const USAGE = `usage: admin.ts <command>
   aggregator <npub or hex>
   relays
   pause-relay <wss://…> [--hours <n>]
-  resume-relay <wss://…>`;
+  resume-relay <wss://…>
+  meetup-pages [resume]`;
 
 class UsageError extends Error {}
 
@@ -253,6 +255,24 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       relayPauses(s.dir).set(args[0], null);
       out(`${args[0]} resumed; it gets new events from the next publish`);
       return;
+    case 'meetup-pages': {
+      // The Meetup event pages read for their venue (enrich/meetup-pages.ts).
+      const pages = eventPagesStore(s.db);
+      if (args[0] === 'resume') {
+        pages.resume();
+        out('Meetup pages: reading again from the next tick');
+        return;
+      }
+      if (args.length) throw new UsageError('meetup-pages takes only resume');
+      const state = pages.state();
+      out(`state           ${state.stoppedAt !== null ? `stopped since ${time(state.stoppedAt)}, after ${state.strikes} refusals` : state.pausedUntil !== null && state.pausedUntil > now ? `paused until ${time(state.pausedUntil)}` : 'reading'}`);
+      out(`robots.txt      ${state.robotsAt === null ? 'not read yet' : `read ${time(state.robotsAt)}`}`);
+      const counts = new Map(pages.counts().map((c) => [c.outcome ?? 'unread', c.n]));
+      for (const [label, key] of [['read', 'read'], ['not yet read', 'unread'], ['disallowed', 'disallowed'], ['gone', 'gone'], ['failed', 'failed']] as const) {
+        out(`${label.padEnd(15)} ${counts.get(key) ?? 0}`);
+      }
+      return;
+    }
     default:
       throw new UsageError(command ? `unknown command ${command}` : 'no command');
   }

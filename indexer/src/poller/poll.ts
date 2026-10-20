@@ -37,6 +37,9 @@ export interface PollDeps {
   itemAddress?: (recordId: string) => string | null;
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
+  // Adds to the fresh feed's records what is known of their events from
+  // elsewhere (their pages), before the records are kept.
+  enrich?: (feed: NormalizedFeed) => void;
   // A calendar published as its organizer: no profile or relay list of
   // theirs is written, its calendar's d is the entry's d, and its events
   // name the relay they are on.
@@ -112,6 +115,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     if (error instanceof FeedParseError) return failed(entry, deps, 'not-icalendar');
     throw error;
   }
+  if (entry.role === 'calendar') deps.enrich?.(feed);
   const occurrences = expand(feed, now);
 
   const nextEventStart = occurrences.map((o) => o.start).filter((s) => s >= now).sort((a, b) => a - b)[0] ?? null;

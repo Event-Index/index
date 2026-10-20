@@ -24,6 +24,8 @@ test('settings come from the environment the deploy unit sets, with safe default
   assert.equal(s.dumpFile, '/var/lib/eventindex/dump/index.db');
   assert.equal(s.apiPort, 8080);
   assert.equal(s.publishToGeneralRelays, false);
+  assert.equal(s.meetupPages, false);
+  assert.equal(loadSettings({ EVENTINDEX_MEETUP_PAGES: '1' }).meetupPages, true);
   assert.deepEqual(s.generalRelays, ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.damus.io']);
   assert.deepEqual(s.listRelays, []);
   const on = loadSettings({ EVENTINDEX_DATA_DIR: '/d', EVENTINDEX_PUBLISH_TO_GENERAL_RELAYS: '1', EVENTINDEX_LIST_RELAYS: 'wss://a.example, wss://b.example' });

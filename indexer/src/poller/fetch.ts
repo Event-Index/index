@@ -36,6 +36,8 @@ export interface NetworkOptions {
   timeoutMs?: number;
   deadlineMs?: number;
   now?: () => number;
+  // What is asked for: a feed unless given.
+  accept?: string;
 }
 
 class FetchError extends Error {
@@ -140,7 +142,7 @@ export async function fetchFeed(input: string, validators: Validators, options: 
 
       const headers: Record<string, string> = {
         'user-agent': USER_AGENT,
-        accept: 'text/calendar, application/calendar+json;q=0.5, */*;q=0.1',
+        accept: options.accept ?? 'text/calendar, application/calendar+json;q=0.5, */*;q=0.1',
         'accept-encoding': 'gzip, deflate, br',
       };
       if (hops === 0 && validators.etag) headers['if-none-match'] = validators.etag;

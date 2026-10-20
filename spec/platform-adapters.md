@@ -75,7 +75,8 @@ Bare LF line endings.
 Feed: `https://www.meetup.com/<urlname>/events/ical/`, readable logged out.
 
 - Carries `URL`, a `VTIMEZONE`, `SEQUENCE`, `LAST-MODIFIED` and `CREATED`; no
-  `GEO` and no `LOCATION`. The place comes only from the description text.
+  `GEO` and no `LOCATION`. The place comes from the event's page, when the
+  index reads pages (below), or else only from the description text.
 - **Group name.** Each `DESCRIPTION` begins with the group's name on a line of
   its own; that line is removed when it equals the calendar's name.
 - **Markdown.** Descriptions are Markdown and move to `STYLED-DESCRIPTION`
@@ -85,6 +86,48 @@ Feed: `https://www.meetup.com/<urlname>/events/ical/`, readable logged out.
   announced.
 - A feed URL with a `sig` parameter, or under `/events/ical/<member id>/…`, is a
   member's own feed and is refused.
+
+### Event pages
+
+With pages read (`MEETUP_PAGES`), an upcoming event of a mirrored Meetup
+calendar whose `URL` is its page (`https://www.meetup.com/<urlname>/events/<id>/`)
+has that page read once when the event is first seen, and again only when
+the feed's `LAST-MODIFIED` or `SEQUENCE` for it changes. The index reads the
+page's schema.org `Event` JSON-LD (`<script type="application/ld+json">`) and
+nothing else on it: not the page's app data (`__NEXT_DATA__`, `/_next/data/`),
+which carries the venue's coordinates.
+
+- **Venue.** A `Place` in `location` becomes `LOCATION` text: its `name`, its
+  address's `streetAddress` and its `addressLocality`, each left out when the
+  text so far already holds it, at most 300 characters. A name that says the
+  venue is not shown or not set ("Location visible to members", "Needs a
+  location", "TBA") is not a venue. A page that shows no venue to a
+  logged-out reader gives none: the event keeps no place.
+- **Online.** `eventAttendanceMode` `OnlineEventAttendanceMode`, or
+  `eventStatus` `EventMovedOnline`, makes `LOCATION` `Online`. A mixed event
+  keeps its venue.
+- **Cancelled.** `eventStatus` `EventCancelled` sets `STATUS:CANCELLED`.
+- **Never** coordinates, a geocoded point, images or the description: the
+  record keeps no `GEO` from a page, and items carry `location` text with no
+  `g`.
+- The page's values never replace the feed's: a `LOCATION` the feed gives is
+  kept, and a page that no longer says cancelled gives the feed's `STATUS`
+  back. The record marks what came from the page with `X-EVENTINDEX-ENRICHED`
+  ([`icalendar-profile.md`](icalendar-profile.md) § 3.5). Until a changed event's
+  page is read again, its record keeps what the page said last.
+
+Reading is polite: requests carry the index's User-Agent, which names its
+site (`EventIndex/0.1 (+https://eventindex.space)`); at most one request goes to meetup.com every 5 seconds, feeds
+included; a page is asked for with the validators of its last read
+(`If-None-Match`, `If-Modified-Since`). The site's robots.txt is read once a
+day, and a path it disallows for `EventIndex` (or for `*`, when no group
+names the index) is never requested; while robots.txt cannot be read (a 5xx
+or a network error), no page is, and a site without one (any other 4xx)
+allows every page. A 403 or 429 pauses reading for 10 minutes, doubled with
+each one in a row, up to a day, or for as long as `Retry-After` asks; five in
+a row stop it until the operator resumes it. A page that is gone (404, 410)
+gives nothing, and one that cannot be read is tried again an hour later, up
+to five times for the same version of the event.
 
 ## Mobilizon (`mobilizon`)
 

@@ -115,6 +115,7 @@ On every VEVENT of a record:
 | `X-EVENTINDEX-VENUE` | `hidden` when the source shows the venue only to registered guests ([`platform-adapters.md`](platform-adapters.md)). Such an event keeps no `LOCATION` or `GEO`, and no projection carries a place for it. |
 | `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL (a co-host's copy; a copy of a more original event, [`indexer-rules.md`](indexer-rules.md) § 15); on an old record of a calendar claimed to publish itself, the URL of the organizer's record that replaces it |
 | `X-EVENTINDEX-NOSTR` | the `naddr` of the event on nostr, once published: its event item ([`event-items.md`](event-items.md) § 4), or for a calendar the index publishes as its organizer, its NIP-52 event; on a record read from its organizer's own key, the `naddr` of their event |
+| `X-EVENTINDEX-ENRICHED` | on an event given values its feed lacks, from its page ([`platform-adapters.md`](platform-adapters.md), Meetup, Event pages): the page's URL, with `X-EVENTINDEX-PROPERTIES` naming what came from it (`LOCATION`, `STATUS`, comma-separated), e.g. `X-EVENTINDEX-ENRICHED;X-EVENTINDEX-PROPERTIES=LOCATION:https://www.meetup.com/pythonsd/events/312775793/` |
 | `X-EVENTINDEX-CLAIMED` | the date (`YYYY-MM-DD`) the calendar was claimed by its organizer, on its records since |
 
 ## 4. Calendar metadata

@@ -14,6 +14,7 @@ import { acquireLock } from './service/lock.ts';
 import { createIndexer } from './service/indexer.ts';
 import { relayPublisher, relayPauses } from './service/publisher.ts';
 import { fetchFeed } from './poller/fetch.ts';
+import { hostPacer } from './enrich/pace.ts';
 import { openIndexDb } from './store/index-db.ts';
 import { openVault } from './store/vault-db.ts';
 import { directoryStore } from './store/directory.ts';
@@ -24,6 +25,9 @@ import { nip46Signers } from './claim/signer.ts';
 import { SimplePool } from 'nostr-tools/pool';
 
 const TICK_SECONDS = 30;
+// Requests to meetup.com, feeds and event pages alike, start 5 s apart.
+const MEETUP = hostPacer({ hosts: ['meetup.com'], intervalMs: 5000 });
+const PAGE_ACCEPT = 'text/html, application/xhtml+xml;q=0.9, */*;q=0.1';
 
 function log(line: string): void {
   process.stdout.write(`${new Date().toISOString()} ${line}\n`);
@@ -72,7 +76,8 @@ async function main(): Promise<void> {
     indexKey,
     settings,
     now: () => Math.floor(Date.now() / 1000),
-    fetch: (url, validators) => fetchFeed(url, validators),
+    fetch: MEETUP.wrap((url, validators) => fetchFeed(url, validators)),
+    fetchPage: MEETUP.wrap((url, validators) => fetchFeed(url, validators, { accept: PAGE_ACCEPT })),
     publisher,
     reader: poolReader(readPool),
     signers: nip46Signers(readPool),
@@ -81,7 +86,7 @@ async function main(): Promise<void> {
     log,
     signal: controller.signal,
   });
-  log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}; claimants ${settings.hostClaimants ? 'hosted' : 'not hosted'} on the relay; NIP-52 ingestion ${settings.ingestNip52 ? 'on' : 'off'}`);
+  log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}; claimants ${settings.hostClaimants ? 'hosted' : 'not hosted'} on the relay; NIP-52 ingestion ${settings.ingestNip52 ? 'on' : 'off'}; Meetup pages ${settings.meetupPages ? 'read' : 'not read'}`);
 
   try {
     while (!controller.signal.aborted) {

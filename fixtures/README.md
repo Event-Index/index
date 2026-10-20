@@ -50,3 +50,8 @@ into flapping, vanished and quarantine sequences.
 `pages/luma-city-nyc.html` is the New York Luma Discover page reduced to the
 calendar fields discovery reads (`api_id`, `name`, `slug`, `is_personal`,
 `access_level`) inside its original `__NEXT_DATA__` structure.
+
+`pages/synthetic/` holds hand-written Meetup event page fragments: only the
+`<script type="application/ld+json">` blocks the index reads (and, in
+`meetup-members-only.html`, an app-data block it must not read), with
+invented groups, venues and addresses. No real Meetup page is kept.
