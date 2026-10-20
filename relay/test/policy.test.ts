@@ -4,11 +4,11 @@ import { decide, type Allowlist, type Lookup, type PolicyEvent } from '../src/po
 
 const hex = (c: string) => c.repeat(64);
 const INDEX = hex('a');
-const LIVE = hex('b');
-const REMOVED = hex('c');
+// A key the index once held, retired: it is nobody's here now.
+const RETIRED = hex('b');
 const STRANGER = hex('d');
 const HOSTED = hex('9');
-const allow: Allowlist = { index: INDEX, live: new Set([LIVE]), removed: new Set([REMOVED]), hosted: new Set([HOSTED]) };
+const allow: Allowlist = { index: INDEX, hosted: new Set([HOSTED]) };
 const event = (pubkey: string, kind: number, tags: string[][] = []): PolicyEvent =>
   ({ id: hex('e'), pubkey, kind, tags, content: '', created_at: 1792108194, sig: hex('f') + hex('f') });
 const nothingStored: Lookup = async () => false;
@@ -20,7 +20,7 @@ const refuses = async (e: PolicyEvent, pattern: RegExp, lookup: Lookup = nothing
   assert.match((d as { msg: string }).msg, /^blocked: /);
   assert.match((d as { msg: string }).msg, pattern);
 };
-const ours = (kind: number, pubkey = LIVE) => ['a', `${kind}:${pubkey}:d1`, 'wss://relay.eventindex.space'];
+const ours = (kind: number, pubkey = HOSTED) => ['a', `${kind}:${pubkey}:d1`, 'wss://relay.eventindex.space'];
 
 test('the index key publishes its profile, follows, relay list, calendars, events, deletions and the directory', async () => {
   for (const kind of [0, 3, 5, 10002, 31922, 31923, 31924, 39998, 39999]) await accepts(event(INDEX, kind));
@@ -30,14 +30,9 @@ test('the index key publishes its profile, follows, relay list, calendars, event
   await refuses(event(INDEX, 1111), /comment/);
 });
 
-test('a calendar key publishes its profile, relay list, calendar, events and deletions, and nothing else', async () => {
-  for (const kind of [0, 5, 10002, 31922, 31923, 31924]) await accepts(event(LIVE, kind));
-  for (const kind of [1, 3, 7, 39998, 39999, 30023]) await refuses(event(LIVE, kind), new RegExp(`kind ${kind}`));
-});
-
-test('a removed calendar\'s key may still publish its profile and deletions only', async () => {
-  for (const kind of [0, 5]) await accepts(event(REMOVED, kind));
-  for (const kind of [10002, 31922, 31923, 31924]) await refuses(event(REMOVED, kind), new RegExp(`kind ${kind}`));
+test('a key the index once held publishes nothing here', async () => {
+  for (const kind of [0, 10002, 31922, 31923, 31924]) await refuses(event(RETIRED, kind), new RegExp(`kind ${kind}`));
+  await refuses(event(STRANGER, 31925, [ours(31923, RETIRED)]), /RSVP/);
 });
 
 test('an organizer the index publishes as, when the relay hosts them, publishes calendars, events and deletions only', async () => {
@@ -49,20 +44,19 @@ test('an organizer the index publishes as, when the relay hosts them, publishes 
 
 test('anyone may RSVP to an event of one of the index\'s keys', async () => {
   await accepts(event(STRANGER, 31925, [['d', 'x'], ours(31923), ['status', 'accepted']]));
-  await accepts(event(STRANGER, 31925, [ours(31922, REMOVED)]));
   await accepts(event(STRANGER, 31925, [ours(31923, INDEX)]));
   await refuses(event(STRANGER, 31925, [['a', `31923:${STRANGER}:d1`]]), /RSVP/);
-  await refuses(event(STRANGER, 31925, [['a', `31924:${LIVE}:calendar`]]), /RSVP/);
+  await refuses(event(STRANGER, 31925, [['a', `31924:${HOSTED}:calendar`]]), /RSVP/);
   await refuses(event(STRANGER, 31925, [['e', hex('1')]]), /RSVP/);
   await refuses(event(STRANGER, 31925, [['a', 'not-a-coordinate']]), /RSVP/);
 });
 
 test('anyone may comment on an event of one of the index\'s keys, by its root', async () => {
-  await accepts(event(STRANGER, 1111, [['A', `31923:${LIVE}:d1`], ['K', '31923'], ['a', `31923:${LIVE}:d1`], ['k', '31923']]));
-  await accepts(event(STRANGER, 1111, [['A', `31923:${LIVE}:d1`], ['K', '31923'], ['e', hex('2')], ['k', '1111']]), undefined, 'IP6');
+  await accepts(event(STRANGER, 1111, [['A', `31923:${HOSTED}:d1`], ['K', '31923'], ['a', `31923:${HOSTED}:d1`], ['k', '31923']]));
+  await accepts(event(STRANGER, 1111, [['A', `31923:${HOSTED}:d1`], ['K', '31923'], ['e', hex('2')], ['k', '1111']]), undefined, 'IP6');
   await accepts(event(STRANGER, 1111, [ours(31922)]));
   await refuses(event(STRANGER, 1111, [['A', `31923:${STRANGER}:d1`], ['K', '31923']]), /comment/);
-  await refuses(event(STRANGER, 1111, [['A', `30023:${LIVE}:post`], ['K', '30023']]), /comment/);
+  await refuses(event(STRANGER, 1111, [['A', `30023:${HOSTED}:post`], ['K', '30023']]), /comment/);
   await refuses(event(STRANGER, 1111, [['E', hex('3')], ['K', '1']]), /comment/);
 });
 
@@ -74,7 +68,7 @@ test('anyone may delete their own events stored here, and only those', async () 
   await accepts(event(STRANGER, 5, [['a', `31925:${STRANGER}:x`], ['k', '31925']]), lookup);
   await accepts(event(STRANGER, 5, [['e', hex('4')], ['a', `31925:${STRANGER}:x`]]), lookup);
   await refuses(event(STRANGER, 5, [['e', hex('5')]]), /your own events/, lookup);
-  await refuses(event(STRANGER, 5, [['a', `31923:${LIVE}:d1`]]), /your own events/, lookup);
+  await refuses(event(STRANGER, 5, [['a', `31923:${HOSTED}:d1`]]), /your own events/, lookup);
   await refuses(event(STRANGER, 5, [['e', hex('4')], ['e', hex('5')]]), /your own events/, lookup);
   await refuses(event(STRANGER, 5, [['k', '1']]), /your own events/, lookup);
 });
@@ -88,8 +82,8 @@ test('events the operator loads (import, sync, stream) are not filtered', async 
 });
 
 test('with no allowlist read yet, the index\'s own keys are refused like anyone', async () => {
-  const empty: Allowlist = { index: null, live: new Set(), removed: new Set(), hosted: new Set() };
-  const d = await decide(event(LIVE, 31923), 'IP4', empty, nothingStored);
+  const empty: Allowlist = { index: null, hosted: new Set() };
+  const d = await decide(event(INDEX, 39999), 'IP4', empty, nothingStored);
   assert.equal(d.action, 'reject');
 });
 

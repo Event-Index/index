@@ -28,7 +28,6 @@ test('a calendar by its local name: the directory entry and the index\'s facts a
   assert.equal(status, 200);
   assert.equal(headers.get('access-control-allow-origin'), '*');
   assert.match(headers.get('content-type')!, /^application\/json/);
-  const pubkey = h.dir.get('meetup:pythonsd')!.pubkey!;
   assert.deepEqual(body.calendar, {
     d: 'meetup:pythonsd', name: 'San Diego Python Users Group', role: 'calendar', source: 'meetup',
     feed: 'https://www.meetup.com/pythonsd/events/ical/', url: 'https://www.meetup.com/pythonsd/',
@@ -36,9 +35,7 @@ test('a calendar by its local name: the directory entry and the index\'s facts a
   });
   assert.equal(body.eventindex.local_name, name);
   assert.equal(body.eventindex.address, `39999:${h.indexPubkey}:meetup:pythonsd`);
-  assert.equal(body.eventindex.nostr.npub, npubEncode(pubkey));
-  assert.equal(body.eventindex.nostr.nip05, `${name}@eventindex.space`);
-  assert.match(body.eventindex.nostr.calendar, /^naddr1/);
+  assert.equal(body.eventindex.nostr, null, 'a mirrored calendar has no key of its own');
   assert.equal(body.eventindex.page, `https://eventindex.space/calendar/${name}`);
   assert.equal(body.eventindex.ics, `https://api.eventindex.space/api/1.0/ics/calendar/${name}.ics`);
   assert.equal(body.eventindex.last_indexed, NOW);
@@ -48,14 +45,19 @@ test('a calendar by its local name: the directory entry and the index\'s facts a
   assert.equal(body.eventindex.removed, false);
 });
 
-test('a calendar by its feed URL (any spelling of it) and by its key', async () => {
+test('a calendar by its feed URL (any spelling of it) and by its organizer\'s key', async () => {
   for (const url of ['https://www.meetup.com/pythonsd/events/ical/', 'webcal://www.meetup.com/pythonsd/events/ical/', 'https://meetup.com/pythonsd/events/ical']) {
     const { status, body } = await json(`${API}/calendars/byfeedurl?url=${encodeURIComponent(url)}`);
     assert.equal(status, 200, url);
     assert.equal(body.calendar.d, 'meetup:pythonsd');
   }
-  const npub = npubEncode(h.dir.get('meetup:pythonsd')!.pubkey!);
-  assert.equal((await json(`${API}/calendars/byguid/${npub}`)).body.calendar.d, 'meetup:pythonsd');
+  const organizer = 'a0'.repeat(32);
+  h.dir.setOwnership('meetup:pythonsd', { mode: 'mirrored', owner: organizer, claimedAt: 1, nativeCalendar: null });
+  try {
+    assert.equal((await json(`${API}/calendars/byguid/${npubEncode(organizer)}`)).body.calendar.d, 'meetup:pythonsd');
+  } finally {
+    h.dir.setOwnership('meetup:pythonsd', { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
+  }
   const missing = await json(`${API}/calendars/byslug/no-such-calendar`);
   assert.equal(missing.status, 404);
   assert.equal(missing.body.error, 'not-found');
@@ -217,14 +219,12 @@ test('stats, and the nightly dump without any event content', async () => {
   assert.deepEqual(tables, ['about', 'calendars', 'poll_stats']);
 });
 
-test('NIP-05 names: the index key as _, each calendar key by its local name', async () => {
+test('NIP-05 names only the index key, as _', async () => {
   const name = local('meetup:pythonsd');
-  const pubkey = h.dir.get('meetup:pythonsd')!.pubkey!;
   const response = await h.get(`/.well-known/nostr.json?name=${name}`);
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
-  assert.deepEqual(await response.json(), { names: { [name]: pubkey }, relays: { [pubkey]: ['wss://relay.eventindex.space'] } });
+  assert.deepEqual(await response.json(), { names: {} }, 'no calendar has a name of its own');
   assert.deepEqual((await json('/.well-known/nostr.json?name=_')).body, { names: { _: h.indexPubkey }, relays: { [h.indexPubkey]: ['wss://relay.eventindex.space'] } });
-  assert.deepEqual((await json(`/.well-known/nostr.json?name=${name.toUpperCase()}`)).body.names, { [name]: pubkey });
   assert.deepEqual((await json('/.well-known/nostr.json?name=nobody')).body, { names: {} });
   assert.deepEqual((await json('/.well-known/nostr.json')).body.names, { _: h.indexPubkey });
 });
@@ -239,17 +239,4 @@ test('unknown paths and methods', async () => {
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
   assert.match(preflight.headers.get('access-control-allow-methods')!, /POST/);
-});
-
-test('once the calendar keys are retired, a mirrored calendar names no key of its own, on the API or its page', async () => {
-  const name = local('meetup:pythonsd');
-  h.dir.setFact('calendar_keys_retired', '1');
-  try {
-    const { body } = await json(`${API}/calendars/byslug/${name}`);
-    assert.equal(body.eventindex.nostr, null);
-    const page = await (await h.get(`/calendar/${name}`)).text();
-    assert.doesNotMatch(page, /npub1/);
-  } finally {
-    h.dir.deleteFact('calendar_keys_retired');
-  }
 });

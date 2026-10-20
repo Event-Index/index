@@ -14,7 +14,7 @@ import { recordFromText, type CalendarMeta, type NormalizedFeed } from '../norma
 import { pollCalendar } from '../poller/poll.ts';
 import type { FetchResult, Validators } from '../poller/fetch.ts';
 import { cohostPlan, cohostsIn, projectable, type CohostPlan } from '../project/projector.ts';
-import { calendarProfile, calendarList, deletionFor, retiredProfile, INDEX_NAME } from '../project/profile.ts';
+import { deletionFor, INDEX_NAME } from '../project/profile.ts';
 import { geoOf, imageOf, locationsOf, summaryOf, venueHidden, type EventTemplate } from '../project/nip52.ts';
 import { encodeGeohash } from '../project/geohash.ts';
 import { projectionHash } from '../project/hash.ts';
@@ -22,18 +22,15 @@ import { spreadCreatedAt } from '../rules/limits.ts';
 import { makeDump } from '../store/dump.ts';
 import type { IndexDb } from '../store/index-db.ts';
 import type { Vault } from '../store/vault-db.ts';
-import { currentKey, ownershipClash, type DirectoryStore, type StoredEntry } from '../store/directory.ts';
+import { ownershipClash, type DirectoryStore, type StoredEntry } from '../store/directory.ts';
 import type { QueueStore } from '../store/queues.ts';
 import type { EventRow, EventStore } from '../store/events.ts';
 import type { Filter } from 'nostr-tools/filter';
 import { setsFor, type RelaySet } from './routing.ts';
 import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
-import { followed, FOLLOW_NEAR } from './follows.ts';
 import { eventItem } from '../project/items.ts';
 import { itemStore } from '../store/items.ts';
-import { retirementStore, RETIRE, RETIRED, DESTROY, DESTROYED } from '../store/retirement.ts';
-import { retirementTemplates } from '../project/retire.ts';
 import type { City } from './admin.ts';
 import { outsideRelay, readAuthor, type RelayReader } from '../native/read.ts';
 import { ingest, acceptable, type IngestSource } from '../native/ingest.ts';
@@ -44,7 +41,6 @@ import { occurrences, type Occurrence } from '../project/window.ts';
 import type { NostrEvent } from '../native/record.ts';
 import { inUidChunks, nativeFeed } from '../native/record.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
-import { expand, cancelledCopy } from '../project/projector.ts';
 import { API_BASE } from '../project/nip52.ts';
 import { claimDate, naddrFor } from '../project/annotate.ts';
 import { publicEventId, nostrD } from '../project/ids.ts';
@@ -52,7 +48,7 @@ import { nativeUid, type Found } from '../native/record.ts';
 import { findCopies, AGGREGATOR, FEED, ORGANIZER, type Candidate } from '../rules/copies.ts';
 import { WINDOW_PAST } from '../project/window.ts';
 import type { AuthorRead } from '../native/read.ts';
-import { limited, PERMISSIONS, vaultSigner, type RemoteSession, type RemoteSigners } from '../claim/signer.ts';
+import { limited, PERMISSIONS, type RemoteSession, type RemoteSigners } from '../claim/signer.ts';
 import { authoredText, parseBunkerUrl } from '../claim/proof.ts';
 import type { Claim } from '../store/queues.ts';
 import type { SignerConnection } from '../store/vault-db.ts';
@@ -126,11 +122,12 @@ export interface TickReport {
 
 const DAY = 86400;
 const REMOVED = 'organizer request';
+const RETIRED_KEY = 'a calendar key the index once held';
 // The most events signed through an organizer's remote signer in one poll.
 const SIGN_BATCH = 100;
-// Kinds re-sent from the index's relay when outside publishing starts, and
-// the directory's, re-sent when it goes outside.
-const BACKFILL_KINDS = [0, 3, 10002, 31922, 31923, 31924];
+// The index key's kinds re-sent from the index's relay when outside
+// publishing starts, and the directory's, re-sent when it goes outside.
+const BACKFILL_KINDS = [0, 3, 10002];
 const DIRECTORY_KINDS = [39999];
 // Bumped when what the backfill sends changes, so it runs again.
 const BACKFILL_VERSION = '1';
@@ -225,21 +222,18 @@ export function createIndexer(deps: IndexerDeps) {
   const generalRelays = settings.publishToGeneralRelays ? settings.generalRelays : [];
   const listRelays = settings.publishToGeneralRelays && settings.publishDirectoryOutside ? settings.listRelays : [];
 
-  // The keys the relay accepts events from: the index key, every calendar
-  // key (named before its first events go out), and removed or claimed
-  // calendars' keys, which may still publish their profile and deletions.
-  // When the operator has the relay host claimants, the keys of organizers
-  // the index publishes as.
-  const allowed = { live: new Set<string>(), removed: new Set<string>(), hosted: new Set<string>() };
-  for (const entry of dir.list({ includeRemoved: true, includeUnlisted: true })) {
-    if (entry.pubkey) (entry.removed || entry.mode !== 'mirrored' ? allowed.removed : allowed.live).add(entry.pubkey);
-    if (settings.hostClaimants && !entry.removed && entry.mode === 'delegated' && entry.owner) allowed.hosted.add(entry.owner);
+  // The keys the relay accepts events from: the index key and, when the
+  // operator has the relay host claimants, the keys of organizers the index
+  // publishes as.
+  const allowed = { hosted: new Set<string>() };
+  for (const entry of dir.list()) {
+    if (settings.hostClaimants && entry.mode === 'delegated' && entry.owner) allowed.hosted.add(entry.owner);
   }
   function writeAllowlist(): void {
     const file = settings.relayAllowlist;
     try {
       mkdirSync(dirname(file), { recursive: true });
-      const list = { index: indexPubkey, live: [...allowed.live].sort(), removed: [...allowed.removed].sort(), hosted: [...allowed.hosted].sort() };
+      const list = { index: indexPubkey, hosted: [...allowed.hosted].sort() };
       writeFileSync(`${file}.tmp`, `${JSON.stringify(list)}\n`);
       renameSync(`${file}.tmp`, file);
     } catch (error) {
@@ -247,53 +241,18 @@ export function createIndexer(deps: IndexerDeps) {
     }
   }
   writeAllowlist();
-  if (settings.calendarKeysPaused) deps.log('calendar keys paused: no new calendar keys, and nothing calendar keys sign goes to outside relays');
+  // The calendar keys the index once held are never read as publishers.
+  for (const pubkey of db.retiredCalendarKeys()) {
+    if (!dir.doNotIndex(nativeD(pubkey))) dir.block(nativeD(pubkey), RETIRED_KEY, deps.now());
+  }
 
   const discovery = createDiscovery({
     dir,
     found: discoveredStore(db),
     fetch: deps.fetch,
     log: deps.log,
-    settings: { perRun: settings.discoveryPerRun, perDay: settings.discoveryPerDay, followCap: settings.followCap, checksPerStep: DISCOVERY_CHECKS_PER_TICK },
-    following: (now) => followKeys(now).length,
+    settings: { perRun: settings.discoveryPerRun, perDay: settings.discoveryPerDay, checksPerStep: DISCOVERY_CHECKS_PER_TICK },
   });
-
-  // The keys the index key follows: every key a listed entry names in `p`
-  // (calendar keys, organizers' own keys, a claimed calendar's old key while
-  // events it signed are to come), the earliest filed first, up to the cap.
-  // Nearing or passing the cap is logged once a day.
-  let followNoticeAt = -Infinity;
-  function followKeys(now: number): Array<{ d: string; pubkey: string; addedAt: number }> {
-    const byKey = new Map<string, { d: string; pubkey: string; addedAt: number }>();
-    const add = (d: string, pubkey: string, addedAt: number) => {
-      const known = byKey.get(pubkey);
-      if (!known || addedAt < known.addedAt) byKey.set(pubkey, { d, pubkey, addedAt });
-    };
-    for (const entry of dir.list()) {
-      // Publishers listed from what they post, or from a pasted link, are not
-      // followed; one whose organizer proved the key is.
-      if (fromPosts(entry)) continue;
-      const key = currentKey(entry);
-      if (key && entry.role === 'calendar') add(entry.d, key, entry.addedAt);
-      const former = formerKeyOf(entry, now);
-      if (former) add(entry.d, former, entry.addedAt);
-    }
-    return [...byKey.values()];
-  }
-
-  function follows(now: number): string[] {
-    // Once the calendar keys are retired, the index key follows no one.
-    if (dir.fact(RETIRED)) return [];
-    const keys = followKeys(now);
-    const cap = settings.followCap;
-    if (keys.length >= cap * FOLLOW_NEAR && now - followNoticeAt >= DAY) {
-      followNoticeAt = now;
-      deps.log(keys.length > cap
-        ? `follow list: ${keys.length} calendar keys, the cap is ${cap}; the ${cap} filed first are followed`
-        : `follow list: ${keys.length} calendar keys, ${cap - keys.length} short of the cap of ${cap}`);
-    }
-    return followed(keys, cap);
-  }
 
   // Organizers the relay hosts: those of calendars the index publishes as,
   // while the operator has it host them.
@@ -335,17 +294,10 @@ export function createIndexer(deps: IndexerDeps) {
       if (settings.hostClaimants) await publisher.publish(signed, 'own');
       else if (!home.length) throw new Error('no relay to publish the organizer\'s events to');
     } else {
-      const fresh = signed.map((e) => e.pubkey).filter((pk) => pk !== indexPubkey && !allowed.live.has(pk) && !allowed.removed.has(pk));
-      if (fresh.length) {
-        for (const pk of fresh) allowed.live.add(pk);
-        writeAllowlist();
-      }
       await publisher.publish(signed, 'own');
     }
     if (ownOnly) return;
-    // While calendar keys are paused, what they sign stays on the index's relay.
-    const outside = settings.calendarKeysPaused && !home ? signed.filter((e) => e.pubkey === indexPubkey) : signed;
-    await sendOutside(outside, { indexPubkey, now, outside: settings.publishToGeneralRelays, directory: settings.publishDirectoryOutside });
+    await sendOutside(signed, { indexPubkey, now, outside: settings.publishToGeneralRelays, directory: settings.publishDirectoryOutside });
   }
 
   async function sendOutside(signed: VerifiedEvent[], ctx: Parameters<typeof setsFor>[1]): Promise<void> {
@@ -370,12 +322,6 @@ export function createIndexer(deps: IndexerDeps) {
   };
   const inFlight = new Map<string, string>();
   async function maybeBackfill(now: number): Promise<void> {
-    // Paused calendar keys: nothing is sent again, and every relay is to get
-    // all of it again once the pause is off, so it gets what it missed.
-    if (settings.calendarKeysPaused) {
-      for (const { key } of dir.factsWithPrefix('outside_backfill ')) dir.deleteFact(key);
-      return;
-    }
     if (!settings.publishToGeneralRelays || !publisher.fetchOwn) return;
     for (const [fact, relay] of inFlight) {
       if ((publisher.pendingFor?.(relay) ?? 0) === 0) {
@@ -403,36 +349,26 @@ export function createIndexer(deps: IndexerDeps) {
     if (plan.size === 0) return;
     const kinds = [...BACKFILL_KINDS, ...(settings.publishDirectoryOutside ? DIRECTORY_KINDS : [])];
     const ctx = { indexPubkey, now, outside: true, directory: settings.publishDirectoryOutside, backfill: true };
-    const authors = [indexPubkey, ...allowed.live, ...allowed.removed];
-    let count = 0;
-    for (const author of authors) {
-      const events = await publisher.fetchOwn({ authors: [author], kinds, limit: 500 });
-      const bySet = new Map<string, { set: RelaySet; relays: string[]; events: VerifiedEvent[] }>();
-      for (const event of events) {
-        if (event.kind === 39999 && !nostrEntriesGoOutside(event.tags.find((t) => t[0] === 'd')?.[1] ?? '')) continue;
-        for (const set of setsFor(event, ctx)) {
-          const entry = plan.get(set);
-          if (!entry) continue;
-          const relays = DIRECTORY_KINDS.includes(event.kind) ? entry.directory : entry.relays;
-          if (relays.length === 0) continue;
-          const key = `${set} ${relays.join(',')}`;
-          if (!bySet.has(key)) bySet.set(key, { set, relays, events: [] });
-          bySet.get(key)!.events.push(event);
-        }
+    const events = await publisher.fetchOwn({ authors: [indexPubkey], kinds, limit: 500 });
+    const bySet = new Map<string, { set: RelaySet; relays: string[]; events: VerifiedEvent[] }>();
+    for (const event of events) {
+      if (event.kind === 39999 && !nostrEntriesGoOutside(event.tags.find((t) => t[0] === 'd')?.[1] ?? '')) continue;
+      for (const set of setsFor(event, ctx)) {
+        const entry = plan.get(set);
+        if (!entry) continue;
+        const relays = DIRECTORY_KINDS.includes(event.kind) ? entry.directory : entry.relays;
+        if (relays.length === 0) continue;
+        const key = `${set} ${relays.join(',')}`;
+        if (!bySet.has(key)) bySet.set(key, { set, relays, events: [] });
+        bySet.get(key)!.events.push(event);
       }
-      for (const { set, relays, events: batch } of bySet.values()) await publisher.publish(batch, set, relays);
-      count += events.length;
     }
+    for (const { set, relays, events: batch } of bySet.values()) await publisher.publish(batch, set, relays);
+    const count = events.length;
     for (const [fact, relay] of facts) inFlight.set(fact, relay);
-    deps.log(`outside relays: backfill of ${count} events from ${authors.length} keys queued for ${[...new Set(facts.map(([, r]) => r))].join(', ')}`);
+    deps.log(`outside relays: backfill of ${count} events queued for ${[...new Set(facts.map(([, r]) => r))].join(', ')}`);
   }
 
-  // While calendar keys are paused, a calendar that is removed or claimed is
-  // cleared from the outside relays by its own key: a neutral last profile,
-  // and a deletion of every calendar and event it signed (each version's
-  // `e`, then its `a` and `k`), to the search, general and profile relays.
-  // Nothing else of it goes there. The clearing is kept as a fact until the
-  // outside relays have taken it, and sent again after a restart.
   // Event items (spec/event-items.md): one per upcoming event of each
   // mirrored calendar, signed by the index key, republished when it changes,
   // withdrawn when its event leaves its calendar for a day or its calendar is
@@ -509,96 +445,6 @@ export function createIndexer(deps: IndexerDeps) {
     return published;
   }
 
-  // While calendar keys are paused, a calendar key signs only deletions.
-  const whilePaused = <T extends { template: EventTemplate }>(items: T[]): T[] =>
-    (settings.calendarKeysPaused ? items.filter((i) => i.template.kind === 5) : items);
-
-  const CLEARING = 'outside_clearing ';
-  const clearingHere = new Set<string>();
-  async function sendClearing(d: string, now: number): Promise<void> {
-    const { pubkey, localName } = JSON.parse(dir.fact(CLEARING + d)!) as { pubkey: string; localName: string };
-    const templates = [
-      retiredProfile(localName),
-      ...db.signedAddresses(pubkey, [31922, 31923, 31924]).map((a) => deletionFor({ versions: a.versions, coordinate: `${a.kind}:${pubkey}:${a.d}`, kind: a.kind })),
-    ];
-    const signed = templates.map((t) => vault.sign(d, { ...t, created_at: now }));
-    for (const set of ['search', 'general', 'profiles'] as RelaySet[]) if (relaysOf[set].length) await publisher.publish(signed, set);
-    clearingHere.add(d);
-  }
-  async function clearOutside(entry: StoredEntry, pubkey: string, now: number): Promise<void> {
-    if (!settings.calendarKeysPaused || !settings.publishToGeneralRelays) return;
-    dir.setFact(CLEARING + entry.d, JSON.stringify({ pubkey, localName: entry.localName, at: now }));
-    await sendClearing(entry.d, now);
-    deps.log(`outside relays: clearing ${entry.d}`);
-  }
-  // The calendar keys' retirement (spec/indexer-rules.md § 8), once asked:
-  // every key signs its last profile and deletions of everything it signed,
-  // once; they go to the index's relay, the search relays, the general
-  // relays and the profile relays, again after a restart until the outside
-  // relays have taken them. Then, once asked, the keys are destroyed.
-  const retirement = retirementStore(db);
-  const RETIRED_KINDS = [31922, 31923, 31924, 10002];
-  let retirementSentHere = false;
-  async function retireKeys(now: number): Promise<void> {
-    if (!dir.fact(RETIRE)) return;
-    if (!retirement.count()) {
-      const signed: Array<{ calendarD: string; event: VerifiedEvent }> = [];
-      let deletions = 0;
-      const keys = vault.keys();
-      for (const { d, pubkey } of keys) {
-        const addresses = db.signedAddresses(pubkey, RETIRED_KINDS);
-        // Newer than everything it deletes, and than its last profile.
-        const newest = Math.max(0, ...db.signedAddresses(pubkey, [0, ...RETIRED_KINDS]).map((a) => db.lastCreatedAt(pubkey, a.kind, a.d) ?? 0));
-        const created_at = Math.max(now, newest + 1);
-        for (const template of retirementTemplates({ pubkey, localName: dir.get(d)?.localName ?? d, addresses })) {
-          signed.push({ calendarD: d, event: vault.sign(d, { ...template, created_at }) });
-          if (template.kind === 5) deletions += 1;
-        }
-      }
-      retirement.put(signed);
-      deps.log(`calendar keys: ${signed.length} retirement events signed for ${keys.length} keys (${keys.length} profiles, ${deletions} deletions)`);
-    }
-    if (!dir.fact(RETIRED)) {
-      if (!retirementSentHere) {
-        const events = retirement.all();
-        await publisher.publish(events, 'own');
-        const sets = (['search', 'general', 'profiles'] as RelaySet[]).filter((set) => relaysOf[set].length);
-        for (const set of sets) await publisher.publish(events, set);
-        retirementSentHere = true;
-        deps.log(`calendar keys: ${events.length} retirement events sent to the index's relay and queued for ${sets.join(', ')}`);
-      } else if ((publisher.pending?.() ?? 0) === 0) {
-        dir.setFact(RETIRED, String(now));
-        deps.log('calendar keys: retirement sent');
-      }
-    }
-    if (dir.fact(DESTROY) && !dir.fact(DESTROYED) && dir.fact(RETIRED)) {
-      const n = vault.destroyKeys();
-      for (const entry of dir.list({ includeRemoved: true, includeUnlisted: true })) {
-        if (!entry.pubkey) continue;
-        allowed.live.delete(entry.pubkey);
-        allowed.removed.delete(entry.pubkey);
-        dir.clearKey(entry.d);
-      }
-      writeAllowlist();
-      dir.setFact(DESTROYED, String(now));
-      deps.log(`calendar keys: ${n} destroyed; the directory names none, and the relay allows none`);
-    }
-  }
-
-  async function keepClearing(now: number): Promise<void> {
-    for (const { key } of dir.factsWithPrefix(CLEARING)) {
-      const d = key.slice(CLEARING.length);
-      if (!clearingHere.has(d)) {
-        await sendClearing(d, now);
-      } else if ((publisher.pending?.() ?? 0) === 0) {
-        dir.deleteFact(key);
-        dir.setFact(`outside_cleared ${d}`, String(now));
-        clearingHere.delete(d);
-        deps.log(`outside relays: ${d} cleared`);
-      }
-    }
-  }
-
   // Signs templates (hash-tracked unless `always`) with created_at moving
   // forward per address, sends them, and records them.
   async function publishAs(
@@ -637,13 +483,6 @@ export function createIndexer(deps: IndexerDeps) {
     await publisher.publish([deletion], 'own');
     db.markWithdrawn(indexPubkey, 39998, 'event-calendars', 'deleted');
     deps.log('retired the index key\'s own event-calendars header');
-  }
-
-  // After a claim, the calendar key the index held, while events it signed
-  // are still to come.
-  function formerKeyOf(entry: StoredEntry, now: number): string | null {
-    if (entry.mode === 'mirrored' || !entry.pubkey || entry.removed) return null;
-    return db.pendingProjections(entry.pubkey, now) > 0 ? entry.pubkey : null;
   }
 
   // Where organizers' own events are read: the index's relay, and the
@@ -703,13 +542,13 @@ export function createIndexer(deps: IndexerDeps) {
       nextPollAt: nextPollAt({ now, refreshInterval: null, nextEventStart, failures: 0, retryAfter: null }) });
   }
 
-  // Events never read into the index: what it signs itself (its calendar
-  // keys, and any other key's event that carries its events header, unless
-  // that key's organizer owns a listed calendar: what the index signed as
-  // them is theirs), keys whose secret is public, and publishers removed at
-  // their request.
+  // Events never read into the index: what it signs itself (and any other
+  // key's event that carries its events header, unless that key's organizer
+  // owns a listed calendar: what the index signed as them is theirs), keys
+  // whose secret is public, and publishers removed at their request or left
+  // out, the calendar keys it once held among them.
   function skipEvent(event: NostrEvent): boolean {
-    return allowed.live.has(event.pubkey) || allowed.removed.has(event.pubkey) || event.pubkey === indexPubkey
+    return event.pubkey === indexPubkey
       || PUBLIC_SECRET_KEYS.has(event.pubkey) || dir.doNotIndex(nativeD(event.pubkey))
       || (event.tags.some((t) => t[0] === 'z' && t[1] === eventsHeaderAddress) && !dir.isOwner(event.pubkey));
   }
@@ -722,7 +561,7 @@ export function createIndexer(deps: IndexerDeps) {
     const owned = dir.byOwner(pubkey).filter((e) => !e.removed);
     const own = owned.find((e) => e.mode === 'own');
     if (own) return own;
-    if (owned.length || allowed.live.has(pubkey) || allowed.removed.has(pubkey) || PUBLIC_SECRET_KEYS.has(pubkey)) return null;
+    if (owned.length || PUBLIC_SECRET_KEYS.has(pubkey)) return null;
     const d = nativeD(pubkey);
     if (dir.doNotIndex(d)) return null;
     const existing = dir.get(d);
@@ -913,12 +752,12 @@ const NATIVE_BUILD_SHARE = 500;
     return entry.source === 'nostr' && entry.foundVia !== 'owner';
   }
 
-  // The key each calendar signs with, for co-host tags: a mirrored
-  // calendar's key (made on first use), or its organizer's.
+  // The key each calendar's events are signed with, for co-host tags: its
+  // organizer's, once they publish it; a mirrored calendar's events are
+  // listed as items, and signed by no key of their own.
   function keyOf(calendarD: string): string | null {
     const entry = dir.get(calendarD);
-    if (entry && entry.mode !== 'mirrored' && entry.owner) return entry.owner;
-    return vault.pubkeyFor(calendarD) ?? (settings.calendarKeysPaused ? null : vault.createKey(calendarD));
+    return entry && entry.mode !== 'mirrored' && entry.owner ? entry.owner : null;
   }
 
   // Where an organizer's events go when the index publishes as them: their
@@ -929,75 +768,13 @@ const NATIVE_BUILD_SHARE = 500;
     return { relays, hint: settings.hostClaimants ? settings.publicRelay : relays[0] ?? '' };
   }
 
-  // A calendar key's last events, once its organizer publishes as
-  // themselves: its upcoming events are withdrawn (kept as cancelled where
-  // they have RSVPs, naming the organizer's own copy when there is one), its
-  // profile and calendar say where the calendar now publishes, and the key
-  // is deleted.
-  async function retireKey(entry: StoredEntry, owner: string, now: number, options: {
-    ownerCalendar: string | null;
-    ownerRelay: string;
-    // The organizer's own copy of an old event, by its last template.
-    copyOf: (template: EventTemplate, kind: number, d: string) => string | null;
-  }): Promise<number> {
-    const key = entry.pubkey;
-    if (!key || !vault.pubkeyFor(entry.d)) return 0;
-    const rsvps = await publisher.rsvps(key);
-    const projected = db.liveProjections(key).filter((p) => p.kind === 31922 || p.kind === 31923);
-    const upcoming = projected.filter((p) => p.start >= now);
-    const past = projected.filter((p) => p.start < now);
-    const items: Array<{ template: EventTemplate; d: string; start: number; always?: boolean }> = [];
-    const kept: typeof upcoming = [];
-    const deleted: typeof upcoming = [];
-    for (const p of upcoming) {
-      const last = db.lastTemplate(key, p.kind, p.d) as EventTemplate | null;
-      if (last && rsvps.has(`${p.kind}:${key}:${p.d}`)) {
-        const copy = cancelledCopy(last);
-        const original = options.copyOf(last, p.kind, p.d);
-        if (original) copy.tags.push(['q', original, options.ownerRelay]);
-        items.push({ template: copy, d: p.d, start: p.start });
-        kept.push(p);
-      } else {
-        items.push({ template: deletionFor({ versions: db.versions(key, p.kind, p.d), coordinate: `${p.kind}:${key}:${p.d}`, kind: p.kind }), d: p.d, start: p.start, always: true });
-        deleted.push(p);
-      }
-    }
-    const meta = metaOf(entry, dir.calendarMeta(entry.d));
-    const name = meta.name ?? entry.d;
-    items.push({
-      template: calendarProfile({ name, url: meta.url, image: meta.image, source: entry.source, localName: entry.localName, policy: adapterFor(entry.source).policy, state: 'claimed', owner }),
-      d: '', start: now,
-    });
-    items.push({
-      template: calendarList({
-        name, description: null, now, owner, ownerCalendar: options.ownerCalendar, ownerRelay: options.ownerRelay,
-        items: [...past, ...kept].map((p) => ({ coordinate: `${p.kind}:${key}:${p.d}`, start: p.start })),
-      }),
-      d: 'calendar', start: now,
-    });
-    const published = await publishAs(key, (t) => vault.sign(entry.d, t), whilePaused(items), now);
-    await clearOutside(entry, key, now);
-    for (const p of deleted) db.markWithdrawn(key, p.kind, p.d, 'deleted');
-    // While calendar keys are paused they are not republished as cancelled.
-    if (!settings.calendarKeysPaused) for (const p of kept) db.markWithdrawn(key, p.kind, p.d, 'cancelled');
-    // While calendar keys are paused no key is deleted: each signs its own
-    // deletions outside first.
-    if (!settings.calendarKeysPaused) vault.forget(entry.d);
-    allowed.live.delete(key);
-    allowed.removed.add(key);
-    writeAllowlist();
-    deps.log(`claimed ${entry.d}: ${deleted.length} upcoming events deleted, ${kept.length} kept as cancelled, calendar key deleted`);
-    return published;
-  }
-
-  // The organizer's own event that an old one stands for: the same page, or
-  // the same start and title.
-  function ownCopy(template: EventTemplate, own: Found[]): Found | null {
+  // The organizer's own event that one of the calendar's events stands for:
+  // the same page, or the same start and title.
+  function ownCopy(row: EventRow, own: Found[]): Found | null {
     const value = (tags: string[][], name: string) => tags.find((t) => t[0] === name)?.[1];
-    const title = (text: string | undefined) => (text ?? '').replace(/^Cancelled: /, '').replace(/\s+/g, ' ').trim().toLowerCase();
-    const page = value(template.tags, 'r');
-    return own.find((f) => (page && f.event.tags.some((t) => t[0] === 'r' && t[1] === page))
-      || (value(f.event.tags, 'start') === value(template.tags, 'start') && title(value(f.event.tags, 'title')) === title(value(template.tags, 'title')))) ?? null;
+    const title = (text: string | null | undefined) => (text ?? '').replace(/^Cancelled: /, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return own.find((f) => (row.url && f.event.tags.some((t) => t[0] === 'r' && t[1] === row.url))
+      || (value(f.event.tags, 'start') === String(row.start) && title(value(f.event.tags, 'title')) === title(row.title))) ?? null;
   }
 
   // Points an old record at the organizer's record that replaces it.
@@ -1080,27 +857,14 @@ const NATIVE_BUILD_SHARE = 500;
     const owner = claim.pubkey;
     const read = await readOwner(owner);
     if (!read.ok) return 'retry';
-    const ownerRelay = read.writeRelays[0] ?? '';
     const calendar = read.calendars[0];
     const ownerCalendar = calendar ? `31924:${owner}:${calendar.tags.find((t) => t[0] === 'd')?.[1] ?? ''}` : null;
     // The organizer's own copies of the calendar's upcoming events.
     const matched = new Map<string, Found>();
-    for (const p of entry.pubkey ? db.liveProjections(entry.pubkey) : []) {
-      if ((p.kind !== 31922 && p.kind !== 31923) || p.start < now) continue;
-      const last = db.lastTemplate(entry.pubkey!, p.kind, p.d) as EventTemplate | null;
-      const copy = last ? ownCopy(last, read.events) : null;
-      if (copy) matched.set(p.d, copy);
+    for (const row of events.ongoing(entry.d, now)) {
+      const copy = ownCopy(row, read.events);
+      if (copy) matched.set(row.d, copy);
     }
-    // With event items no calendar key is retired here: its events stay until
-    // every key retires together.
-    if (!settings.eventItems) await retireKey(entry, owner, now, {
-      ownerCalendar,
-      ownerRelay,
-      copyOf: (_template, _kind, d) => {
-        const copy = matched.get(d);
-        return copy ? `${copy.event.kind}:${owner}:${copy.event.tags.find((t) => t[0] === 'd')?.[1] ?? ''}` : null;
-      },
-    });
     dir.setOwnership(entry.d, { mode: 'own', owner, claimedAt: now, nativeCalendar: ownerCalendar });
     itemsSoon();
     feeds.delete(entry.d);
@@ -1119,12 +883,6 @@ const NATIVE_BUILD_SHARE = 500;
       const read = await readOwner(owner);
       if (read.ok) dir.setOwnerRelays(entry.d, read.writeRelays);
     }
-    const home = homeOf(dir.get(entry.d)!);
-    if (!settings.eventItems) await retireKey(entry, owner, now, {
-      ownerCalendar: `31924:${owner}:${entry.d}`,
-      ownerRelay: home.hint,
-      copyOf: (_template, kind, d) => `${kind}:${owner}:${d}`,
-    });
     dir.setOwnership(entry.d, { mode: 'delegated', owner, claimedAt: now, nativeCalendar: `31924:${owner}:${entry.d}` });
     itemsSoon();
     rehost();
@@ -1213,9 +971,8 @@ const NATIVE_BUILD_SHARE = 500;
         start: now,
       },
       { template: { kind: 10002, tags: [['r', settings.publicRelay], ...[...generalRelays, ...listRelays].map((r) => ['r', r, 'write'])], content: '' }, d: '', start: now },
-      // Follows every calendar key it holds, and the organizers who publish
-      // their calendars from their own keys.
-      { template: { kind: 3, tags: follows(now).map((pk) => ['p', pk, settings.publicRelay]), content: '' }, d: '', start: now },
+      // Follows no one.
+      { template: { kind: 3, tags: [], content: '' }, d: '', start: now },
       { template: eventsHeader(), d: 'events', start: now },
     ];
     // Entries listed from what publishers post stay on the index's relay
@@ -1224,17 +981,15 @@ const NATIVE_BUILD_SHARE = 500;
     const held: typeof items = [];
     let sending = 0;
     for (const entry of dir.list({ includeRemoved: true })) {
-      // With event items, an entry names only the organizer's own key: a
-      // publisher's, or one its organizer verified; never a calendar key.
-      const key = settings.eventItems ? entry.owner : currentKey(entry);
-      if (entry.role === 'calendar' && !key && !settings.eventItems) continue;
+      // An entry names only the organizer's own key: a publisher's, or one
+      // its organizer verified.
+      const key = entry.owner;
       const outside = nostrEntriesGoOutside(entry.d);
       const template = directoryEntry({
         identity: identityOf(entry),
         calendar: metaOf(entry, dir.calendarMeta(entry.d)),
         header,
         pubkey: key,
-        formerKey: settings.eventItems ? null : formerKeyOf(entry, now),
         readFrom: entry.mode === 'own' ? 'nostr' : 'feed',
         nativeCalendar: entry.nativeCalendar,
         localName: entry.localName,
@@ -1259,11 +1014,10 @@ const NATIVE_BUILD_SHARE = 500;
     return await publishAs(indexPubkey, sign, items, now, 1) + await publishAs(indexPubkey, sign, held, now, 1, true);
   }
 
-  // Returns how many events it published.
-  async function removeCalendar(entry: StoredEntry, now: number): Promise<number> {
-    // A calendar its organizer publishes keeps its events, which are theirs;
-    // the index stops reading them and forgets any signer of theirs.
-    const pubkey = entry.mode === 'mirrored' ? entry.pubkey : null;
+  // A removed calendar's items are withdrawn at once. One its organizer
+  // publishes keeps its events, which are theirs; the index stops reading
+  // them and forgets any signer of theirs.
+  function removeCalendar(entry: StoredEntry, now: number): void {
     if (entry.mode !== 'mirrored') {
       vault.forgetConnection(entry.d);
       // The organizer is not listed again from what they post.
@@ -1272,50 +1026,12 @@ const NATIVE_BUILD_SHARE = 500;
         store.forget(entry.owner);
       }
     }
-    let published = 0;
-    if (pubkey) {
-      const live = db.liveProjections(pubkey);
-      const upcoming = live.filter((p) => (p.kind === 31922 || p.kind === 31923) && p.start >= now);
-      const past = live.filter((p) => (p.kind === 31922 || p.kind === 31923) && p.start < now);
-      const meta = metaOf(entry, dir.calendarMeta(entry.d));
-      const items: Array<{ template: EventTemplate; d: string; start: number; always?: boolean }> = [
-        ...upcoming.map((p) => ({
-          template: deletionFor({ versions: db.versions(pubkey, p.kind, p.d), coordinate: `${p.kind}:${pubkey}:${p.d}`, kind: p.kind }),
-          d: p.d,
-          start: p.start,
-          always: true,
-        })),
-        {
-          template: calendarProfile({
-            name: meta.name ?? entry.d, url: meta.url, image: meta.image, source: entry.source, localName: entry.localName,
-            policy: adapterFor(entry.source).policy, state: 'removed',
-          }),
-          d: '',
-          start: now,
-        },
-        {
-          template: calendarList({ name: meta.name ?? entry.d, description: meta.description, now, items: past.map((p) => ({ coordinate: `${p.kind}:${pubkey}:${p.d}`, start: p.start })) }),
-          d: 'calendar',
-          start: now,
-        },
-      ];
-      published = await publishAs(pubkey, (t) => vault.sign(entry.d, t), whilePaused(items), now);
-      await clearOutside(entry, pubkey, now);
-      for (const p of upcoming) db.markWithdrawn(pubkey, p.kind, p.d, 'deleted');
-      // Nothing is signed for the calendar again; its backups age out. While
-      // calendar keys are paused the key stays, to sign its deletions outside.
-      if (!settings.calendarKeysPaused) vault.forget(entry.d);
-      allowed.live.delete(pubkey);
-      allowed.removed.add(pubkey);
-      writeAllowlist();
-      deps.log(`removed ${entry.d}: ${upcoming.length} upcoming events deleted, calendar key deleted`);
-    }
     dir.retire(entry.d, REMOVED, now);
     itemsSoon();
     if (entry.mode === 'delegated') rehost();
     events.removeCalendar(entry.d);
     feeds.delete(entry.d);
-    return published;
+    deps.log(`removed ${entry.d}`);
   }
 
   function verifyTokens(d: string, feed: string, now: number): void {
@@ -1346,11 +1062,9 @@ const NATIVE_BUILD_SHARE = 500;
     }
   }
 
-  // A calendar's signer for one poll: its calendar key, or, when the index
-  // publishes as its organizer, their remote signer, held to the delegated
-  // kinds and to their key.
+  // The signer of a calendar the index publishes as its organizer: their
+  // remote signer, held to the delegated kinds and to their key.
   async function openSigner(entry: StoredEntry, sessions: RemoteSession[]) {
-    if (entry.mode !== 'delegated') return vaultSigner(vault, entry.d, vault.createKey(entry.d));
     const connection = vault.connection(entry.d);
     if (!connection || !deps.signers || connection.owner !== entry.owner) throw new Error('no signer is connected');
     const session = limited(await deps.signers.open(connection));
@@ -1372,17 +1086,13 @@ const NATIVE_BUILD_SHARE = 500;
         planFor,
         {
           db,
-          vault,
           indexPubkey,
           now: deps.now,
           fetch: deps.fetch,
           publish: (signed) => send(signed, now, home?.relays),
           rsvps: (pubkey) => publisher.rsvps(pubkey, home?.relays),
-          generalRelays,
-          signer: () => openSigner(entry, sessions),
+          ...(delegated ? { signer: () => openSigner(entry, sessions) } : {}),
           keyOf,
-          keyless: settings.calendarKeysPaused,
-          deletionsOnly: settings.calendarKeysPaused,
           ...(settings.eventItems ? { itemAddress: (id: string) => (items.has(id) ? naddrFor(indexPubkey, 39999, id, [settings.publicRelay]) : null) } : {}),
           originalOf: (id) => events.originalAddressOf(id),
           ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
@@ -1404,8 +1114,6 @@ const NATIVE_BUILD_SHARE = 500;
     verifyTokens(entry.d, result.text, now);
     if (result.status === 'aggregator') return;
     feeds.set(entry.d, feed);
-    const pubkey = delegated ? null : vault.pubkeyFor(entry.d);
-    if (pubkey) dir.setKey(entry.d, pubkey);
     events.replaceCalendar(entry.d, eventRows(feed, result.plan, now));
     report.published += result.published;
     for (const line of result.log) deps.log(`poll ${entry.d}: ${line}`);
@@ -1421,7 +1129,7 @@ const NATIVE_BUILD_SHARE = 500;
       for (const request of queues.removals('approved')) {
         const entry = dir.get(request.d);
         if (entry && !entry.removed) {
-          report.published += await removeCalendar(entry, now);
+          removeCalendar(entry, now);
           report.removed.push(entry.d);
         }
         queues.resolveRemoval(request.id, 'done', now);
@@ -1472,16 +1180,6 @@ const NATIVE_BUILD_SHARE = 500;
         await maybeBackfill(now);
       } catch (error) {
         deps.log(`outside relays: backfill: ${(error as Error).message}`);
-      }
-      try {
-        await keepClearing(now);
-      } catch (error) {
-        deps.log(`outside relays: clearing: ${(error as Error).message}`);
-      }
-      try {
-        await retireKeys(now);
-      } catch (error) {
-        deps.log(`calendar keys: retirement: ${(error as Error).message}`);
       }
       try {
         report.published += await publishItems(now);

@@ -132,7 +132,7 @@ test('a calendar\'s page: its events under its content policy, and the remove fo
   assert.match(html, /not affiliated with Meetup/);
   assert.match(html, new RegExp(`<form[^>]+action="/calendar/${name}/remove"[^>]+method="post"`));
   assert.match(html, new RegExp(`/api/1.0/ics/calendar/${name}.ics`));
-  assert.match(html, /npub1/);
+  assert.doesNotMatch(html, /npub1/, 'a mirrored calendar has no key of its own');
   assert.equal((html.match(/<li class="event">/g) ?? []).length, 4);
   const full = readFixture('meetup-pythonsd.ics');
   assert.ok(full.length > 0);

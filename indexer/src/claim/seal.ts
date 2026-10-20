@@ -1,7 +1,7 @@
 // What an organizer hands the index for the poll service alone (a signer's
 // connection): sealed with NIP-44 to the vault's intake key, from a key made
 // for the one message. The HTTP service, which holds no secret, seals; only
-// the poll service, which holds the calendar-key secret, can open it.
+// the poll service, which holds the signer secret, can open it.
 
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { decrypt, encrypt, getConversationKey } from 'nostr-tools/nip44';

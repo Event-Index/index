@@ -22,8 +22,13 @@ const SEARCH = 'wss://search.test';
 const GENERAL = 'wss://general.test';
 const PROFILES = 'wss://profiles.test';
 
-function harness(options: { outsideNative?: boolean; aggregators?: string[] } = {}) {
+function harness(options: { outsideNative?: boolean; aggregators?: string[]; retired?: string[] } = {}) {
   const db = openIndexDb(':memory:');
+  if (options.retired) {
+    // Calendar keys the index once held, as their retirement recorded them.
+    db.raw.exec('CREATE TABLE retirement (id TEXT PRIMARY KEY, pubkey TEXT NOT NULL, calendar_d TEXT NOT NULL, kind INTEGER NOT NULL, event TEXT NOT NULL)');
+    for (const [i, pubkey] of options.retired.entries()) db.raw.prepare('INSERT INTO retirement VALUES (?, ?, ?, 0, ?)').run(String(i), pubkey, `luma:cal-${i}`, '{}');
+  }
   const dir = directoryStore(db);
   const queues = queueStore(db);
   const events = eventStore(db);
@@ -119,15 +124,12 @@ test('an aggregator is listed as one, with its events kept and attributed to it'
   assert.equal(h.events.byCalendar(entry.d, NOW, NOW + 30 * 86400).length, 1);
 });
 
-test('nothing the index signs, nothing from a key whose secret is public, and nothing from a removed publisher is listed', async () => {
-  const h = harness();
+test('nothing the index signs or once signed, nothing from a key whose secret is public, and nothing from a removed publisher is listed', async () => {
+  const retired = publisher();
+  const h = harness({ retired: [retired.pubkey] });
   await h.indexer.tick();
-  const id = identify(feedUrlFor('meetup-pythonsd.ics'));
-  h.dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null,
-    location: null, g: null, foundVia: 'maintainer', addedAt: NOW });
-  await h.indexer.tick();
-  const calendarKey = h.dir.get(id.d)!.pubkey!;
-  h.held[SEARCH]!.push(...h.sent.filter((s) => s.event.pubkey === calendarKey).map((s) => s.event));
+  // A calendar key the index once held: what it signed lingers on relays that ignore deletions.
+  h.held[SEARCH]!.push(retired.event('left', 'An old mirrored event'));
   const someone = publisher();
   h.held[SEARCH]!.push(someone.event('copy', 'A copy', NOW + 86400, [['z', `39998:${h.indexPubkey}:events`]]));
   const one = '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
@@ -138,7 +140,8 @@ test('nothing the index signs, nothing from a key whose secret is public, and no
   h.held[SEARCH]!.push(gone.event('g', 'Gone'));
   h.clock.now = NOW + 60;
   await h.indexer.tick();
-  assert.equal(h.dir.get(nativeD(calendarKey)), null);
+  assert.equal(h.dir.get(nativeD(retired.pubkey)), null);
+  assert.ok(h.dir.doNotIndex(nativeD(retired.pubkey)));
   assert.equal(h.dir.get(nativeD(someone.pubkey)), null);
   assert.equal(h.dir.get(nativeD(one)), null);
   assert.equal(h.dir.get(nativeD(gone.pubkey)), null);
@@ -192,7 +195,7 @@ test('an aggregator\'s copy points at the organizer\'s own event, in the events 
   assert.ok(!h.db.record(after.recordId)!.ics.includes('X-EVENTINDEX-CANONICAL'));
 });
 
-test('a mirrored feed\'s event yields to the organizer\'s own on nostr: the copy names it with q', async () => {
+test('a mirrored feed\'s event yields to the organizer\'s own on nostr: the copy names it as its original', async () => {
   const h = harness();
   const org = publisher();
   const id = identify(feedUrlFor('meetup-pythonsd.ics'));
@@ -206,12 +209,9 @@ test('a mirrored feed\'s event yields to the organizer\'s own on nostr: the copy
   const mirrored = h.events.byCalendar(id.d, NOW, NOW + 30 * 86400).find((r) => r.title === 'SDPy Monthly Meetup')!;
   const own = h.events.byCalendar(nativeD(org.pubkey), NOW, NOW + 30 * 86400)[0]!;
   assert.equal(mirrored.canonical, own.id);
-  const key = h.dir.get(id.d)!.pubkey!;
-  const projection = h.sent.filter((s) => s.event.pubkey === key && s.event.kind === 31923 && s.event.tags.find((t) => t[0] === 'd')![1] === mirrored.d).at(-1)!.event;
-  assert.deepEqual(projection.tags.find((t) => t[0] === 'q'), ['q', `31923:${org.pubkey}:sdpy-oct`, '']);
 });
 
-test('a publisher listed from a pasted link is treated as one the index found: not followed, kept home; one proven by its key is followed', async () => {
+test('a publisher listed from a pasted link is treated as one the index found and kept home; one proven by its key goes out', async () => {
   const h = harness();
   const pasted = publisher();
   const proven = publisher();
@@ -221,9 +221,6 @@ test('a publisher listed from a pasted link is treated as one the index found: n
     h.held[SEARCH]!.push(p.event('e', `Event of ${via}`));
   }
   await h.indexer.tick();
-  const follows = h.sent.filter((s) => s.event.kind === 3).at(-1)!.event;
-  assert.ok(!follows.tags.some((t) => t[1] === pasted.pubkey));
-  assert.ok(follows.tags.some((t) => t[1] === proven.pubkey));
   const outside = (pubkey: string) => h.sent.filter((s) => s.event.kind === 39999 && s.event.tags[0]![1] === nativeD(pubkey) && s.audience !== 'own').length;
   assert.equal(outside(pasted.pubkey), 0);
   assert.ok(outside(proven.pubkey) > 0);

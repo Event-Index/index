@@ -17,7 +17,7 @@ const hasNak = spawnSync('nak', ['--version']).status === 0;
 const dir = mkdtempSync(join(tmpdir(), 'policy-'));
 const allowlistFile = join(dir, 'relay-allowlist.json');
 const indexKey = generateSecretKey();
-const calendarKey = generateSecretKey();
+const hostedKey = generateSecretKey();
 const stranger = generateSecretKey();
 let relay: ReturnType<typeof spawn> | null = null;
 let relayUrl = 'ws://127.0.0.1:1';
@@ -63,7 +63,7 @@ before(async () => {
       await new Promise((r) => setTimeout(r, 50));
     }
   }
-  writeAllowlist({ index: getPublicKey(indexKey), live: [getPublicKey(calendarKey)], removed: [] });
+  writeAllowlist({ index: getPublicKey(indexKey), hosted: [getPublicKey(hostedKey)] });
   plugin = spawn(join(repo, 'relay/write-policy'), [], { env: { ...process.env, EVENTINDEX_RELAY_ALLOWLIST: allowlistFile, EVENTINDEX_RELAY_URL: relayUrl } });
   responses = createInterface({ input: plugin.stdout })[Symbol.asyncIterator]();
 });
@@ -76,14 +76,14 @@ after(() => {
 });
 
 test('the plugin answers each request with the event id and a decision', async () => {
-  const own = sign(calendarKey, 31923, [['d', 'x']]);
+  const own = sign(hostedKey, 31923, [['d', 'x']]);
   assert.deepEqual(await ask(own), { id: own.id, action: 'accept' });
   const note = sign(stranger, 1);
   const refused = await ask(note);
   assert.equal(refused.id, note.id);
   assert.equal(refused.action, 'reject');
   assert.match(refused.msg!, /^blocked: .*kind 1/);
-  const rsvp = sign(stranger, 31925, [['d', 'r'], ['a', `31923:${getPublicKey(calendarKey)}:x`], ['status', 'accepted']]);
+  const rsvp = sign(stranger, 31925, [['d', 'r'], ['a', `31923:${getPublicKey(hostedKey)}:x`], ['status', 'accepted']]);
   assert.equal((await ask(rsvp)).action, 'accept');
 });
 
@@ -91,21 +91,16 @@ test('a changed allowlist is read without a restart', async () => {
   const pid = plugin.pid;
   const added = generateSecretKey();
   assert.equal((await ask(sign(added, 31923))).action, 'reject');
-  writeAllowlist({ index: getPublicKey(indexKey), live: [getPublicKey(calendarKey), getPublicKey(added)], removed: [] });
-  assert.equal((await ask(sign(added, 31923))).action, 'accept');
-  writeAllowlist({ index: getPublicKey(indexKey), live: [getPublicKey(calendarKey)], removed: [getPublicKey(added)] });
-  assert.equal((await ask(sign(added, 31923))).action, 'reject', 'a removed calendar publishes no events');
-  assert.equal((await ask(sign(added, 0))).action, 'accept', 'its removed profile still goes out');
-  const organizer = generateSecretKey();
-  assert.equal((await ask(sign(organizer, 31923))).action, 'reject');
-  writeAllowlist({ index: getPublicKey(indexKey), live: [getPublicKey(calendarKey)], removed: [getPublicKey(added)], hosted: [getPublicKey(organizer)] });
-  assert.equal((await ask(sign(organizer, 31923))).action, 'accept', 'an organizer the index publishes as, when hosted');
-  assert.equal((await ask(sign(organizer, 0))).action, 'reject', 'but not their profile');
+  writeAllowlist({ index: getPublicKey(indexKey), hosted: [getPublicKey(hostedKey), getPublicKey(added)] });
+  assert.equal((await ask(sign(added, 31923))).action, 'accept', 'an organizer the index publishes as, when hosted');
+  assert.equal((await ask(sign(added, 0))).action, 'reject', 'but not their profile');
+  writeAllowlist({ index: getPublicKey(indexKey), hosted: [getPublicKey(hostedKey)] });
+  assert.equal((await ask(sign(added, 31923))).action, 'reject', 'no longer once they publish themselves');
   assert.equal(plugin.pid, pid);
 });
 
 test('a deletion is accepted only for the author\'s own events stored on the relay', { skip: !hasNak && 'nak is not installed' }, async () => {
-  const rsvp = sign(stranger, 31925, [['d', 'mine'], ['a', `31923:${getPublicKey(calendarKey)}:x`], ['status', 'accepted']]);
+  const rsvp = sign(stranger, 31925, [['d', 'mine'], ['a', `31923:${getPublicKey(hostedKey)}:x`], ['status', 'accepted']]);
   await Promise.all(pool.publish([relayUrl], rsvp));
   const byId = sign(stranger, 5, [['e', rsvp.id], ['k', '31925']]);
   assert.equal((await ask(byId)).action, 'accept');

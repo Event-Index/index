@@ -6,6 +6,7 @@ import { identify } from '../src/directory/id.ts';
 import { readFixture, feedUrlFor } from './helpers.ts';
 
 const HEADER = `39998:${'ab'.repeat(32)}:event-calendars`;
+// An organizer's verified key, as a calendar's entry names it.
 const CAL = 'c1'.repeat(32);
 
 function entryFor(fixture: string, extra: { pubkey?: string | null; removed?: string; location?: string | null; geohash?: string | null; city?: string | null } = {}) {
@@ -112,14 +113,14 @@ test('a native calendar\'s entry names its author and its calendar, and no feed'
   ]);
 });
 
-test('a calendar claimed to publish itself is read from nostr: its organizer\'s key first, the old key second', () => {
+test('a calendar claimed to publish itself is read from nostr, and names its organizer\'s key', () => {
   const id = identify(feedUrlFor('luma-calendar-craftnook.ics'));
   const feed = normalizeFeed(readFixture('luma-calendar-craftnook.ics'), id);
   const entry = directoryEntry({
-    identity: id, calendar: feed.calendar, header: HEADER, pubkey: OWNER, formerKey: CAL, readFrom: 'nostr',
+    identity: id, calendar: feed.calendar, header: HEADER, pubkey: OWNER, readFrom: 'nostr',
     localName: 'luma-cal-bvurd9eazndgbwy', location: 'New York, US', geohash: 'dr5r', city: 'new-york',
   });
-  assert.deepEqual(entry.tags.filter((t) => t[0] === 'p'), [['p', OWNER], ['p', CAL]]);
+  assert.deepEqual(entry.tags.filter((t) => t[0] === 'p'), [['p', OWNER]]);
   assert.equal(entry.tags.find((t) => t[0] === 'source')![1], 'nostr');
   assert.equal(entry.tags.find((t) => t[0] === 'feed'), undefined, 'the feed is no longer read');
   assert.deepEqual(entry.tags.find((t) => t[0] === 'luma-id'), ['luma-id', 'cal-BvuRd9eaZnDGBwy'], 'its Luma link stays');

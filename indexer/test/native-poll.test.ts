@@ -78,14 +78,12 @@ test('a native calendar is read by its author, and its events are served as reco
   assert.equal(entry.pageUrl, 'https://example.org');
   assert.equal(entry.nativeCalendar, `31924:${organizer}:main`);
   assert.deepEqual(entry.ownerRelays, ['wss://home.test']);
-  assert.equal(entry.pubkey, null, 'no calendar key is made for it');
-  assert.equal(h.vault.pubkeyFor(entry.d), null);
   const rows = h.events.byCalendar(entry.d, NOW - 86400, NOW + 30 * 86400);
   assert.deepEqual(rows.map((r) => r.title), ['October meetup', 'Harvest festival']);
   assert.ok(h.db.record(rows[0]!.recordId)!.ics.includes('X-EVENTINDEX-NOSTR:naddr1'));
 });
 
-test('the index signs nothing for a native calendar but its directory entry, and follows its organizer', async () => {
+test('the index signs nothing for a native calendar but its directory entry, and follows no one', async () => {
   const h = nativeHarness({ [OWN]: [relayList], 'wss://home.test': [meetup, profile, calendar] });
   fileNative(h);
   await h.indexer.tick();
@@ -95,7 +93,7 @@ test('the index signs nothing for a native calendar but its directory entry, and
     ['p', organizer], ['source', 'nostr'], ['calendar', `31924:${organizer}:main`],
   ]);
   const follows = h.sent.find((s) => s.event.kind === 3)!.event;
-  assert.deepEqual(follows.tags, [['p', organizer, 'wss://relay.eventindex.space']]);
+  assert.deepEqual(follows.tags, []);
 });
 
 test('a read no relay answers is a failed poll, and the events read before stay', async () => {

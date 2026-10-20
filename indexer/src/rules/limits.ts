@@ -1,4 +1,4 @@
-// Limits on what one calendar key publishes, and created_at for bulk
+// Limits on what one calendar publishes, and created_at for bulk
 // publishes.
 
 export const MAX_EVENTS_PER_CALENDAR = 10_000;

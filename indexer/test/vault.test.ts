@@ -3,94 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, hkdfSync } from 'node:crypto';
 import Database from 'better-sqlite3';
-import { hkdfSync } from 'node:crypto';
 import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
-import { verifyEvent, getPublicKey } from 'nostr-tools/pure';
 import { openVault } from '../src/store/vault-db.ts';
 import { sealFor } from '../src/claim/seal.ts';
 
 const secret = () => new Uint8Array(randomBytes(32));
-
-test('a calendar key is created once per d and signs for it', () => {
-  const vault = openVault(':memory:', secret());
-  const pubkey = vault.createKey('luma:cal-x');
-  assert.match(pubkey, /^[0-9a-f]{64}$/);
-  assert.equal(vault.createKey('luma:cal-x'), pubkey);
-  assert.equal(vault.pubkeyFor('luma:cal-x'), pubkey);
-  assert.notEqual(vault.createKey('luma:cal-y'), pubkey);
-  const event = vault.sign('luma:cal-x', { kind: 1, created_at: 1, tags: [], content: 'x' });
-  assert.equal(event.pubkey, pubkey);
-  assert.ok(verifyEvent(event));
-});
-
-test('the vault file holds no key in the clear', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
-  try {
-    const path = join(dir, 'vault.db');
-    const calendarSecret = secret();
-    const vault = openVault(path, calendarSecret);
-    const pubkey = vault.createKey('meetup:pythonsd');
-    vault.close();
-    // The key, opened as spec/indexer-rules.md § 8 says it is sealed.
-    const row = new Database(path, { readonly: true }).prepare('SELECT nonce, ciphertext FROM calendar_keys WHERE d = ?').get('meetup:pythonsd') as { nonce: Buffer; ciphertext: Buffer };
-    const sealing = new Uint8Array(hkdfSync('sha256', calendarSecret, new Uint8Array(0), 'event-index/calendar-key/v1', 32));
-    const sk = xchacha20poly1305(sealing, new Uint8Array(row.nonce), new TextEncoder().encode('meetup:pythonsd')).decrypt(new Uint8Array(row.ciphertext));
-    assert.equal(getPublicKey(sk), pubkey);
-    const bytes = readFileSync(path);
-    assert.equal(bytes.indexOf(Buffer.from(sk)), -1);
-    assert.equal(bytes.indexOf(Buffer.from(Buffer.from(sk).toString('hex'))), -1);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('a key cannot be read with another secret', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
-  try {
-    const path = join(dir, 'vault.db');
-    const first = openVault(path, secret());
-    first.createKey('meetup:pythonsd');
-    first.close();
-    const other = openVault(path, secret());
-    assert.throws(() => other.sign('meetup:pythonsd', { kind: 1, created_at: 1, tags: [], content: '' }));
-    other.close();
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('a key moved to another calendar\'s row does not decrypt', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
-  try {
-    const path = join(dir, 'vault.db');
-    const key = secret();
-    const vault = openVault(path, key);
-    vault.createKey('a');
-    vault.createKey('b');
-    vault.close();
-    const raw = new Database(path);
-    const rows = raw.prepare('SELECT d, nonce, ciphertext FROM calendar_keys ORDER BY d').all() as Array<{ d: string; nonce: Buffer; ciphertext: Buffer }>;
-    const update = raw.prepare('UPDATE calendar_keys SET nonce = ?, ciphertext = ? WHERE d = ?');
-    update.run(rows[1]!.nonce, rows[1]!.ciphertext, 'a');
-    update.run(rows[0]!.nonce, rows[0]!.ciphertext, 'b');
-    raw.close();
-    const reopened = openVault(path, key);
-    assert.throws(() => reopened.sign('a', { kind: 1, created_at: 1, tags: [], content: '' }));
-    reopened.close();
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('a key leaves the vault only as a signature, and can be forgotten', () => {
-  const vault = openVault(':memory:', secret());
-  vault.createKey('mobilizon:mobilizon.fr/@lyontechhub');
-  assert.equal((vault as unknown as Record<string, unknown>)['exportNcryptsec'], undefined, 'no key is handed over');
-  vault.forget('mobilizon:mobilizon.fr/@lyontechhub');
-  assert.equal(vault.pubkeyFor('mobilizon:mobilizon.fr/@lyontechhub'), null);
-});
 
 test('the vault refuses a secret that is not 32 bytes', () => {
   assert.throws(() => openVault(':memory:', new Uint8Array(16)), /32 bytes/);
@@ -144,79 +63,31 @@ test('what an organizer hands the index for it is sealed to the vault\'s intake 
   assert.match(vault.intakePubkey, /^[0-9a-f]{64}$/);
 });
 
-test('every calendar key is listed, then destroyed, leaving no trace of its ciphertext in the file', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
-  try {
-    const path = join(dir, 'vault.db');
-    const vault = openVault(path, secret());
-    const keys = ['luma:cal-a', 'meetup:b', 'luma:cal-c'].map((d) => ({ d, pubkey: vault.createKey(d) }));
-    const ciphertexts = (vault.raw.prepare('SELECT ciphertext FROM calendar_keys').all() as Array<{ ciphertext: Buffer }>).map((r) => r.ciphertext);
-    assert.deepEqual(vault.keys(), [...keys].sort((x, y) => (x.d < y.d ? -1 : 1)));
-    assert.equal(vault.destroyKeys(), 3);
-    assert.deepEqual(vault.keys(), []);
-    assert.equal(vault.pubkeyFor('luma:cal-a'), null);
-    vault.close();
-    const bytes = Buffer.concat([readFileSync(path), ...['-wal'].map((s) => { try { return readFileSync(path + s); } catch { return Buffer.alloc(0); } })]);
-    for (const c of ciphertexts) assert.equal(bytes.indexOf(c), -1, 'a ciphertext is still in the file');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('signer connections and the intake key come from the signer secret, calendar keys from the calendar-key secret', () => {
+test('a signer connection is sealed under the signer secret, as spec/indexer-rules.md § 8 says', () => {
   const signer = secret();
-  const calendar = secret();
-  const vault = openVault(':memory:', signer, calendar);
-  const pubkey = vault.createKey('luma:cal-x');
+  const vault = openVault(':memory:', signer);
   vault.saveConnection('meetup:a', 'a0'.repeat(32), CONNECTION);
-  const raw = vault.raw;
-  const row = raw.prepare('SELECT nonce, ciphertext FROM calendar_keys').get() as { nonce: Buffer; ciphertext: Buffer };
-  const sealing = new Uint8Array(hkdfSync('sha256', calendar, new Uint8Array(0), 'event-index/calendar-key/v1', 32));
-  const sk = xchacha20poly1305(sealing, new Uint8Array(row.nonce), new TextEncoder().encode('luma:cal-x')).decrypt(new Uint8Array(row.ciphertext));
-  assert.equal(getPublicKey(sk), pubkey);
-  // The same intake key whatever the calendar-key secret.
-  assert.equal(openVault(':memory:', signer, secret()).intakePubkey, vault.intakePubkey);
+  const row = vault.raw.prepare('SELECT nonce, ciphertext FROM signer_connections').get() as { nonce: Buffer; ciphertext: Buffer };
+  const sealing = new Uint8Array(hkdfSync('sha256', signer, new Uint8Array(0), 'event-index/signer-connection/v1', 32));
+  const plain = xchacha20poly1305(sealing, new Uint8Array(row.nonce), new TextEncoder().encode(`meetup:a\u0000${'a0'.repeat(32)}`)).decrypt(new Uint8Array(row.ciphertext));
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(plain)), CONNECTION);
+  // The intake key comes from the signer secret too.
+  assert.equal(openVault(':memory:', signer).intakePubkey, vault.intakePubkey);
 });
 
-test('without the calendar-key secret the vault opens once it holds no calendar key, and refuses while it does', () => {
+test('a vault from before holds no calendar key: the old table is dropped, and its ciphertexts are overwritten', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vault-'));
   try {
     const path = join(dir, 'vault.db');
-    const signer = secret();
-    const calendar = secret();
-    const vault = openVault(path, signer, calendar);
-    vault.createKey('luma:cal-x');
+    const old = new Database(path);
+    old.exec('CREATE TABLE calendar_keys (d TEXT PRIMARY KEY, pubkey TEXT NOT NULL UNIQUE, nonce BLOB NOT NULL, ciphertext BLOB NOT NULL, created_at INTEGER NOT NULL)');
+    const ciphertext = Buffer.from(randomBytes(48));
+    old.prepare('INSERT INTO calendar_keys VALUES (?, ?, ?, ?, ?)').run('luma:cal-x', 'ab'.repeat(32), Buffer.from(randomBytes(24)), ciphertext, 1);
+    old.close();
+    const vault = openVault(path, secret());
+    assert.equal((vault.raw.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'calendar_keys'").get() as { n: number }).n, 0);
     vault.close();
-    assert.throws(() => openVault(path, signer, null), /calendar-key secret/);
-    const again = openVault(path, signer, calendar);
-    again.destroyKeys();
-    again.close();
-    const without = openVault(path, signer, null);
-    assert.deepEqual(without.keys(), []);
-    assert.throws(() => without.createKey('luma:cal-y'), /retired/);
-    without.close();
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('a signer connection sealed under the calendar-key secret is sealed again under the signer secret', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'vault-'));
-  try {
-    const path = join(dir, 'vault.db');
-    const old = secret();
-    // As before: one secret for everything.
-    const before = openVault(path, old);
-    before.saveConnection('meetup:a', 'a0'.repeat(32), CONNECTION);
-    before.close();
-    const signer = secret();
-    const moved = openVault(path, signer, old);
-    assert.deepEqual(moved.connection('meetup:a'), { owner: 'a0'.repeat(32), ...CONNECTION });
-    moved.close();
-    // The calendar-key secret is no longer needed to open it.
-    const after = openVault(path, signer, null);
-    assert.deepEqual(after.connection('meetup:a'), { owner: 'a0'.repeat(32), ...CONNECTION });
-    after.close();
+    assert.equal(readFileSync(path).indexOf(ciphertext), -1, 'the old ciphertext is not in the file');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

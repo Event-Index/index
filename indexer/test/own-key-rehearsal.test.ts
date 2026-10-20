@@ -155,8 +155,7 @@ test('"publish for me, as me" through a real remote signer: the calendar\'s even
     w.dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null,
       location: 'San Diego, US', g: '9mud', foundVia: 'maintainer', addedAt: NOW });
     await w.indexer.tick();
-    const key = w.dir.get(id.d)!.pubkey!;
-    assert.equal((await pool.querySync([w.own], { kinds: [31923], authors: [key] })).length, 4, 'mirrored first, under the calendar key');
+    assert.equal(w.events.byCalendar(id.d, NOW, NOW + 365 * 86400).length, 4, 'mirrored first');
 
     const address = await bunker(organizerKey, w.home);
     const claim = w.queues.requestClaim({ d: id.d, pubkey: organizer, mode: 'delegated', signer: sealFor(w.vault.intakePubkey, address), at: NOW });
@@ -171,9 +170,6 @@ test('"publish for me, as me" through a real remote signer: the calendar\'s even
     const theirs = await pool.querySync([w.home], { authors: [organizer] });
     assert.deepEqual(theirs.map((e) => e.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'signed by the organizer\'s signer, on their relay');
     assert.equal((await pool.querySync([w.own], { kinds: [31923], authors: [organizer] })).length, 0, 'the index\'s relay does not host them');
-    const old = await pool.querySync([w.own], { kinds: [0], authors: [key] });
-    assert.match(JSON.parse(old[0]!.content).about, /now publishes as npub1/);
-    assert.equal((await pool.querySync([w.own], { kinds: [31923], authors: [key] })).length, 0, 'the old copies are deleted');
 
     const off = w.queues.ownerRequest({ d: id.d, pubkey: organizer, kind: 'disconnect', signer: null, at: NOW + 70 });
     w.clock.now = NOW + 120;

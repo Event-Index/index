@@ -10,7 +10,7 @@ test('settings come from the environment the deploy unit sets, with safe default
   const s = loadSettings({
     EVENTINDEX_DATA_DIR: '/var/lib/eventindex',
     EVENTINDEX_INDEX_KEY_FILE: '/etc/eventindex/index-key.nsec',
-    EVENTINDEX_CALENDAR_SECRET_FILE: '/etc/eventindex/calendar-key.secret',
+    EVENTINDEX_SIGNER_SECRET_FILE: '/etc/eventindex/signer.secret',
     EVENTINDEX_RELAY_URL: 'ws://127.0.0.1:7777',
     EVENTINDEX_PUBLIC_RELAY: 'wss://relay.eventindex.space',
     EVENTINDEX_API_PORT: '8080',
@@ -19,6 +19,8 @@ test('settings come from the environment the deploy unit sets, with safe default
   });
   assert.equal(s.indexDb, '/var/lib/eventindex/index.db');
   assert.equal(s.vaultDb, '/var/lib/eventindex/vault.db');
+  assert.equal(s.signerSecretFile, '/etc/eventindex/signer.secret');
+  assert.equal(loadSettings({}).signerSecretFile, '/etc/eventindex/signer.secret');
   assert.equal(s.dumpFile, '/var/lib/eventindex/dump/index.db');
   assert.equal(s.apiPort, 8080);
   assert.equal(s.publishToGeneralRelays, false);

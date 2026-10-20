@@ -2,8 +2,8 @@
 // own key), retired entries with their reason, the do-not-index list, and a
 // few facts about the index itself.
 //
-// An entry is `mirrored` (its feed is read, and the calendar key the index
-// holds signs its events), `own` (its organizer publishes from their own key,
+// An entry is `mirrored` (its feed is read, and its events are listed as the
+// index's items), `own` (its organizer publishes from their own key,
 // and the index reads their events), or `delegated` (its feed is read, and the
 // index signs its events with its organizer's key, through a signer they
 // connected).
@@ -110,12 +110,6 @@ export interface CalendarFacts {
   image: string | null;
 }
 
-// The key a calendar's events are signed with now: the calendar key the
-// index holds, or its organizer's own.
-export function currentKey(entry: StoredEntry): string | null {
-  return entry.mode === 'mirrored' ? entry.pubkey : entry.owner;
-}
-
 // Who may own what: a key that publishes a calendar itself owns no other
 // listed calendar, since the index reads every event of that key as that
 // calendar's; a key the index publishes as may have several such calendars.
@@ -176,7 +170,6 @@ export function directoryStore(index: IndexDb) {
       const d = index.calendarForLocalName(name);
       return d ? toEntry(byD.get(d)) : null;
     },
-    byPubkey: (pubkey: string) => toEntry(db.prepare<[string], Row>('SELECT * FROM directory WHERE pubkey = ?').get(pubkey)),
     // Listed entries; with includeUnlisted, those kept without a listing too.
     list(options: { includeRemoved?: boolean; includeUnlisted?: boolean } = {}): StoredEntry[] {
       const where = [...(options.includeRemoved ? [] : ['removed IS NULL']), ...(options.includeUnlisted ? [] : ['unlisted = 0'])];
@@ -197,8 +190,6 @@ export function directoryStore(index: IndexDb) {
       const limit = Math.min(Math.max(query.limit ?? 50, 1), 500);
       return db.prepare<string[], Row>(`SELECT * FROM directory WHERE ${where.join(' AND ')} ORDER BY name, d LIMIT ${limit}`).all(...params).map((r) => toEntry(r)!);
     },
-    setKey: (d: string, pubkey: string) => void db.prepare('UPDATE directory SET pubkey = ? WHERE d = ?').run(pubkey, d),
-    clearKey: (d: string) => void db.prepare('UPDATE directory SET pubkey = NULL WHERE d = ?').run(d),
     setOwnership: (d: string, o: Ownership) => void db.prepare('UPDATE directory SET mode = ?, owner = ?, claimed_at = ?, native_calendar = ? WHERE d = ?')
       .run(o.mode, o.owner, o.claimedAt, o.nativeCalendar, d),
     // An organizer's own settings: where the calendar's events are.

@@ -262,7 +262,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
           notFound();
         }
       }
-      const entry = dir.byPubkey(pubkey) ?? dir.byOwner(pubkey)[0] ?? null;
+      const entry = dir.byOwner(pubkey)[0] ?? null;
       return entry ? json(200, calendarView(view, entry)) : notFound('No calendar in the directory has this key.');
     }
     if (area === 'search' && how === 'calendars' && arg === 'byterm' && parts.length === 3) {
@@ -337,14 +337,8 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
     const name = url.searchParams.get('name')?.trim().toLowerCase();
     const names: Record<string, string> = {};
     const indexPubkey = dir.fact('index_pubkey');
+    // The index names only its own key: an organizer's is theirs to name.
     if ((!name || name === '_') && indexPubkey) names['_'] = indexPubkey;
-    // Only a calendar key the index holds, until the keys are retired: a
-    // claimed calendar's old key is deleted, and an organizer's own key is
-    // theirs to name.
-    if (name && name !== '_' && !dir.fact('calendar_keys_retired')) {
-      const entry = dir.byLocalName(name);
-      if (entry?.pubkey && entry.mode === 'mirrored') names[name] = entry.pubkey;
-    }
     const keys = Object.values(names);
     return json(200, keys.length ? { names, relays: Object.fromEntries(keys.map((k) => [k, [settings.publicRelay]])) } : { names });
   }

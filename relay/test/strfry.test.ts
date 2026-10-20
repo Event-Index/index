@@ -90,13 +90,15 @@ test('NIP-11 states the relay\'s scope', { skip }, async () => {
   assert.match(info.description, /1111/);
 });
 
-test('the poll service publishes through the write policy; strangers get only answers in', { skip }, async () => {
-  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_RELAY_URL: url });
+test('the poll service publishes through the write policy; strangers get nothing in', { skip }, async () => {
+  const header = `39998:${'ab'.repeat(32)}:events`;
+  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_RELAY_URL: url, EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: header });
   const db = openIndexDb(':memory:');
   const dir = directoryStore(db);
   const queues = queueStore(db);
   const vault = openVault(':memory:', new Uint8Array(randomBytes(32)));
   const indexKey = generateSecretKey();
+  const index = getPublicKey(indexKey);
   const id = identify(feedUrlFor('meetup-pythonsd.ics'));
   dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null, location: null, g: null, foundVia: 'maintainer', addedAt: NOW });
   const clock = { now: NOW };
@@ -110,38 +112,29 @@ test('the poll service publishes through the write policy; strangers get only an
   try {
     const first = await indexer.tick();
     assert.deepEqual(first.failed, [], 'every publish was accepted');
-    const calendar = dir.get(id.d)!.pubkey!;
-    const events = await pool.querySync([url], { kinds: [31923], authors: [calendar] });
-    assert.equal(events.length, 4);
-    assert.equal((await pool.querySync([url], { kinds: [39999], authors: [getPublicKey(indexKey)] })).length, 1);
+    const items = await pool.querySync([url], { kinds: [39999], authors: [index], '#z': [header] });
+    assert.equal(items.length, 4, 'the calendar\'s events, as the index key\'s items');
+    assert.equal((await pool.querySync([url], { kinds: [39999], authors: [index], '#d': [id.d] })).length, 1, 'and its entry');
 
     const stranger = generateSecretKey();
     const now = Math.floor(Date.now() / 1000);
-    const coordinate = `31923:${calendar}:${events[0]!.tags.find((t) => t[0] === 'd')![1]}`;
     const note = finalizeEvent({ kind: 1, tags: [], content: 'hello', created_at: now }, stranger);
     assert.match((await refusal(note))!, /blocked: /);
     const fake = finalizeEvent({ kind: 31923, tags: [['d', 'x'], ['title', 'Not ours'], ['start', String(now)]], content: '', created_at: now }, stranger);
     assert.match((await refusal(fake))!, /blocked: /);
-    const rsvp = finalizeEvent({ kind: 31925, tags: [['d', 'r1'], ['a', coordinate], ['status', 'accepted'], ['p', calendar]], content: '', created_at: now }, stranger);
-    assert.equal(await refusal(rsvp), null);
-    const comment = finalizeEvent({ kind: 1111, tags: [['A', coordinate], ['K', '31923'], ['P', calendar], ['a', coordinate], ['k', '31923'], ['p', calendar]], content: 'See you there', created_at: now }, stranger);
-    assert.equal(await refusal(comment), null);
-    const othersDeletion = finalizeEvent({ kind: 5, tags: [['e', rsvp.id]], content: '', created_at: now }, generateSecretKey());
+    const rsvp = finalizeEvent({ kind: 31925, tags: [['d', 'r1'], ['a', `31923:${getPublicKey(generateSecretKey())}:x`], ['status', 'accepted']], content: '', created_at: now }, stranger);
+    assert.match((await refusal(rsvp))!, /blocked: .*RSVP/);
+    const othersDeletion = finalizeEvent({ kind: 5, tags: [['e', items[0]!.id]], content: '', created_at: now }, stranger);
     assert.match((await refusal(othersDeletion))!, /blocked: .*your own events/);
-    const ownDeletion = finalizeEvent({ kind: 5, tags: [['e', rsvp.id], ['k', '31925']], content: '', created_at: now + 1 }, stranger);
-    assert.equal(await refusal(ownDeletion), null);
-    assert.equal((await pool.querySync([url], { ids: [rsvp.id] })).length, 0, 'the deleted RSVP is gone');
 
-    // A removal still publishes; afterwards the calendar's key is held to its profile and deletions.
+    // A removal withdraws the calendar's items at once.
     const { id: request } = queues.requestRemoval({ d: id.d, message: null, at: NOW });
     queues.resolveRemoval(request, 'approved', NOW);
     clock.now = NOW + 60;
     const second = await indexer.tick();
     assert.deepEqual(second.removed, [id.d]);
-    assert.equal((await pool.querySync([url], { kinds: [31923], authors: [calendar] })).length, 0, 'upcoming events deleted');
-    const profile = (await pool.querySync([url], { kinds: [0], authors: [calendar] }))[0]!;
-    assert.match(JSON.parse(profile.content).about, /No longer mirrored/);
-    assert.equal(JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')).removed[0], calendar);
+    assert.equal((await pool.querySync([url], { kinds: [39999], authors: [index], '#z': [header] })).length, 0, 'its items are withdrawn');
+    assert.deepEqual(JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')), { index, hosted: [] });
   } finally {
     publisher.close();
     vault.close();

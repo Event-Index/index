@@ -13,7 +13,7 @@ import { decide, type Allowlist, type Lookup, type PolicyEvent } from './policy.
 const ALLOWLIST = process.env['EVENTINDEX_RELAY_ALLOWLIST'] ?? '/var/lib/eventindex/relay-allowlist.json';
 const RELAY = process.env['EVENTINDEX_RELAY_URL'] ?? 'ws://127.0.0.1:7777';
 const LOOKUP_TIMEOUT_MS = 3000;
-const EMPTY: Allowlist = { index: null, live: new Set(), removed: new Set(), hosted: new Set() };
+const EMPTY: Allowlist = { index: null, hosted: new Set() };
 
 const log = (line: string) => process.stderr.write(`write policy: ${line}\n`);
 
@@ -33,10 +33,10 @@ function allowlist(): Allowlist {
   }
   if (key === stamp) return allow;
   try {
-    const data = JSON.parse(readFileSync(ALLOWLIST, 'utf8')) as { index?: string | null; live?: string[]; removed?: string[]; hosted?: string[] };
-    allow = { index: data.index ?? null, live: new Set(data.live ?? []), removed: new Set(data.removed ?? []), hosted: new Set(data.hosted ?? []) };
+    const data = JSON.parse(readFileSync(ALLOWLIST, 'utf8')) as { index?: string | null; hosted?: string[] };
+    allow = { index: data.index ?? null, hosted: new Set(data.hosted ?? []) };
     stamp = key;
-    log(`allowlist read: ${allow.live.size} calendar keys, ${allow.removed.size} removed, ${allow.hosted.size} hosted`);
+    log(`allowlist read: ${allow.hosted.size} hosted`);
   } catch (error) {
     // A file caught mid-write keeps the last good list; the next event retries.
     log(`allowlist unreadable, keeping the last one: ${(error as Error).message}`);

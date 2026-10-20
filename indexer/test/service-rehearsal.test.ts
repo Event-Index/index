@@ -5,10 +5,11 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer, connect } from 'node:net';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import Database from 'better-sqlite3';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { nsecEncode } from 'nostr-tools/nip19';
 import { SimplePool } from 'nostr-tools/pool';
@@ -65,12 +66,13 @@ after(() => {
   relay?.kill();
 });
 
-test('one tick publishes the directory, the calendar key\'s events and the calendar to the relay', { skip }, async () => {
+test('one tick publishes the directory and the calendar\'s events, as the index key\'s items, to the relay', { skip }, async () => {
   const db = openIndexDb(':memory:');
   const dir = directoryStore(db);
   const vault = openVault(':memory:', new Uint8Array(randomBytes(32)));
   const indexKey = generateSecretKey();
-  const settings = { ...loadSettings({ EVENTINDEX_DATA_DIR: '/nonexistent', EVENTINDEX_RELAY_URL: url }) };
+  const header = `39998:${'ab'.repeat(32)}:events`;
+  const settings = { ...loadSettings({ EVENTINDEX_DATA_DIR: '/nonexistent', EVENTINDEX_RELAY_URL: url, EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: header }) };
   const id = identify(feedUrlFor('meetup-pythonsd.ics'));
   dir.add({ d: id.d, role: id.role, source: id.source, feedUrl: id.feedUrl, pageUrl: id.pageUrl, name: null, description: null, image: null, location: 'San Diego, US', g: '9mud', foundVia: 'maintainer', addedAt: NOW });
   const publisher = relayPublisher(settings, () => {});
@@ -83,27 +85,19 @@ test('one tick publishes the directory, the calendar key\'s events and the calen
   await indexer.tick();
   publisher.close();
   const indexPubkey = getPublicKey(indexKey);
-  const calendarPubkey = dir.get(id.d)!.pubkey!;
-  const directory = await pool.querySync([url], { kinds: [39998, 39999], authors: [indexPubkey] });
-  assert.deepEqual(directory.map((e) => e.kind).sort(), [39998, 39999], 'the events header and the entry');
-  const listed = await pool.querySync([url], { kinds: [31923], '#z': [`39998:${indexPubkey}:events`] });
-  assert.equal(listed.length, 4);
-  assert.ok(listed.every((e) => e.pubkey === calendarPubkey));
-  const calendar = await pool.querySync([url], { kinds: [31924], authors: [calendarPubkey] });
-  assert.equal(calendar[0]!.tags.filter((t) => t[0] === 'a').length, 4);
+  assert.equal((await pool.querySync([url], { kinds: [39999], authors: [indexPubkey], '#d': [id.d] })).length, 1, 'its entry');
+  const items = await pool.querySync([url], { kinds: [39999], '#z': [header] });
+  assert.equal(items.length, 4);
+  assert.ok(items.every((e) => e.pubkey === indexPubkey));
+  assert.equal((await pool.querySync([url], { kinds: [31922, 31923, 31924] })).length, 0, 'no NIP-52 event of its own');
 });
 
 function serviceEnv(dataDir: string): NodeJS.ProcessEnv {
   const keyFile = join(dataDir, 'index-key.nsec');
-  const secretFile = join(dataDir, 'calendar-key.secret');
   const signerFile = join(dataDir, 'signer.secret');
   writeFileSync(keyFile, `${nsecEncode(generateSecretKey())}\n`);
-  writeFileSync(secretFile, `${randomBytes(32).toString('hex')}\n`);
   writeFileSync(signerFile, `${randomBytes(32).toString('hex')}\n`);
-  return {
-    ...process.env, EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: keyFile, EVENTINDEX_CALENDAR_SECRET_FILE: secretFile,
-    EVENTINDEX_SIGNER_SECRET_FILE: signerFile, EVENTINDEX_RELAY_URL: url,
-  };
+  return { ...process.env, EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: keyFile, EVENTINDEX_SIGNER_SECRET_FILE: signerFile, EVENTINDEX_RELAY_URL: url };
 }
 
 test('main.ts --once runs one tick, publishes the index key\'s events, and releases its lock', { skip }, async () => {
@@ -177,23 +171,18 @@ test('turning outside publishing on fills each set of relays with its kinds, fro
       publisher.close();
     };
     await run(false, NOW);
-    const calendar = dir.get(id.d)!.pubkey!;
     const indexPubkey = getPublicKey(indexKey);
-    const kinds = async (name: string, authors: string[]) =>
-      (await pool.querySync([relays[name]!.url], { authors })).map((e) => e.kind).sort((a, b) => a - b);
-    assert.deepEqual(await kinds('search', [indexPubkey, calendar]), [], 'off: nothing to the search relays');
-    assert.deepEqual(await kinds('profiles', [indexPubkey]), [0, 10002], 'off: the index key\'s profile still goes out');
+    const kinds = async (name: string) => (await pool.querySync([relays[name]!.url], { limit: 100 })).map((e) => e.kind).sort((a, b) => a - b);
+    assert.deepEqual(await kinds('search'), [], 'off: nothing to the search relays');
+    assert.deepEqual(await kinds('profiles'), [0, 10002], 'off: the index key\'s profile still goes out');
 
     await run(true, NOW + 60);
     for (const name of ['search', 'profiles', 'general']) assert.equal(dir.fact(`outside_backfill ${relays[name]!.url}`), '1', name);
-    // craftnook at NOW: four events in the window, one of them past.
-    assert.deepEqual(await kinds('search', [calendar]), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-    assert.deepEqual(await kinds('search', [indexPubkey]), [0, 3, 10002], 'the directory is held');
-    assert.deepEqual(await kinds('lists', [indexPubkey, calendar]), []);
-    assert.deepEqual(await kinds('profiles', [calendar]), [0, 10002]);
-    assert.deepEqual(await kinds('profiles', [indexPubkey]), [0, 3, 10002]);
-    assert.deepEqual(await kinds('general', [calendar]), [0, 10002, 31923, 31923, 31923, 31924], 'upcoming events only');
-    assert.deepEqual(await kinds('general', [indexPubkey]), [0, 3, 10002]);
+    for (const name of ['search', 'profiles', 'general']) {
+      assert.deepEqual(await kinds(name), [0, 3, 10002], `${name}: the index key's own; the directory is held`);
+      assert.ok((await pool.querySync([relays[name]!.url], { limit: 100 })).every((e) => e.pubkey === indexPubkey));
+    }
+    assert.deepEqual(await kinds('lists'), []);
     vault.close();
     db.close();
   } finally {
@@ -201,25 +190,19 @@ test('turning outside publishing on fills each set of relays with its kinds, fro
   }
 });
 
-test('main.ts refuses to start without the calendar-key secret while the vault holds calendar keys, and starts once it holds none', { skip }, async () => {
+test('main.ts starts with the signer secret alone, and drops a vault\'s old calendar keys', { skip }, async () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'svc-'));
   try {
-    const env = serviceEnv(dataDir);
-    const signer = Buffer.from(String(readFileSync(env['EVENTINDEX_SIGNER_SECRET_FILE']!, 'utf8')).trim(), 'hex');
-    const calendar = Buffer.from(String(readFileSync(env['EVENTINDEX_CALENDAR_SECRET_FILE']!, 'utf8')).trim(), 'hex');
-    const vault = openVault(join(dataDir, 'vault.db'), new Uint8Array(signer), new Uint8Array(calendar));
-    vault.createKey('luma:cal-x');
-    vault.close();
-    const without = { ...env, EVENTINDEX_CALENDAR_SECRET_FILE: join(dataDir, 'gone.secret'), EVENTINDEX_CALENDAR_KEYS_PAUSED: '1' };
-    const refused = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: without, encoding: 'utf8', timeout: 30_000 });
-    assert.notEqual(refused.status, 0);
-    assert.match(refused.stdout + refused.stderr, /holds 1 calendar keys, and the calendar-key secret is missing/);
-    const again = openVault(join(dataDir, 'vault.db'), new Uint8Array(signer), new Uint8Array(calendar));
-    again.destroyKeys();
-    again.close();
-    const run = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: without, encoding: 'utf8', timeout: 30_000 });
+    // A vault from before the calendar keys were destroyed.
+    const old = new Database(join(dataDir, 'vault.db'));
+    old.exec('CREATE TABLE calendar_keys (d TEXT PRIMARY KEY, pubkey TEXT NOT NULL UNIQUE, nonce BLOB NOT NULL, ciphertext BLOB NOT NULL, created_at INTEGER NOT NULL)');
+    old.prepare('INSERT INTO calendar_keys VALUES (?, ?, ?, ?, ?)').run('luma:cal-x', 'ab'.repeat(32), randomBytes(24), randomBytes(48), 1);
+    old.close();
+    const run = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/main.ts', '--once'], { cwd: repo, env: serviceEnv(dataDir), encoding: 'utf8', timeout: 30_000 });
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    assert.match(run.stdout, /calendar keys paused/);
+    const vault = new Database(join(dataDir, 'vault.db'), { readonly: true });
+    assert.equal((vault.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'calendar_keys'").get() as { n: number }).n, 0);
+    vault.close();
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }

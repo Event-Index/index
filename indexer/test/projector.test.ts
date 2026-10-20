@@ -19,17 +19,22 @@ function feed(fixture: string, text = readFixture(fixture)): NormalizedFeed {
   return normalizeFeed(text, identify(feedUrlFor(fixture)));
 }
 
+// As the index projects a calendar it publishes as its organizer (B2).
+const HOME = 'wss://home.example.org';
 function run(f: NormalizedFeed, db: IndexDb, now = NOW, extra: Partial<ProjectorInput> = {}) {
-  return projectFeed({ feed: f, calendarPubkey: keyOf(f.context.d), indexPubkey: INDEX, keyOf, db, now, hasRsvps: () => false, plan: cohostPlan([f], NOW), ...extra });
+  return projectFeed({
+    feed: f, calendarPubkey: keyOf(f.context.d), indexPubkey: INDEX, keyOf, db, now, hasRsvps: () => false, plan: cohostPlan([f], NOW),
+    delegated: { relay: HOME, calendarD: f.context.d }, ...extra,
+  });
 }
 
 const kinds = (planned: Planned[]) => planned.map((p) => p.template.kind);
 const tag = (p: Planned, name: string) => p.template.tags.find((t) => t[0] === name);
 
-test('a first poll publishes the calendar key\'s profile, relays, calendar and every event in the window', () => {
+test('a first poll publishes the organizer\'s calendar and every event in the window, and no profile or relay list of theirs', () => {
   const db = openIndexDb(':memory:');
   const result = run(feed('luma-calendar-craftnook.ics'), db);
-  assert.deepEqual(kinds(result.publish).sort(), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+  assert.deepEqual(kinds(result.publish).sort(), [31923, 31923, 31923, 31923, 31924]);
   assert.equal(result.quarantine, null);
   const calendar = result.publish.find((p) => p.template.kind === 31924)!;
   assert.equal(calendar.template.tags.filter((t) => t[0] === 'a').length, 4);

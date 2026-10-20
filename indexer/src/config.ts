@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GENERAL_RELAYS } from './project/profile.ts';
-import { FOLLOW_CAP } from './service/follows.ts';
 
 export interface Settings {
   dataDir: string;
@@ -16,7 +15,6 @@ export interface Settings {
   // The keys the relay's write policy accepts (relay/src/policy.ts).
   relayAllowlist: string;
   indexKeyFile: string;
-  calendarSecretFile: string;
   // Seals signer connections and derives the intake key (spec/indexer-rules.md § 8).
   signerSecretFile: string;
   // The index's own relay, as the services reach it, and as the world does.
@@ -44,8 +42,6 @@ export interface Settings {
   // take, and calendars it files in a day.
   discoveryPerRun: number;
   discoveryPerDay: number;
-  // The most calendar keys the index key follows (service/follows.ts).
-  followCap: number;
   // The publisher whose upcoming events the coverage report compares with
   // the index's (hex), and the relay it reads them from; none unless set.
   coveragePubkey: string | null;
@@ -53,13 +49,9 @@ export interface Settings {
   // Off unless set: the index's relay also takes the events of organizers
   // the index publishes as (kinds 31922, 31923, 31924 and 5).
   hostClaimants: boolean;
-  // Off unless set: no calendar key is made, and nothing a calendar key signs
-  // goes to outside relays (or is sent again to them), until it is turned off.
-  // Calendars are still read and served; keys are never deleted meanwhile.
-  calendarKeysPaused: boolean;
   // Off unless set: the index key publishes an item of the Events list per
-  // upcoming event of each mirrored calendar (spec/event-items.md), and the
-  // directory names no calendar key. `eventsHeader` is that list's header,
+  // upcoming event of each mirrored calendar (spec/event-items.md).
+  // `eventsHeader` is that list's header,
   // 39998:<maintainer's key>:events.
   eventItems: boolean;
   eventsHeader: string | null;
@@ -151,7 +143,6 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     lockFile: join(dataDir, 'indexer.lock'),
     relayAllowlist: env['EVENTINDEX_RELAY_ALLOWLIST'] ?? join(dataDir, 'relay-allowlist.json'),
     indexKeyFile: env['EVENTINDEX_INDEX_KEY_FILE'] ?? '/etc/eventindex/index-key.nsec',
-    calendarSecretFile: env['EVENTINDEX_CALENDAR_SECRET_FILE'] ?? '/etc/eventindex/calendar-key.secret',
     signerSecretFile: env['EVENTINDEX_SIGNER_SECRET_FILE'] ?? '/etc/eventindex/signer.secret',
     relayUrl,
     publicRelay: env['EVENTINDEX_PUBLIC_RELAY'] ?? 'wss://relay.eventindex.space',
@@ -167,11 +158,9 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
     discoveryPerRun: count(env['EVENTINDEX_DISCOVERY_PER_RUN'], 25, 'EVENTINDEX_DISCOVERY_PER_RUN'),
     discoveryPerDay: count(env['EVENTINDEX_DISCOVERY_PER_DAY'], 300, 'EVENTINDEX_DISCOVERY_PER_DAY'),
-    followCap: count(env['EVENTINDEX_FOLLOW_CAP'], FOLLOW_CAP, 'EVENTINDEX_FOLLOW_CAP'),
     coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
     hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',
-    calendarKeysPaused: env['EVENTINDEX_CALENDAR_KEYS_PAUSED'] === '1',
     eventItems: env['EVENTINDEX_EVENT_ITEMS'] === '1',
     eventsHeader: eventsHeader(env['EVENTINDEX_EVENTS_HEADER']),
     eventItemsMax: env['EVENTINDEX_EVENT_ITEMS_MAX']?.trim() ? count(env['EVENTINDEX_EVENT_ITEMS_MAX'], 0, 'EVENTINDEX_EVENT_ITEMS_MAX') : null,

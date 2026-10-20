@@ -125,7 +125,7 @@ export function nativeD(pubkey: string): string {
   return `nostr:${pubkey}`;
 }
 
-// The NIP-05 local name of a calendar key, from its entry's `d`: lowercase,
+// A calendar's local name (its page), from its entry's `d`: lowercase,
 // every run of other characters as one "-". An `ics:` entry keeps the first
 // 16 hex digits of its hash, a native calendar the first 16 of its author's
 // key; a name longer than 64 characters keeps its first 47 and 16 hex digits

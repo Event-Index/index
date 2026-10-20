@@ -36,11 +36,10 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, retireCalendarKeys, destroyCalendarKeys, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 import { discoveredStore, type Found } from './store/discovered.ts';
-import { retirementStore, RETIRE, RETIRED, DESTROY, DESTROYED } from './store/retirement.ts';
 import { coverage, formatCoverage, upcomingReferences } from './service/coverage.ts';
 import { decodeGeohash } from './project/geohash.ts';
 import { useSafeWebSockets } from './service/websocket.ts';
@@ -67,10 +66,7 @@ const USAGE = `usage: admin.ts <command>
   aggregator <npub or hex>
   relays
   pause-relay <wss://…> [--hours <n>]
-  resume-relay <wss://…>
-  retirement
-  retire-calendar-keys
-  destroy-calendar-keys`;
+  resume-relay <wss://…>`;
 
 class UsageError extends Error {}
 
@@ -101,7 +97,7 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
     case 'status': {
       const r = status(s, now);
       out(`index key       ${r.indexPubkey ?? '(the poll service has not run)'}`);
-      out(`calendars       ${r.calendars} (${r.withKey} with a key, ${r.neverPolled} not yet polled)`);
+      out(`calendars       ${r.calendars} (${r.neverPolled} not yet polled)`);
       out(`aggregators     ${r.aggregators}`);
       out(`removed         ${r.removed}`);
       out(`kept unlisted   ${r.unlisted} (nostr publishers with no upcoming event)`);
@@ -256,22 +252,6 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       if (!args[0]) throw new UsageError('resume-relay needs a relay URL');
       relayPauses(s.dir).set(args[0], null);
       out(`${args[0]} resumed; it gets new events from the next publish`);
-      return;
-    case 'retirement': {
-      // The calendar keys' retirement (spec/indexer-rules.md § 8): its steps and what was signed.
-      const facts = [[RETIRE, 'asked'], [RETIRED, 'sent to every relay'], [DESTROY, 'destruction asked'], [DESTROYED, 'keys destroyed']] as const;
-      for (const [fact, label] of facts) out(`${label.padEnd(20)} ${time(s.dir.fact(fact) ? Number(s.dir.fact(fact)) : null)}`);
-      const events = retirementStore(s.db).all();
-      const deletions = events.filter((e) => e.kind === 5);
-      const count = (name: string) => deletions.reduce((n, e) => n + e.tags.filter((t) => t[0] === name).length, 0);
-      out(`signed               ${events.length} events for ${new Set(events.map((e) => e.pubkey)).size} keys: ${events.length - deletions.length} profiles, ${deletions.length} deletions naming ${count('a')} addresses and ${count('e')} versions`);
-      return;
-    }
-    case 'retire-calendar-keys':
-      out(retireCalendarKeys(s, now));
-      return;
-    case 'destroy-calendar-keys':
-      out(destroyCalendarKeys(s, now));
       return;
     default:
       throw new UsageError(command ? `unknown command ${command}` : 'no command');

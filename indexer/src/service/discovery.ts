@@ -29,8 +29,6 @@ export interface DiscoverySettings {
   perRun: number;
   // Calendars discovery files in a day.
   perDay: number;
-  // The most calendar keys the index key follows: discovery files none past it.
-  followCap: number;
   // Feeds one step checks.
   checksPerStep: number;
 }
@@ -41,8 +39,6 @@ export interface DiscoveryDeps {
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
   log: (line: string) => void;
   settings: DiscoverySettings;
-  // How many keys the index key would follow; by default, one per calendar.
-  following?: (now: number) => number;
 }
 
 export interface StepReport {
@@ -58,7 +54,6 @@ function detailOf(e: PageEvent): FoundDetail {
 
 export function createDiscovery(deps: DiscoveryDeps) {
   const { dir, found, settings } = deps;
-  const following = deps.following ?? (() => dir.list().filter((e) => e.role === 'calendar').length);
   // Notices that would repeat each step are logged once a day.
   const noticed = new Map<string, number>();
   const notice = (key: string, line: string, now: number) => {
@@ -161,10 +156,6 @@ export function createDiscovery(deps: DiscoveryDeps) {
   async function check(now: number): Promise<StepReport['checked']> {
     const checked: StepReport['checked'] = [];
     for (const c of found.candidates(settings.checksPerStep)) {
-      if (following(now) >= settings.followCap) {
-        notice('follow', `discovery: the follow list is at its cap of ${settings.followCap} calendar keys; discovered calendars wait`, now);
-        break;
-      }
       if (found.filedSince(now - DAY) >= settings.perDay) {
         notice('day', `discovery: filed the cap of ${settings.perDay} a day; discovered calendars wait`, now);
         break;

@@ -21,7 +21,7 @@ const HEADER = `39998:${'ab'.repeat(32)}:events`;
 const FIXTURES = ['luma-calendar-craftnook.ics', 'luma-calendar-journaling.ics'];
 const D = identify(feedUrlFor(FIXTURES[0]!)).d;
 const ITEMS = {
-  EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: HEADER, EVENTINDEX_CALENDAR_KEYS_PAUSED: '1',
+  EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: HEADER,
   EVENTINDEX_PUBLISH_TO_GENERAL_RELAYS: '1', EVENTINDEX_PUBLISH_DIRECTORY_OUTSIDE: '1',
   EVENTINDEX_SEARCH_RELAYS: 'wss://search.test', EVENTINDEX_LIST_RELAYS: 'wss://lists.test', EVENTINDEX_GENERAL_RELAYS: 'wss://general.test',
 };
@@ -71,7 +71,7 @@ test('with event items on, each upcoming event of a mirrored calendar is an item
     .filter((r) => !r.canonical && (r.end ?? r.start) >= NOW);
   const own = items.filter((x) => x.audience === 'own').map((x) => tag(x.event, 'd')!).sort();
   assert.deepEqual(own, upcoming.map((r) => r.id).sort());
-  // Calendar keys are paused, and sign nothing.
+  // Nothing is signed but by the index key.
   assert.ok(!svc.sent.some((x) => x.event.pubkey !== svc.indexPubkey));
 });
 
@@ -170,19 +170,12 @@ test('with event items off, nothing is an item', async () => {
 const entryOf = (sent: Array<{ audience: Audience; event: VerifiedEvent }>, indexPubkey: string, d: string) =>
   sent.filter((x) => x.audience === 'own' && x.event.pubkey === indexPubkey && x.event.kind === 39999 && tag(x.event, 'd') === d && !isItem(x.event)).at(-1)?.event;
 
-test('with event items on, a calendar\'s entry names no calendar key, whether it has one or not', async () => {
-  // Without the pause the calendar gets a key; its entry still names none.
-  const s = stores();
-  const env = { ...ITEMS, EVENTINDEX_CALENDAR_KEYS_PAUSED: '0' };
-  const svc = service(s, env);
+test('a calendar\'s entry names no key until its organizer verifies one, and it is listed all the same', async () => {
+  const svc = service(stores(), ITEMS);
   await svc.indexer.tick();
-  assert.ok(s.vault.pubkeyFor(D));
   const entry = entryOf(svc.sent, svc.indexPubkey, D)!;
+  assert.ok(entry, 'listed');
   assert.deepEqual(entry.tags.filter((t) => t[0] === 'p'), []);
-  // A calendar filed while keys are paused has none, and is listed all the same.
-  const paused = service(stores(), ITEMS);
-  await paused.indexer.tick();
-  assert.ok(entryOf(paused.sent, paused.indexPubkey, D), 'listed without a key');
 });
 
 test('an organizer who verified their key is the p of their calendar\'s entry and of its items', async () => {

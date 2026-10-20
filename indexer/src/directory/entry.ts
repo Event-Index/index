@@ -13,12 +13,9 @@ export interface EntryInput {
   calendar: CalendarMeta;
   // The list header's coordinate, 39998:<pubkey>:<d>.
   header: string;
-  // The calendar's current key (the calendar key, or its organizer's own
-  // once they publish as themselves); null for an aggregator.
+  // The organizer's own key: a publisher's, or one its organizer verified;
+  // null for a calendar with none, and for an aggregator.
   pubkey: string | null;
-  // After a claim, the calendar key the index held, while events it signed
-  // are still to come.
-  formerKey?: string | null;
   // `nostr` once the calendar's events are read from its organizer's own
   // key instead of its feed.
   readFrom?: 'feed' | 'nostr';
@@ -53,7 +50,6 @@ export function directoryEntry(input: EntryInput): EventTemplate {
     // An aggregator on nostr is a publisher too; a feed that only leads to
     // calendars has no key.
     ['p', identity.role === 'calendar' || identity.source === 'nostr' ? input.pubkey : null],
-    ['p', identity.role === 'calendar' && input.formerKey !== input.pubkey ? input.formerKey : null],
     ['index-name', input.localName],
     ['feed', source === 'nostr' ? null : identity.feedUrl],
     ['source', source],

@@ -13,11 +13,13 @@ import { eventStore } from '../src/store/events.ts';
 import { createIndexer, type Audience, type Publisher } from '../src/service/indexer.ts';
 import { loadSettings } from '../src/config.ts';
 import { identify } from '../src/directory/id.ts';
-import { nostrD } from '../src/project/ids.ts';
 import type { FetchResult } from '../src/poller/fetch.ts';
 import { readFixture, feedUrlFor, NOW } from './helpers.ts';
 
 const H = 3600;
+// As live: a mirrored calendar's events are listed as the index key's items.
+const ITEMS_HEADER = `39998:${'ab'.repeat(32)}:events`;
+const isItem = (e: VerifiedEvent) => e.kind === 39999 && e.tags.some((t) => t[0] === 'z' && t[1] === ITEMS_HEADER);
 
 function entryFor(fixture: string, extra: Partial<Entry> = {}): Entry {
   const id = identify(feedUrlFor(fixture));
@@ -42,6 +44,7 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
   const urls = new Map([...options.fixtures, ...(options.extraFeeds ?? [])].map((f) => [identify(feedUrlFor(f)).feedUrl, f]));
   const settings = {
     ...loadSettings({ EVENTINDEX_DATA_DIR: options.dataDir ?? '/nonexistent', EVENTINDEX_SEARCH_RELAYS: 'wss://search.test', EVENTINDEX_LIST_RELAYS: 'wss://lists.test',
+      EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: ITEMS_HEADER,
       ...(options.generalRelays ? { EVENTINDEX_GENERAL_RELAYS: options.generalRelays } : {}) }),
     publishToGeneralRelays: options.publishGeneral ?? false,
     publishDirectoryOutside: options.publishDirectory ?? false,
@@ -73,17 +76,14 @@ function harness(options: { fixtures: string[]; texts?: Record<string, string>; 
   return { db, dir, queues, events, vault, indexKey, indexPubkey: getPublicKey(indexKey), sent, fetched, clock, indexer };
 }
 
-const kindsOf = (sent: Array<{ event: VerifiedEvent }>, pubkey?: string) => sent.filter((s) => !pubkey || s.event.pubkey === pubkey).map((s) => s.event.kind).sort((a, b) => a - b);
-
-test('a tick polls the due calendars, publishes their events, and stores their key, name and events', async () => {
+test('a tick polls the due calendars, lists their events as items, and stores their name and events', async () => {
   const h = harness({ fixtures: ['meetup-pythonsd.ics'] });
   const report = await h.indexer.tick();
   assert.deepEqual(report.polled, ['meetup:pythonsd']);
   const entry = h.dir.get('meetup:pythonsd')!;
   assert.equal(entry.name, 'San Diego Python Users Group');
-  assert.equal(entry.pubkey, h.vault.pubkeyFor('meetup:pythonsd'));
-  assert.deepEqual(kindsOf(h.sent, entry.pubkey!), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-  assert.ok(h.sent.every((s) => verifyEvent(s.event)));
+  assert.equal(h.sent.filter((s) => s.audience === 'own' && isItem(s.event)).length, 4);
+  assert.ok(h.sent.every((s) => s.event.pubkey === h.indexPubkey && verifyEvent(s.event)), 'the index key signs everything');
   assert.equal(h.events.countByCalendar('meetup:pythonsd'), 4);
   assert.equal(h.dir.fact('index_pubkey'), h.indexPubkey);
 });
@@ -91,11 +91,12 @@ test('a tick polls the due calendars, publishes their events, and stores their k
 test('the index key publishes its profile, both headers and the directory entries', async () => {
   const h = harness({ fixtures: ['meetup-pythonsd.ics'] });
   await h.indexer.tick();
-  const own = h.sent.filter((s) => s.audience === 'own' && s.event.pubkey === h.indexPubkey).map((s) => s.event);
+  const own = h.sent.filter((s) => s.audience === 'own' && s.event.pubkey === h.indexPubkey && !isItem(s.event)).map((s) => s.event);
   assert.deepEqual(own.map((e) => e.kind).sort((a, b) => a - b), [0, 3, 10002, 39998, 39999]);
   assert.deepEqual(own.find((e) => e.kind === 39998)!.tags[0], ['d', 'events'], 'only the events header; the calendars header is a maintainer\'s');
   const entry = own.find((e) => e.kind === 39999)!;
-  assert.deepEqual(entry.tags.find((t) => t[0] === 'p'), ['p', h.dir.get('meetup:pythonsd')!.pubkey]);
+  assert.equal(entry.tags.find((t) => t[0] === 'p'), undefined, 'a calendar whose organizer named no key names none');
+  assert.deepEqual(own.find((e) => e.kind === 3)!.tags, [], 'the index key follows no one');
   assert.deepEqual(JSON.parse(own.find((e) => e.kind === 0)!.content), {
     name: 'Event Index',
     about: 'The open directory of public event calendars. Mirrors them as nostr calendars so any app can render them. eventindex.space',
@@ -103,11 +104,9 @@ test('the index key publishes its profile, both headers and the directory entrie
     website: 'https://eventindex.space',
     nip05: '_@eventindex.space',
   });
-  const calendarProfiles = h.sent.filter((s) => s.event.kind === 0 && s.event.pubkey !== h.indexPubkey);
-  assert.ok(calendarProfiles.length > 0);
-  for (const s of calendarProfiles) assert.ok(!s.event.content.includes('/brand/'), 'a calendar never carries the mark');
+  const sent = h.sent.length;
   await h.indexer.tick();
-  assert.equal(h.sent.filter((s) => s.audience === 'own' && s.event.pubkey === h.indexPubkey).length, own.length, 'unchanged events are not sent again');
+  assert.equal(h.sent.length, sent, 'unchanged events are not sent again');
 });
 
 const outside = (sent: Array<{ audience: Audience; event: VerifiedEvent }>, audience: Audience, pubkey?: string) =>
@@ -126,29 +125,11 @@ test('with outside publishing off, only the index key\'s profile and relay list 
 test('with it on, each set of relays gets its kinds', async () => {
   const on = harness({ fixtures: ['meetup-pythonsd.ics'], publishGeneral: true, publishDirectory: true });
   await on.indexer.tick();
-  const calendar = on.dir.get('meetup:pythonsd')!.pubkey!;
-  assert.deepEqual(outside(on.sent, 'search', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-  assert.deepEqual(outside(on.sent, 'search', on.indexPubkey), [0, 3, 10002, 39999], 'entries, never a header the index key signs');
-  assert.deepEqual(outside(on.sent, 'lists'), [39999]);
-  assert.deepEqual(outside(on.sent, 'profiles', calendar), [0, 10002]);
-  assert.deepEqual(outside(on.sent, 'profiles', on.indexPubkey), [0, 3, 10002]);
-  assert.deepEqual(outside(on.sent, 'general', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924], 'upcoming events');
-  assert.deepEqual(outside(on.sent, 'general', on.indexPubkey), [0, 3, 10002]);
-});
-
-test('the index key follows every calendar key it holds', async () => {
-  const h = harness({ fixtures: ['meetup-pythonsd.ics', 'luma-calendar-craftnook.ics'] });
-  await h.indexer.tick();
-  const follows = h.sent.filter((s) => s.audience === 'own' && s.event.kind === 3).at(-1)!.event;
-  assert.equal(follows.pubkey, h.indexPubkey);
-  const keys = [h.dir.get('meetup:pythonsd')!.pubkey!, h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!].sort();
-  assert.deepEqual(follows.tags, keys.map((pk) => ['p', pk, 'wss://relay.eventindex.space']));
-  const { id } = h.queues.requestRemoval({ d: 'meetup:pythonsd', message: null, at: NOW });
-  h.queues.resolveRemoval(id, 'approved', NOW);
-  h.clock.now = NOW + 60;
-  await h.indexer.tick();
-  const after = h.sent.filter((s) => s.audience === 'own' && s.event.kind === 3).at(-1)!.event;
-  assert.deepEqual(after.tags, [['p', h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!, 'wss://relay.eventindex.space']], 'a removed calendar is unfollowed');
+  assert.ok(on.sent.every((s) => s.event.pubkey === on.indexPubkey), 'nothing but the index key');
+  assert.deepEqual(outside(on.sent, 'search'), [0, 3, 10002, 39999, 39999, 39999, 39999, 39999], 'its entry and items, never a header the index key signs');
+  assert.deepEqual(outside(on.sent, 'lists'), [39999, 39999, 39999, 39999, 39999]);
+  assert.deepEqual(outside(on.sent, 'profiles'), [0, 3, 10002]);
+  assert.deepEqual(outside(on.sent, 'general'), [0, 3, 10002], 'no item goes to the general relays');
 });
 
 test('turning outside publishing on sends what the index\'s relay holds to each relay once, marked when its queue drains', async () => {
@@ -161,14 +142,12 @@ test('turning outside publishing on sends what the index\'s relay holds to each 
     fetchOwn: async (filter) => { fetched.push(filter.authors ?? []); return held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)); },
     pendingFor: (relay) => waiting.get(relay) ?? 0 });
   await h.indexer.tick();
-  const calendar = first.dir.get('meetup:pythonsd')!.pubkey!;
-  assert.deepEqual(fetched.flat().sort(), [first.indexPubkey, calendar].sort());
+  assert.deepEqual(fetched.flat(), [first.indexPubkey], 'only the index key\'s events');
   const backfill = h.sent.filter((s) => s.relays);
-  const to = (relay: string, pubkey?: string) => backfill.filter((s) => s.relays!.includes(relay) && (!pubkey || s.event.pubkey === pubkey)).map((s) => s.event.kind).sort((a, b) => a - b);
-  assert.deepEqual(to('wss://search.test', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
-  assert.deepEqual(to('wss://search.test', first.indexPubkey), [0, 3, 10002], 'the directory is held');
-  assert.deepEqual(to('wss://purplepag.es'), [0, 0, 3, 10002, 10002]);
-  assert.deepEqual(to('wss://nos.lol', calendar), [0, 10002, 31923, 31923, 31923, 31923, 31924]);
+  const to = (relay: string) => backfill.filter((s) => s.relays!.includes(relay)).map((s) => s.event.kind).sort((a, b) => a - b);
+  assert.deepEqual(to('wss://search.test'), [0, 3, 10002], 'the directory is held');
+  assert.deepEqual(to('wss://purplepag.es'), [0, 3, 10002]);
+  assert.deepEqual(to('wss://nos.lol'), [0, 3, 10002]);
   assert.deepEqual(to('wss://lists.test'), []);
   h.clock.now = NOW + 30;
   await h.indexer.tick();
@@ -221,10 +200,11 @@ test('retired and do-not-index calendars are never polled', async () => {
   assert.deepEqual(h.fetched, []);
 });
 
-test('an approved removal deletes upcoming events even with RSVPs, marks the profile removed, and retires the entry', async () => {
+test('an approved removal withdraws the calendar\'s items at once, republishes its entry as removed, and retires it', async () => {
   const h = harness({ fixtures: ['meetup-pythonsd.ics'], rsvps: new Set(['anything']) });
   await h.indexer.tick();
-  const pubkey = h.dir.get('meetup:pythonsd')!.pubkey!;
+  const items = h.sent.filter((s) => s.audience === 'own' && isItem(s.event)).map((s) => s.event.tags.find((t) => t[0] === 'd')![1]);
+  assert.equal(items.length, 4);
   const { id } = h.queues.requestRemoval({ d: 'meetup:pythonsd', message: null, at: NOW });
   h.queues.resolveRemoval(id, 'approved', NOW);
   const before = h.sent.length;
@@ -232,14 +212,12 @@ test('an approved removal deletes upcoming events even with RSVPs, marks the pro
   const report = await h.indexer.tick();
   assert.deepEqual(report.removed, ['meetup:pythonsd']);
   const after = h.sent.slice(before).map((s) => s.event);
-  assert.equal(report.published, after.length, 'the report counts what the removal published');
-  assert.equal(after.filter((e) => e.kind === 5 && e.pubkey === pubkey).length, 4);
-  assert.equal(JSON.parse(after.find((e) => e.kind === 0 && e.pubkey === pubkey)!.content).about, 'No longer mirrored by Event Index at its organizer\'s request.');
-  const entry = after.find((e) => e.kind === 39999)!;
+  assert.ok(after.every((e) => e.pubkey === h.indexPubkey));
+  const withdrawn = after.filter((e) => e.kind === 5).map((e) => e.tags.find((t) => t[0] === 'a')![1]!.split(':')[2]);
+  assert.deepEqual(withdrawn.sort(), [...items].sort(), 'every item is withdrawn, RSVPs or not');
+  const entry = after.find((e) => e.kind === 39999 && !isItem(e))!;
   assert.deepEqual(entry.tags.at(-1), ['removed', 'organizer request']);
   assert.equal(h.dir.get('meetup:pythonsd')!.removed, 'organizer request');
-  assert.equal(h.vault.pubkeyFor('meetup:pythonsd'), null, 'the calendar key is deleted once its last events are out');
-  assert.equal(h.dir.get('meetup:pythonsd')!.pubkey, pubkey, 'the entry still names the key it had');
   assert.ok(h.dir.doNotIndex('meetup:pythonsd'));
   assert.equal(h.events.countByCalendar('meetup:pythonsd'), 0);
   assert.equal(h.queues.removal(id)!.status, 'done');
@@ -268,11 +246,10 @@ test('co-hosted calendars publish the shared event once', async () => {
   await h.indexer.tick();
   h.clock.now = early + 2 * 86400;
   await h.indexer.tick();
-  const shared = nostrD('evt-ILpIInTRKRV1pnY@events.lu.ma');
-  const craftnook = h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!;
-  const journaling = h.dir.get('luma:cal-f6iLyfD3TN5qUO2')!.pubkey!;
-  const live = (pubkey: string) => h.db.projection(pubkey, 31923, shared)?.status === 'live';
-  assert.notEqual(live(craftnook), live(journaling), 'exactly one calendar signs it');
+  const shared = h.events.search({ from: early, to: early + 30 * 86400, q: 'equinox' });
+  assert.equal(shared.length, 2, 'both calendars hold it');
+  const listed = h.sent.filter((s) => s.audience === 'own' && isItem(s.event) && /equinox/i.test(s.event.tags.find((t) => t[0] === 'title')![1]!));
+  assert.equal(new Set(listed.map((s) => s.event.tags.find((t) => t[0] === 'd')![1])).size, 1, 'it is listed once');
   const row = h.events.search({ from: early, to: early + 30 * 86400, q: 'equinox' });
   assert.ok(row.some((r) => r.canonical !== null), 'the other calendar\'s copy names the record it yields to');
 });
@@ -300,7 +277,7 @@ test('kind 10002 names the general relays only when the index publishes to them'
     const h = harness({ fixtures: ['meetup-pythonsd.ics'], publishGeneral });
     await h.indexer.tick();
     const lists = h.sent.filter((s) => s.audience === 'own' && s.event.kind === 10002).map((s) => s.event);
-    assert.equal(lists.length, 2, 'the index key\'s and the calendar key\'s');
+    assert.equal(lists.length, 1, 'the index key\'s');
     for (const list of lists) {
       const expected = [['r', 'wss://relay.eventindex.space'], ...(publishGeneral ? ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.damus.io'].map((r) => ['r', r, 'write']) : [])];
       assert.deepEqual(list.tags, expected, `general relays ${publishGeneral ? 'on' : 'off'}`);
@@ -308,36 +285,14 @@ test('kind 10002 names the general relays only when the index publishes to them'
   }
 });
 
-test('the relay allowlist names every key before its first events go out, and removed keys once removed', async () => {
+test('the relay allowlist names the index key, and organizers only when the relay hosts them', async () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'allow-'));
   try {
     const file = join(dataDir, 'relay-allowlist.json');
-    const read = () => JSON.parse(readFileSync(file, 'utf8')) as { index: string; live: string[]; removed: string[] };
-    const checked: number[] = [];
-    const onPublish = (list: VerifiedEvent[], audience: Audience) => {
-      if (audience !== 'own') return;
-      const allow = read();
-      for (const e of list) assert.ok(e.pubkey === allow.index || allow.live.includes(e.pubkey) || (allow.removed.includes(e.pubkey) && [0, 5].includes(e.kind)), `kind ${e.kind} by a key the allowlist lacks`);
-      checked.push(list.length);
-    };
-    const h = harness({ fixtures: ['meetup-pythonsd.ics', 'luma-calendar-craftnook.ics'], dataDir, onPublish });
-    assert.deepEqual(read(), { index: h.indexPubkey, live: [], removed: [], hosted: [] }, 'written as the service starts');
+    const h = harness({ fixtures: ['meetup-pythonsd.ics'], dataDir });
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { index: h.indexPubkey, hosted: [] }, 'written as the service starts');
     await h.indexer.tick();
-    assert.ok(checked.length >= 3);
-    const python = h.dir.get('meetup:pythonsd')!.pubkey!;
-    const craft = h.dir.get('luma:cal-BvuRd9eaZnDGBwy')!.pubkey!;
-    assert.deepEqual(read().live.sort(), [python, craft].sort());
-
-    const { id } = h.queues.requestRemoval({ d: 'meetup:pythonsd', message: null, at: NOW });
-    h.queues.resolveRemoval(id, 'approved', NOW);
-    h.clock.now = NOW + 60;
-    await h.indexer.tick();
-    assert.deepEqual(read(), { index: h.indexPubkey, live: [craft], removed: [python], hosted: [] });
-
-    // A restart rebuilds the list from the directory.
-    rmSync(file);
-    const again = harness({ fixtures: [], dataDir, db: h.db, vault: h.vault, indexKey: h.indexKey });
-    assert.deepEqual(read(), { index: again.indexPubkey, live: [craft], removed: [python], hosted: [] });
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { index: h.indexPubkey, hosted: [] });
   } finally {
     rmSync(dataDir, { recursive: true, force: true });
   }
@@ -348,7 +303,7 @@ test('the directory stays on the index\'s relay until publishing it outside is o
   await first.indexer.tick();
   assert.deepEqual(outside(first.sent, 'lists'), []);
   assert.ok(!first.sent.some((s) => s.audience !== 'own' && (s.event.kind === 39998 || s.event.kind === 39999)));
-  assert.ok(first.sent.some((s) => s.audience === 'search' && s.event.kind === 31923), 'everything else goes out');
+  assert.ok(first.sent.some((s) => s.audience === 'general' && s.event.kind === 0), 'the index key\'s profile goes out');
   const held = first.sent.filter((s) => s.audience === 'own').map((s) => s.event);
   const h = harness({ fixtures: [], publishGeneral: true, publishDirectory: true, db: first.db, vault: first.vault, indexKey: first.indexKey,
     fetchOwn: async (filter) => held.filter((e) => filter.authors!.includes(e.pubkey) && filter.kinds!.includes(e.kind)), pendingFor: () => 0 });
@@ -356,8 +311,8 @@ test('the directory stays on the index\'s relay until publishing it outside is o
   h.clock.now = NOW + 60;
   await h.indexer.tick();
   const backfill = h.sent.filter((s) => s.relays);
-  assert.deepEqual(backfill.filter((s) => s.relays!.includes('wss://lists.test')).map((s) => s.event.kind).sort(), [39999]);
-  assert.deepEqual(backfill.filter((s) => s.relays!.includes('wss://search.test')).map((s) => s.event.kind).sort(), [39999], 'only the directory\'s entries are backfilled');
+  assert.deepEqual(backfill.filter((s) => s.relays!.includes('wss://lists.test')).map((s) => s.event.kind).sort(), [39999, 39999, 39999, 39999, 39999]);
+  assert.deepEqual(backfill.filter((s) => s.relays!.includes('wss://search.test')).map((s) => s.event.kind).sort(), [39999, 39999, 39999, 39999, 39999], 'only the directory\'s entry and items are backfilled');
   h.clock.now = NOW + 90;
   await h.indexer.tick();
   assert.equal(h.dir.fact('outside_backfill_directory wss://lists.test'), '1');
@@ -369,8 +324,8 @@ const HEADER = `39998:${'ab'.repeat(32)}:event-calendars`;
 test('entries name the maintainer\'s list header, in its shape', async () => {
   const h = harness({ fixtures: ['meetup-pythonsd.ics'], header: HEADER });
   await h.indexer.tick();
-  const entry = h.sent.find((s) => s.audience === 'own' && s.event.kind === 39999)!.event;
-  assert.deepEqual(entry.tags.map((t) => t[0]), ['d', 'z', 'name', 'role', 'p', 'index-name', 'feed', 'source', 'meetup-group', 't']);
+  const entry = h.sent.find((s) => s.audience === 'own' && s.event.kind === 39999 && !isItem(s.event))!.event;
+  assert.deepEqual(entry.tags.map((t) => t[0]), ['d', 'z', 'name', 'role', 'index-name', 'feed', 'source', 'meetup-group', 't']);
   assert.deepEqual(entry.tags[1], ['z', HEADER]);
   assert.deepEqual(entry.tags.find((t) => t[0] === 'index-name'), ['index-name', 'meetup-pythonsd']);
 });
@@ -410,7 +365,7 @@ test('a calendar just approved is polled and published at the next tick, before 
   h.dir.add(entryFor('google-python-events.ics', { addedAt: h.clock.now, foundVia: 'submission' }));
   const before = h.sent.length;
   const report = await h.indexer.tick();
-  assert.deepEqual(report.polled, [identify(feedUrlFor('google-python-events.ics')).d]);
-  const calendar = h.dir.get(identify(feedUrlFor('google-python-events.ics')).d)!.pubkey!;
-  assert.ok(h.sent.slice(before).some((s) => s.audience === 'own' && s.event.pubkey === calendar && (s.event.kind === 31922 || s.event.kind === 31923)), 'its events went out');
+  const d = identify(feedUrlFor('google-python-events.ics')).d;
+  assert.deepEqual(report.polled, [d]);
+  assert.ok(h.sent.slice(before).some((s) => s.audience === 'own' && isItem(s.event) && s.event.tags.some((t) => t[0] === 'calendar' && t[1]!.endsWith(`:${d}`))), 'its events went out');
 });

@@ -83,7 +83,7 @@ function setup(options: { pages?: Record<string, string>; feeds?: Record<string,
       const text = answers[url];
       return text === undefined ? { status: 'error', code: 'http-404' } : { status: 'ok', text, etag: null, lastModified: null, finalUrl: url };
     },
-    settings: { perRun: 25, perDay: 300, followCap: 1900, checksPerStep: 5, ...options.settings },
+    settings: { perRun: 25, perDay: 300, checksPerStep: 5, ...options.settings },
   });
   dir.add(aggregator());
   return { db, dir, found, log, fetched, discovery, answers };
@@ -213,7 +213,7 @@ test('one run takes at most the cap of new calendars from a page; the rest wait 
   assert.equal(s.dir.list().filter((e) => e.role === 'calendar').length, 6);
 });
 
-test('discovery files no more than the cap a day, and nothing once the follow list would be full', async () => {
+test('discovery files no more than the cap a day', async () => {
   const ids = Array.from({ length: 6 }, (_, i) => `cal-Daily0000000${i}`);
   const feeds = Object.fromEntries(ids.map((id) => [calendarUrl(id), calendarFeed(id)]));
   const daily = setup({ pages: { [PAGE_URL]: cityPage(ids.map((cal) => ({ cal }))) }, feeds, settings: { perDay: 4 } });
@@ -223,11 +223,6 @@ test('discovery files no more than the cap a day, and nothing once the follow li
   assert.equal(daily.log.filter((l) => l.includes('the cap of 4 a day')).length, 1);
   await drain(daily.discovery, NOW + DAY + 1);
   assert.equal(daily.dir.list().filter((e) => e.role === 'calendar').length, 6);
-
-  const full = setup({ pages: { [PAGE_URL]: cityPage(ids.map((cal) => ({ cal }))) }, feeds, settings: { followCap: 2 } });
-  await drain(full.discovery, NOW);
-  assert.equal(full.dir.list().filter((e) => e.role === 'calendar').length, 2);
-  assert.ok(full.log.some((l) => l.includes('the follow list is at its cap of 2')), full.log.join('\n'));
 });
 
 test('one page is read per step, each every six hours; a page that fails is tried again in an hour', async () => {

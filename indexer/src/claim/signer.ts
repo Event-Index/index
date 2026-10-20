@@ -1,6 +1,5 @@
-// Who signs a calendar's events: the calendar key in the vault, or, for a
-// calendar its organizer has the index publish as them, their own key through
-// their remote signer (NIP-46). The index asks a remote signer only for the
+// Who signs a calendar's events when its organizer has the index publish as
+// them: their own key, through their remote signer (NIP-46). The index asks a remote signer only for the
 // kinds it publishes for a calendar (31922, 31923, 31924 and deletions), and
 // checks every event it gets back.
 
@@ -33,10 +32,6 @@ export interface RemoteSigners {
   pair(pointer: BunkerPointer, permissions: string): Promise<{ connection: SignerConnection; session: RemoteSession }>;
   // A connection made before.
   open(connection: SignerConnection): Promise<RemoteSession>;
-}
-
-export function vaultSigner(vault: Vault, d: string, pubkey: string): Signer {
-  return { pubkey, sign: async (template) => vault.sign(d, template) };
 }
 
 // A session that signs only the delegated kinds, and only what was asked:

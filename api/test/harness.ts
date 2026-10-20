@@ -87,8 +87,10 @@ export interface Harness {
 
 export async function harness(options: { queueCap?: number; limits?: Partial<Limits>; native?: boolean } = {}): Promise<Harness> {
   const dataDir = mkdtempSync(join(tmpdir(), 'api-'));
-  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: '/nonexistent', EVENTINDEX_CALENDAR_SECRET_FILE: '/nonexistent',
-    EVENTINDEX_RELAY_URL: NATIVE_RELAY, EVENTINDEX_GENERAL_RELAYS: 'none', EVENTINDEX_PROFILE_RELAYS: 'none' });
+  // As live: a mirrored calendar's events are the index key's items.
+  const settings = loadSettings({ EVENTINDEX_DATA_DIR: dataDir, EVENTINDEX_INDEX_KEY_FILE: '/nonexistent',
+    EVENTINDEX_RELAY_URL: NATIVE_RELAY, EVENTINDEX_GENERAL_RELAYS: 'none', EVENTINDEX_PROFILE_RELAYS: 'none',
+    EVENTINDEX_EVENT_ITEMS: '1', EVENTINDEX_EVENTS_HEADER: `39998:${'ab'.repeat(32)}:events` });
   const native = options.native ? nativeOrganizer() : null;
   const relay = new Map<string, VerifiedEvent[]>([[NATIVE_RELAY, native ? [...native.events] : []]]);
   const db = openIndexDb(settings.indexDb);

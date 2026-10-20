@@ -57,21 +57,22 @@ after(() => {
   relay?.kill();
 });
 
-const calendarKey = generateSecretKey();
+const organizerKey = generateSecretKey();
 const indexKey = generateSecretKey();
-const calendarPubkey = getPublicKey(calendarKey);
+const organizerPubkey = getPublicKey(organizerKey);
 const indexPubkey = getPublicKey(indexKey);
 const db = openIndexDb(':memory:');
 
 async function publish(text: string, now: number): Promise<Event[]> {
   const feed = normalizeFeed(text, identify(feedUrlFor('luma-calendar-craftnook.ics')));
+  // As the index publishes a calendar as its organizer (B2).
   const result = projectFeed({
-    feed, calendarPubkey, indexPubkey, keyOf: () => calendarPubkey, db, now,
-    hasRsvps: () => false, plan: cohostPlan([feed], now),
+    feed, calendarPubkey: organizerPubkey, indexPubkey, keyOf: () => organizerPubkey, db, now,
+    hasRsvps: () => false, plan: cohostPlan([feed], now), delegated: { relay: url, calendarD: feed.context.d },
   });
   const signed: Event[] = [];
   for (const planned of result.publish) {
-    const event = finalizeEvent(planned.template, calendarKey);
+    const event = finalizeEvent(planned.template, organizerKey);
     await Promise.all(pool.publish([url], event));
     db.markPublished({ ...planned.record, eventId: event.id });
     signed.push(event);
@@ -90,15 +91,13 @@ test('a calendar\'s projections can be read back by list, day and address', { sk
 
   const listed = await pool.querySync([url], { kinds: [31922, 31923], '#z': [header()] });
   assert.equal(listed.length, 4);
-  assert.ok(listed.every((e) => e.pubkey === calendarPubkey));
+  assert.ok(listed.every((e) => e.pubkey === organizerPubkey));
 
   const day = String(Math.floor(Date.UTC(2026, 9, 24, 16) / 86_400_000));
   const onDay = await pool.querySync([url], { kinds: [31923], '#D': [day] });
   assert.deepEqual(onDay.map((e) => e.tags.find((t) => t[0] === 'd')![1]), [PARTY]);
 
-  const profile = await pool.querySync([url], { kinds: [0], authors: [calendarPubkey] });
-  assert.equal(JSON.parse(profile[0]!.content).nip05, 'luma-cal-bvurd9eazndgbwy@eventindex.space');
-  const calendar = await pool.querySync([url], { kinds: [31924], authors: [calendarPubkey], '#d': ['calendar'] });
+  const calendar = await pool.querySync([url], { kinds: [31924], authors: [organizerPubkey], '#d': [identify(feedUrlFor('luma-calendar-craftnook.ics')).d] });
   assert.equal(calendar[0]!.tags.filter((t) => t[0] === 'a').length, 4);
 });
 
@@ -107,22 +106,22 @@ test('an edit replaces the event at its address', { skip: !hasNak && 'nak is not
   const edited = readFixture('luma-calendar-craftnook.ics').replace('SUMMARY:craftyween party', 'SUMMARY:craftyween party (moved indoors)');
   const sent = await publish(edited, NOW);
   assert.equal(sent.filter((e) => e.kind === 31923).length, 1);
-  const after = await pool.querySync([url], { kinds: [31923], authors: [calendarPubkey], '#d': [party] });
+  const after = await pool.querySync([url], { kinds: [31923], authors: [organizerPubkey], '#d': [party] });
   assert.equal(after.length, 1);
   assert.deepEqual(after[0]!.tags.find((t) => t[0] === 'title'), ['title', 'craftyween party (moved indoors)']);
 });
 
 test('a deletion removes every version at the address', { skip: !hasNak && 'nak is not installed' }, async () => {
   const party = PARTY;
-  const versions = db.versions(calendarPubkey, 31923, party);
+  const versions = db.versions(organizerPubkey, 31923, party);
   assert.equal(versions.length, 2);
   const deletion = finalizeEvent({
     kind: 5,
     created_at: NOW + 10,
     content: '',
-    tags: [...versions.map((id) => ['e', id]), ['a', `31923:${calendarPubkey}:${party}`], ['k', '31923']],
-  }, calendarKey);
+    tags: [...versions.map((id) => ['e', id]), ['a', `31923:${organizerPubkey}:${party}`], ['k', '31923']],
+  }, organizerKey);
   await Promise.all(pool.publish([url], deletion));
-  const remaining = await pool.querySync([url], { kinds: [31923], authors: [calendarPubkey], '#d': [party] });
+  const remaining = await pool.querySync([url], { kinds: [31923], authors: [organizerPubkey], '#d': [party] });
   assert.equal(remaining.length, 0);
 });

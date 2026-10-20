@@ -1,7 +1,7 @@
 // index.db: records, projection hashes and versions, presence state and the
-// local names of calendar keys. Past events live only here once their feeds
-// drop them, so the file is history and is backed up as such. Calendar keys
-// are never stored here.
+// calendars' local names. Past events live only here once their feeds drop
+// them, so the file is history and is backed up as such. No secret is stored
+// here.
 
 import Database from 'better-sqlite3';
 import { localName } from '../directory/id.ts';
@@ -96,13 +96,9 @@ export interface IndexDb {
   versions(pubkey: string, kind: number, d: string): string[];
   lastCreatedAt(pubkey: string, kind: number, d: string): number | null;
   lastTemplate(pubkey: string, kind: number, d: string): unknown;
-  // The calendar key's projections that are live (not withdrawn).
-  liveProjections(pubkey: string): Array<{ kind: number; d: string; start: number }>;
-  // Every address of these kinds the key signed, with every version's id,
-  // withdrawn ones included.
-  signedAddresses(pubkey: string, kinds: number[]): Array<{ kind: number; d: string; versions: string[] }>;
-  // How many of the key's events (live or cancelled) have yet to start.
-  pendingProjections(pubkey: string, now: number): number;
+  // The calendar keys the index once held, as their retirement recorded them
+  // (spec/indexer-rules.md § 8); none on an index that never had any.
+  retiredCalendarKeys(): string[];
   loadPresence(calendarD: string): PresenceState;
   savePresence(calendarD: string, state: PresenceState): void;
   pollState(calendarD: string): PollState;
@@ -184,24 +180,9 @@ export function openIndexDb(path: string): IndexDb {
     projection,
     versions: (pubkey, kind, d) => listVersions.all(pubkey, kind, d).map((r) => r.event_id),
     lastCreatedAt: (pubkey, kind, d) => projection(pubkey, kind, d)?.createdAt ?? null,
-    signedAddresses(pubkey, kinds) {
-      const rows = db.prepare<Array<string | number>, { kind: number; d: string; event_id: string }>(
-        `SELECT kind, d, event_id FROM versions WHERE pubkey = ? AND kind IN (${kinds.map(() => '?').join(', ') || "''"}) ORDER BY kind, d, created_at, event_id`,
-      ).all(pubkey, ...kinds);
-      const byAddress = new Map<string, { kind: number; d: string; versions: string[] }>();
-      for (const r of rows) {
-        const key = `${r.kind}:${r.d}`;
-        if (!byAddress.has(key)) byAddress.set(key, { kind: r.kind, d: r.d, versions: [] });
-        byAddress.get(key)!.versions.push(r.event_id);
-      }
-      return [...byAddress.values()];
-    },
-    liveProjections: (pubkey) => db.prepare<[string], { kind: number; d: string; start: number }>(
-      "SELECT kind, d, start FROM projections WHERE pubkey = ? AND status = 'live' ORDER BY start",
-    ).all(pubkey),
-    pendingProjections: (pubkey, now) => db.prepare<[string, number], { n: number }>(
-      "SELECT count(*) AS n FROM projections WHERE pubkey = ? AND kind IN (31922, 31923) AND status != 'deleted' AND start >= ?",
-    ).get(pubkey, now)!.n,
+    retiredCalendarKeys: () => (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'retirement'").get()
+      ? db.prepare<[], { pubkey: string }>('SELECT DISTINCT pubkey FROM retirement ORDER BY pubkey').all().map((r) => r.pubkey)
+      : []),
     recordsOf: (calendarD) => db.prepare<[string], { id: string; uid: string; ics: string; changed_at: number }>(
       'SELECT id, uid, ics, changed_at FROM records WHERE calendar_d = ? ORDER BY uid',
     ).all(calendarD).map((r) => ({ id: r.id, uid: r.uid, ics: r.ics, changedAt: r.changed_at })),

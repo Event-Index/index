@@ -1,6 +1,6 @@
-// One poll of one calendar to the events its key publishes: the projections
-// that are new or changed, the calendar key's kind 0, 10002 and 31924, and
-// withdrawals (republished as cancelled, or deleted). The caller signs and
+// One poll of a calendar the index publishes as its organizer, to the events
+// their key publishes: the projections that are new or changed, its kind 31924
+// calendar, and withdrawals (republished as cancelled, or deleted). The caller signs and
 // publishes them, then records each with the store's markPublished.
 
 import type { NormalizedFeed } from '../normalize/normalize.ts';
@@ -10,9 +10,8 @@ import { resolveCohosts, listingsOf } from '../rules/dedupe.ts';
 import { capPerCalendar, spreadCreatedAt, MAX_PER_SECOND } from '../rules/limits.ts';
 import { occurrences, projectionWindow, type Occurrence } from './window.ts';
 import { projectOccurrence, projectionContext, API_BASE, CANCELLED_PREFIX, type EventTemplate, type Tag } from './nip52.ts';
-import { calendarProfile, relayList, calendarList, deletionFor, type ListedEvent } from './profile.ts';
+import { calendarList, deletionFor, type ListedEvent } from './profile.ts';
 import { projectionHash } from './hash.ts';
-import { adapterFor } from '../adapters/index.ts';
 
 export interface CohostPlan {
   // Listings (`<calendar d>\0<event d>`) that yield to another calendar,
@@ -89,12 +88,10 @@ export interface ProjectorInput {
   hasRsvps: (address: string) => boolean;
   plan: CohostPlan;
   perSecond?: number;
-  // The general relays the index publishes to, for the kind 10002.
-  generalRelays?: string[];
-  // A calendar published as its organizer: their own profile and relay list
-  // are left alone, the calendar's d is the entry's, and events name the
-  // relay they are on.
-  delegated?: { relay: string; calendarD: string };
+  // The calendar the index publishes as its organizer: their own profile and
+  // relay list are left alone, the calendar's d is the entry's, and events
+  // name the relay they are on.
+  delegated: { relay: string; calendarD: string };
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
 }
@@ -138,7 +135,7 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
 
   const context = {
     ...projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey }),
-    ...(input.delegated ? { relay: input.delegated.relay } : {}),
+    relay: input.delegated.relay,
     ...(input.originalOf ? { originalOf: input.originalOf } : {}),
   };
   const projected: Array<{ o: Occurrence; template: EventTemplate }> = [];
@@ -200,22 +197,9 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
       return signer ? [{ coordinate: `${c.kind}:${signer}:${c.d}`, start: c.start }] : [];
     }),
   ];
-  const profile = calendarProfile({
-    name,
-    url: feed.calendar.url,
-    image: feed.calendar.image,
-    source: feed.context.source,
-    localName: db.localNameFor(feed.context.d),
-    policy: adapterFor(feed.context.source).policy,
-    state: 'mirrored',
-  });
-  if (!input.delegated) {
-    candidates.push({ template: profile, kind: 0, d: '', start: now });
-    candidates.push({ template: relayList(input.generalRelays), kind: 10002, d: '', start: now });
-  }
-  const listD = input.delegated?.calendarD ?? 'calendar';
+  const listD = input.delegated.calendarD;
   candidates.push({
-    template: calendarList({ name, description: feed.calendar.description, now, items: listed, d: listD, ...(input.delegated ? { relay: input.delegated.relay } : {}) }),
+    template: calendarList({ name, description: feed.calendar.description, now, items: listed, d: listD, relay: input.delegated.relay }),
     kind: 31924, d: listD, start: now,
   });
 

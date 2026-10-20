@@ -1,5 +1,6 @@
-// One poll of one directory entry: fetch, normalize, project, sign with the
-// calendar's key, publish, and record what was published.
+// One poll of one directory entry: fetch, normalize, and keep its records.
+// For a calendar the index publishes as its organizer, also project, sign
+// through their signer, publish, and record what was published.
 
 import ICAL from 'ical.js';
 import type { VerifiedEvent } from 'nostr-tools/pure';
@@ -7,14 +8,12 @@ import type { DirectoryIdentity } from '../directory/id.ts';
 import { normalizeFeed, FeedParseError, type NormalizedFeed } from '../normalize/normalize.ts';
 import { projectFeed, cohostPlan, expand, type CohostPlan } from '../project/projector.ts';
 import { annotate, claimDate, naddrFor, type Annotation } from '../project/annotate.ts';
-import { INDEX_RELAY } from '../project/nip52.ts';
 import { nostrD } from '../project/ids.ts';
 import { nextPollAt, isStale } from '../rules/schedule.ts';
 import type { QuarantineReason } from '../rules/presence.ts';
 import type { IndexDb } from '../store/index-db.ts';
-import type { Vault } from '../store/vault-db.ts';
 import type { FetchResult, Validators } from './fetch.ts';
-import { vaultSigner, type Signer } from '../claim/signer.ts';
+import type { Signer } from '../claim/signer.ts';
 
 export interface Entry extends DirectoryIdentity {
   entryName: string | null;
@@ -22,29 +21,19 @@ export interface Entry extends DirectoryIdentity {
 
 export interface PollDeps {
   db: IndexDb;
-  vault: Vault;
   indexPubkey: string;
   now: () => number;
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
   publish: (events: VerifiedEvent[]) => Promise<void>;
-  // Addresses of the calendar key's events that have RSVPs.
+  // Addresses of the organizer's events that have RSVPs.
   rsvps: (pubkey: string) => Promise<Set<string>>;
-  // The general relays the index publishes to, if any.
-  generalRelays?: string[];
-  // Who signs the calendar's events, asked once its feed has been read; by
-  // default its calendar key, created on first use.
+  // The organizer's signer, asked once the feed has been read, for a
+  // calendar the index publishes as them.
   signer?: () => Promise<Signer>;
-  // The key each other calendar signs with, for co-host tags; null for one
-  // that has none.
+  // The key each other calendar's events are signed with, for co-host tags;
+  // null for one that has none.
   keyOf?: (calendarD: string) => string | null;
-  // No calendar key is made: a calendar without one is read and its records
-  // kept, but nothing is projected or signed for it.
-  keyless?: boolean;
-  // The calendar key signs only deletions: what else changed is held, and
-  // published at the first poll after (which reads the feed in full).
-  deletionsOnly?: boolean;
-  // The address of a record's event item, when the index lists events as
-  // items: its X-EVENTINDEX-NOSTR, in place of the calendar key's event.
+  // The address of a record's event item: its X-EVENTINDEX-NOSTR.
   itemAddress?: (recordId: string) => string | null;
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
@@ -141,9 +130,9 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
       const notes = new Map<string, Annotation>();
       if (claimed) for (const vevent of record.component.getAllSubcomponents('vevent')) notes.set(String(vevent.getFirstPropertyValue('x-eventindex-id') ?? ''), { claimed });
       const single = record.master && !record.master.hasProperty('rrule') && !record.master.hasProperty('rdate');
-      if (single && deps.itemAddress) {
-        const item = deps.itemAddress(record.id);
-        if (item) notes.set(record.id, { nostr: item });
+      const item = single && deps.itemAddress ? deps.itemAddress(record.id) : null;
+      if (item) {
+        notes.set(record.id, { nostr: item });
       } else if (single && pubkey) {
         const kind = (record.master!.getFirstPropertyValue('dtstart') as ICAL.Time).isDate ? 31922 : 31923;
         const d = nostrD(record.uid);
@@ -156,7 +145,8 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     }
   };
 
-  if (deps.keyless && !deps.delegated && !deps.vault.pubkeyFor(entry.d)) {
+  // A mirrored calendar's records are kept; its events are listed as items.
+  if (!deps.delegated || !deps.signer) {
     keepRecords(null, '');
     success(feed.calendar.refreshInterval, nextEventStart, validators);
     return {
@@ -167,36 +157,33 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
 
   let signer: Signer;
   try {
-    signer = deps.signer ? await deps.signer() : vaultSigner(deps.vault, entry.d, deps.vault.createKey(entry.d));
+    signer = await deps.signer();
   } catch {
     return failed(entry, deps, 'signer');
   }
   const pubkey = signer.pubkey;
-  const relay = deps.delegated?.relay ?? INDEX_RELAY;
+  const relay = deps.delegated.relay;
   const rsvps = await deps.rsvps(pubkey);
-  const previous = deps.db.loadPresence(entry.d);
   const result = projectFeed({
     feed,
     calendarPubkey: pubkey,
     indexPubkey: deps.indexPubkey,
-    keyOf: deps.keyOf ?? ((d) => deps.vault.pubkeyFor(d) ?? deps.vault.createKey(d)),
+    keyOf: deps.keyOf ?? (() => null),
     db: deps.db,
     now,
     hasRsvps: (address) => rsvps.has(address),
     plan: effectivePlan,
-    generalRelays: deps.generalRelays ?? [],
-    ...(deps.delegated ? { delegated: { relay, calendarD: entry.d } } : {}),
+    delegated: { relay, calendarD: entry.d },
     ...(deps.originalOf ? { originalOf: deps.originalOf } : {}),
   });
 
   // Everything in a batch is signed before anything is sent, so a signer
-  // that stops answering half-way publishes nothing. Through a remote signer
-  // a poll signs one batch, within a time budget; the rest is signed at the
-  // next poll, which comes back soon.
-  const toSign = deps.deletionsOnly && !deps.delegated ? result.publish.filter((p) => p.template.kind === 5) : result.publish;
-  const holding = toSign.length < result.publish.length;
-  const limit = deps.delegated?.batch ?? Infinity;
-  const until = deps.delegated ? Date.now() + (deps.delegated.budgetMs ?? SIGN_BUDGET_MS) : Infinity;
+  // that stops answering half-way publishes nothing. A poll signs one batch,
+  // within a time budget; the rest is signed at the next poll, which comes
+  // back soon.
+  const toSign = result.publish;
+  const limit = deps.delegated.batch ?? Infinity;
+  const until = Date.now() + (deps.delegated.budgetMs ?? SIGN_BUDGET_MS);
   const signed: Array<{ planned: (typeof result.publish)[number]; event: VerifiedEvent }> = [];
   let unfinished = false;
   try {
@@ -222,17 +209,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   // withdrawals are decided again, and sent, at the next poll.
   if (!unfinished) {
     for (const w of result.withdrawn) if (w.status === 'deleted') deps.db.markWithdrawn(pubkey, w.kind, w.d, 'deleted');
-    let presence = result.presence;
-    if (holding) {
-      // A cancellation that was held is decided again at the next poll.
-      const events = { ...presence.events };
-      for (const w of result.withdrawn) {
-        const coordinate = `${w.kind}:${w.d}`;
-        if (w.status === 'cancelled' && previous.events[coordinate]) events[coordinate] = previous.events[coordinate]!;
-      }
-      presence = { ...presence, events };
-    }
-    deps.db.savePresence(entry.d, presence);
+    deps.db.savePresence(entry.d, result.presence);
   }
 
   keepRecords(pubkey, relay);
@@ -241,8 +218,6 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
   // The rest is signed at the next poll, which reads the feed in full even
   // if it has not changed.
   if (unfinished) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), etag: null, lastModified: null, nextPollAt: now + RESUME_AFTER });
-  // What was held is published once its key may sign again, from the feed read in full.
-  else if (holding) deps.db.savePollState(entry.d, { ...deps.db.pollState(entry.d), etag: null, lastModified: null });
   return {
     status: 'published',
     published: signed.length,

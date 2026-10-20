@@ -56,18 +56,6 @@ test('NIP-05 names only the keys the index holds', async () => {
   assert.deepEqual((await json(`/.well-known/nostr.json?name=${name}`)).body, { names: {} });
 });
 
-test('a claimed calendar\'s retired key has no NIP-05 name', async () => {
-  const d = 'meetup:pythonsd';
-  const name = h.dir.get(d)!.localName;
-  assert.deepEqual(Object.keys((await json(`/.well-known/nostr.json?name=${name}`)).body.names), [name]);
-  h.dir.setOwnership(d, { mode: 'own', owner: 'a0'.repeat(32), claimedAt: 1, nativeCalendar: null });
-  try {
-    assert.deepEqual((await json(`/.well-known/nostr.json?name=${name}`)).body, { names: {} });
-  } finally {
-    h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
-  }
-});
-
 test('a native calendar\'s past events stay served, however long ago', async () => {
   const native = h.native!;
   const long = native.sign(31923, [['d', 'spring'], ['title', 'Spring meetup'], ['start', String(h.clock.now - 200 * 86400)]]);
@@ -78,17 +66,4 @@ test('a native calendar\'s past events stay served, however long ago', async () 
   const spring = body.events.find((e: any) => JSON.stringify(e.jcal).includes('Spring meetup'));
   assert.ok(spring, 'listed');
   assert.equal((await h.get(`${API}/events/byid/${spring.eventindex.id}.ics`)).status, 200);
-});
-
-test('once the calendar keys are retired, NIP-05 names none of them; the index\'s own name stays', async () => {
-  const d = 'meetup:pythonsd';
-  const name = h.dir.get(d)!.localName;
-  assert.deepEqual(Object.keys((await json(`/.well-known/nostr.json?name=${name}`)).body.names), [name]);
-  h.dir.setFact('calendar_keys_retired', '1');
-  try {
-    assert.deepEqual((await json(`/.well-known/nostr.json?name=${name}`)).body, { names: {} });
-    assert.ok((await json('/.well-known/nostr.json?name=_')).body.names['_'] || !h.dir.fact('index_pubkey'));
-  } finally {
-    h.dir.deleteFact('calendar_keys_retired');
-  }
 });

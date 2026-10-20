@@ -16,20 +16,17 @@ const entry = (d: string, extra: Partial<Entry> = {}): Entry => ({
   name: null, description: null, image: null, location: null, g: null, foundVia: null, addedAt: NOW, ...extra,
 });
 
-test('directory entries are added once, found by d, feed URL, local name and key, and retired with a reason', () => {
+test('directory entries are added once, found by d, feed URL and local name, and retired with a reason', () => {
   const db = openIndexDb(':memory:');
   const dir = directoryStore(db);
   assert.equal(dir.add(entry('meetup:pythonsd', { location: 'San Diego, US', g: '9mud' })), true);
   assert.equal(dir.add(entry('meetup:pythonsd')), false, 'already listed');
-  dir.setKey('meetup:pythonsd', 'c1'.repeat(32));
   dir.setMeta('meetup:pythonsd', { name: 'San Diego Python Users Group', description: null, url: 'https://www.meetup.com/pythonsd/', image: null });
   const found = dir.get('meetup:pythonsd')!;
   assert.equal(found.name, 'San Diego Python Users Group');
-  assert.equal(found.pubkey, 'c1'.repeat(32));
   assert.equal(found.localName, 'meetup-pythonsd');
   assert.equal(dir.byFeedUrl('https://www.meetup.com/pythonsd/events/ical/')!.d, 'meetup:pythonsd');
   assert.equal(dir.byLocalName('meetup-pythonsd')!.d, 'meetup:pythonsd');
-  assert.equal(dir.byPubkey('c1'.repeat(32))!.d, 'meetup:pythonsd');
   assert.deepEqual(dir.list().map((e) => e.d), ['meetup:pythonsd']);
   dir.retire('meetup:pythonsd', 'organizer request', NOW + 10);
   assert.equal(dir.get('meetup:pythonsd')!.removed, 'organizer request');

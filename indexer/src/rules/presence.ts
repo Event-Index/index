@@ -27,7 +27,7 @@ export const NEAR_START = 24 * 3600;
 export const MISSES_NEAR_START = 2;
 
 export interface Seen {
-  // `<kind>:<d>`; the calendar key completes the address.
+  // `<kind>:<d>`; the signing key completes the address.
   coordinate: string;
   uid: string;
   recurring: boolean;

@@ -136,7 +136,7 @@ function claimHarness(options: { held?: Record<string, VerifiedEvent[]>; holds?:
   return {
     db, dir, queues, events, vault, indexer, settings, sent, fetched, rsvps, clock, held, fake, dataDir, texts, outage, tickAt, by, approve,
     indexPubkey: getPublicKey(indexKey),
-    allowlist: () => JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')) as { live: string[]; removed: string[]; hosted: string[] },
+    allowlist: () => JSON.parse(readFileSync(join(dataDir, 'relay-allowlist.json'), 'utf8')) as { index: string; hosted: string[] },
     close() { vault.close(); db.close(); rmSync(dataDir, { recursive: true, force: true }); },
   };
 }
@@ -154,68 +154,12 @@ test('a claim\'s token found in the feed shows the organizer runs the calendar',
   h.close();
 });
 
-test('"I publish myself": the calendar key withdraws its events, says where the calendar went, and is deleted', async () => {
-  const organizerKey = generateSecretKey();
-  const organizer = getPublicKey(organizerKey);
-  const sign = (kind: number, tags: string[][], content = '') => finalizeEvent({ kind, tags, content, created_at: NOW }, organizerKey);
-  const own = sign(31923, [['d', 'sdpy-nov'], ['title', 'SDPy Monthly Meetup'], ['start', '1792720800'], ['r', 'https://www.meetup.com/pythonsd/events/312775793/']]);
-  const h = claimHarness({ held: { [OWN]: [sign(10002, [['r', HOME]])], [HOME]: [own] } });
-  await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
-  h.rsvps.add(`31923:${key}:${MONTHLY}`);
-  h.rsvps.add(`31923:${key}:${STUDY}`);
-  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'own', signer: null, at: NOW });
-  h.approve(claim);
-  const before = h.sent.length;
-  const report = await h.tickAt(NOW + 60);
-  assert.deepEqual(report.failed, []);
-  assert.equal(h.queues.claim(claim.id)!.status, 'done');
-
-  const last = h.by(key, before).map((s) => s.event);
-  const profile = JSON.parse(last.find((e) => e.kind === 0)!.content) as Record<string, string>;
-  assert.equal(profile['about'], `This calendar now publishes as ${npubEncode(organizer)}.`);
-  const cancelled = last.filter((e) => e.kind === 31923);
-  assert.deepEqual(cancelled.map((e) => tag(e, 'd')).sort(), [MONTHLY, STUDY].sort(), 'events with RSVPs are kept, as cancelled');
-  assert.ok(cancelled.every((e) => tag(e, 'title')!.startsWith('Cancelled: ')));
-  const monthly = cancelled.find((e) => tag(e, 'd') === MONTHLY)!;
-  assert.deepEqual(monthly.tags.find((t) => t[0] === 'q'), ['q', `31923:${organizer}:sdpy-nov`, HOME], 'a copy names the organizer\'s own event');
-  assert.equal(cancelled.find((e) => tag(e, 'd') === STUDY)!.tags.find((t) => t[0] === 'q'), undefined);
-  const deletions = last.filter((e) => e.kind === 5);
-  assert.equal(deletions.length, 2, 'events without RSVPs are deleted');
-  const calendar = last.find((e) => e.kind === 31924)!;
-  assert.match(calendar.content, new RegExp(`now publishes as ${npubEncode(organizer)}`));
-  assert.deepEqual(calendar.tags.filter((t) => t[0] === 'a').map((t) => t[1]!.split(':')[2]).sort(), [MONTHLY, STUDY].sort());
-
-  assert.equal(h.vault.pubkeyFor(D), null, 'the calendar key is deleted');
-  assert.ok(h.allowlist().removed.includes(key) && !h.allowlist().live.includes(key));
-  const entry = h.dir.get(D)!;
-  assert.deepEqual([entry.mode, entry.owner, entry.claimedAt], ['own', organizer, NOW + 60]);
-  const listed = h.by(h.indexPubkey, before).filter((s) => s.event.kind === 39999).at(-1)!.event;
-  assert.deepEqual(listed.tags.filter((t) => t[0] === 'p'), [['p', organizer], ['p', key]], 'the old key stays findable while its events are to come');
-  assert.equal(tag(listed, 'source'), 'nostr');
-  assert.deepEqual(h.events.byCalendar(D, NOW, NOW + 365 * 86400).map((r) => r.title), ['SDPy Monthly Meetup'], 'the organizer\'s own events are served');
-  const oldRecord = h.db.record(h.db.recordsOf(D).find((r) => r.uid === 'event_312775793@meetup.com')!.id)!;
-  assert.match(oldRecord.ics.replace(/\r\n /g, ''), /X-EVENTINDEX-CANONICAL:https:\/\/api\.eventindex\.space\/api\/1\.0\/events\/byid\/[a-z2-7]{32}/);
-  const ownRecord = h.db.recordsOf(D).find((r) => r.uid === `31923:${organizer}:sdpy-nov`)!;
-  assert.match(ownRecord.ics, /X-EVENTINDEX-CLAIMED:2026-10-15/, 'a claimed calendar\'s records say when it was claimed');
-
-  const fetchedBefore = h.fetched.length;
-  h.db.savePollState(D, { ...h.db.pollState(D), nextPollAt: 0 });
-  await h.tickAt(NOW + 7 * 3600);
-  assert.equal(h.fetched.length, fetchedBefore, 'the feed is no longer read');
-  await h.tickAt(1792720800 + 60);
-  const after = h.by(h.indexPubkey).filter((s) => s.event.kind === 39999).at(-1)!.event;
-  assert.deepEqual(after.tags.filter((t) => t[0] === 'p'), [['p', organizer]], 'once its last event has started, the old key is dropped');
-  h.close();
-});
-
 test('"publish for me, as me": the index connects to the organizer\'s signer and publishes the feed as them', async () => {
   const organizerKey = generateSecretKey();
   const organizer = getPublicKey(organizerKey);
   const bunker = 'bb'.repeat(32);
   const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), held: { [OWN]: [finalizeEvent({ kind: 10002, tags: [['r', HOME]], content: '', created_at: NOW }, organizerKey)] } });
   await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
   const sealed = sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fbunker.test&secret=one-time`);
   const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealed, at: NOW });
   h.approve(claim);
@@ -236,12 +180,6 @@ test('"publish for me, as me": the index connects to the organizer\'s signer and
   const calendar = theirs.find((e) => e.kind === 31924)!;
   assert.equal(tag(calendar, 'd'), D, 'one calendar per claimed directory entry');
 
-  const retiring = h.by(key, before).map((s) => s.event);
-  assert.match(JSON.parse(retiring.find((e) => e.kind === 0)!.content).about, /now publishes as npub1/);
-  const deleted = retiring.filter((e) => e.kind === 5);
-  assert.equal(deleted.length, 4, 'the old copies, none with RSVPs, are deleted');
-  assert.equal(h.vault.pubkeyFor(D), null);
-
   const entry = h.dir.get(D)!;
   assert.deepEqual([entry.mode, entry.owner, entry.nativeCalendar], ['delegated', organizer, `31924:${organizer}:${D}`]);
   const record = h.db.recordsOf(D).find((r) => r.uid === 'event_312775793@meetup.com')!;
@@ -259,29 +197,10 @@ test('"publish for me, as me": the index connects to the organizer\'s signer and
   h.close();
 });
 
-test('an old copy with RSVPs names the event that replaces it, under the organizer\'s key', async () => {
-  const organizerKey = generateSecretKey();
-  const organizer = getPublicKey(organizerKey);
-  const bunker = 'bb'.repeat(32);
-  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]) });
-  await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
-  h.rsvps.add(`31923:${key}:${MONTHLY}`);
-  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fbunker.test`), at: NOW });
-  h.approve(claim);
-  const before = h.sent.length;
-  await h.tickAt(NOW + 60);
-  const copy = h.by(key, before).map((s) => s.event).find((e) => e.kind === 31923)!;
-  assert.equal(tag(copy, 'd'), MONTHLY);
-  assert.deepEqual(copy.tags.find((t) => t[0] === 'q'), ['q', `31923:${organizer}:${MONTHLY}`, 'wss://general.test']);
-  h.close();
-});
-
 test('a signer that does not answer, or signs for another key, fails the claim and leaves the calendar as it was', async () => {
   const organizer = getPublicKey(generateSecretKey());
   const h = claimHarness({ holds: new Map([['cc'.repeat(32), generateSecretKey()]]) });
   await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
   const silent = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${'dd'.repeat(32)}?relay=wss%3A%2F%2Fb.test`), at: NOW });
   const other = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${'cc'.repeat(32)}?relay=wss%3A%2F%2Fb.test`), at: NOW });
   h.approve(silent);
@@ -290,7 +209,6 @@ test('a signer that does not answer, or signs for another key, fails the claim a
   assert.deepEqual([h.queues.claim(silent.id)!.status, h.queues.claim(silent.id)!.note], ['failed', 'the signer did not answer']);
   assert.deepEqual([h.queues.claim(other.id)!.status, h.queues.claim(other.id)!.note], ['failed', 'the signer signs for another key']);
   assert.equal(h.dir.get(D)!.mode, 'mirrored');
-  assert.equal(h.vault.pubkeyFor(D), key);
   assert.equal(h.vault.connection(D), null);
   h.close();
 });
@@ -435,7 +353,7 @@ test('a feed that answers 304 is read again in full when its calendar starts bei
   h.close();
 });
 
-test('a claim retried after the index\'s relay failed keeps the connection it made, and a claim that fails keeps none', async () => {
+test('a signer\'s one-time secret pairs once: each poll after opens the connection the claim kept', async () => {
   const organizerKey = generateSecretKey();
   const organizer = getPublicKey(organizerKey);
   const bunker = 'bb'.repeat(32);
@@ -443,26 +361,16 @@ test('a claim retried after the index\'s relay failed keeps the connection it ma
   await h.tickAt(NOW);
   const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test&secret=one-time`), at: NOW });
   h.approve(claim);
-  h.outage.own = 1;
   await h.tickAt(NOW + 60);
-  assert.equal(h.queues.claim(claim.id)!.status, 'approved', 'tried again at the next tick');
-  assert.equal(h.fake.state.pairs, 1);
-  await h.tickAt(NOW + 90);
   assert.equal(h.queues.claim(claim.id)!.status, 'done');
-  assert.equal(h.fake.state.pairs, 1, 'the one-time secret is not used twice');
   assert.equal(h.dir.get(D)!.mode, 'delegated');
+  h.texts[h.dir.get(D)!.feedUrl] = readFixture('meetup-pythonsd.ics').replace('SDPy Monthly Meetup', 'SDPy Monthly Meetup (moved)');
+  h.db.savePollState(D, { ...h.db.pollState(D), nextPollAt: 0 });
+  const before = h.sent.length;
+  await h.tickAt(NOW + 7 * 3600);
+  assert.ok(h.by(organizer, before).some((s) => s.event.kind === 31923), 'the change is signed as the organizer');
+  assert.equal(h.fake.state.pairs, 1, 'the one-time secret is not used twice');
   h.close();
-
-  const g = claimHarness({ holds: new Map([[bunker, organizerKey]]) });
-  await g.tickAt(NOW);
-  const failing = g.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealFor(g.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fb.test`), at: NOW });
-  g.approve(failing);
-  g.outage.own = 1000;
-  await g.tickAt(NOW + 60);
-  await g.tickAt(NOW + 86400 + 120);
-  assert.equal(g.queues.claim(failing.id)!.status, 'failed');
-  assert.equal(g.vault.connection(D), null, 'a failed claim leaves no connection');
-  g.close();
 });
 
 test('a token is found in a description however the feed folds it, and never in an attendee\'s name', async () => {
@@ -494,56 +402,6 @@ test('the poll service does not hand a calendar to a key that already publishes 
   h.close();
 });
 
-test('"I publish myself" while calendar keys are paused: the old key clears its copies from the outside relays and is kept', async () => {
-  const organizerKey = generateSecretKey();
-  const organizer = getPublicKey(organizerKey);
-  const own = finalizeEvent({ kind: 31923, tags: [['d', 'sdpy-nov'], ['title', 'SDPy Monthly Meetup'], ['start', '1792720800']], content: '', created_at: NOW }, organizerKey);
-  const h = claimHarness({ held: { [OWN]: [finalizeEvent({ kind: 10002, tags: [['r', HOME]], content: '', created_at: NOW }, organizerKey)], [HOME]: [own] } });
-  await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
-  const signed = new Set(h.by(key).filter((x) => x.audience === 'own' && [31922, 31923, 31924].includes(x.event.kind))
-    .map((x) => `${x.event.kind}:${key}:${tag(x.event, 'd')}`));
-  // The operator pauses calendar keys (and the service starts again with it).
-  h.settings.calendarKeysPaused = true;
-  h.settings.publishToGeneralRelays = true;
-  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'own', signer: null, at: NOW });
-  h.approve(claim);
-  const before = h.sent.length;
-  await h.tickAt(NOW + 60);
-  assert.equal(h.queues.claim(claim.id)!.status, 'done');
-  const outside = h.by(key, before).filter((x) => x.audience !== 'own').map((x) => x.event);
-  assert.equal(JSON.parse(outside.find((e) => e.kind === 0)!.content).name, 'Retired Event Index mirror');
-  assert.deepEqual(new Set(outside.filter((e) => e.kind === 5).map((e) => tag(e, 'a'))), signed);
-  assert.equal(outside.length, signed.size + 1, 'the profile and one deletion per event, nothing else');
-  const onOurs = h.by(key, before).filter((x) => x.audience === 'own');
-  assert.ok(onOurs.length > 0 && onOurs.every((x) => x.event.kind === 5), 'on the index\'s relay the old key signs only deletions');
-  assert.equal(h.vault.pubkeyFor(D), key, 'the key is kept');
-  h.close();
-});
-
-test('"publish for me, as me" while calendar keys are paused: the organizer\'s signer still publishes, the old key only deletes', async () => {
-  const organizerKey = generateSecretKey();
-  const organizer = getPublicKey(organizerKey);
-  const bunker = 'bb'.repeat(32);
-  const h = claimHarness({ holds: new Map([[bunker, organizerKey]]), held: { [OWN]: [finalizeEvent({ kind: 10002, tags: [['r', HOME]], content: '', created_at: NOW }, organizerKey)] } });
-  await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
-  h.settings.calendarKeysPaused = true;
-  h.settings.publishToGeneralRelays = true;
-  const sealed = sealFor(h.vault.intakePubkey, `bunker://${bunker}?relay=wss%3A%2F%2Fbunker.test&secret=one-time`);
-  const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'delegated', signer: sealed, at: NOW });
-  h.approve(claim);
-  const before = h.sent.length;
-  await h.tickAt(NOW + 60);
-  assert.equal(h.queues.claim(claim.id)!.status, 'done');
-  assert.deepEqual(h.by(organizer, before).filter((s) => s.audience === 'home').map((s) => s.event.kind).sort(), [31923, 31923, 31923, 31923, 31924], 'the organizer\'s events go to their relays as before');
-  const old = h.by(key, before);
-  assert.ok(old.filter((x) => x.audience === 'own').every((x) => x.event.kind === 5));
-  assert.ok(old.some((x) => x.audience !== 'own' && x.event.kind === 0 && JSON.parse(x.event.content).name === 'Retired Event Index mirror'));
-  assert.equal(h.vault.pubkeyFor(D), key);
-  h.close();
-});
-
 
 const ITEMS_HEADER = `39998:${'ab'.repeat(32)}:events`;
 const isItem = (e: VerifiedEvent) => e.kind === 39999 && e.tags.some((t) => t[0] === 'z' && t[1] === ITEMS_HEADER);
@@ -554,7 +412,6 @@ test('verify and link: the organizer\'s key is named on the calendar and its ite
   h.settings.eventItems = true;
   h.settings.eventsHeader = ITEMS_HEADER;
   await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
   const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'link', signer: null, at: NOW });
   h.approve(claim);
   const before = h.sent.length;
@@ -562,8 +419,6 @@ test('verify and link: the organizer\'s key is named on the calendar and its ite
   assert.equal(h.queues.claim(claim.id)!.status, 'done');
   const entry = h.dir.get(D)!;
   assert.deepEqual([entry.mode, entry.owner], ['mirrored', organizer]);
-  assert.equal(h.vault.pubkeyFor(D), key, 'no calendar key is retired');
-  assert.ok(!h.by(key, before).some((x) => x.event.kind === 5 || (x.event.kind === 0 && /now publishes as/.test(x.event.content))));
   const items = h.by(h.indexPubkey, before).filter((x) => x.audience === 'own' && isItem(x.event)).map((x) => x.event);
   assert.ok(items.length > 0 && items.every((e) => tag(e, 'p') === organizer), 'its items name the organizer');
   const listed = h.by(h.indexPubkey, before).filter((x) => x.event.kind === 39999 && !isItem(x.event) && tag(x.event, 'd') === D).at(-1)!.event;
@@ -571,26 +426,39 @@ test('verify and link: the organizer\'s key is named on the calendar and its ite
   h.close();
 });
 
-test('"I publish myself" with event items on: no calendar key is retired, and the calendar\'s items are withdrawn', async () => {
+test('"I publish myself": the index reads the organizer\'s own events, points the old records at them, and withdraws the calendar\'s items', async () => {
   const organizerKey = generateSecretKey();
   const organizer = getPublicKey(organizerKey);
-  const own = finalizeEvent({ kind: 31923, tags: [['d', 'sdpy-nov'], ['title', 'SDPy Monthly Meetup'], ['start', '1792720800']], content: '', created_at: NOW }, organizerKey);
-  const h = claimHarness({ held: { [OWN]: [finalizeEvent({ kind: 10002, tags: [['r', HOME]], content: '', created_at: NOW }, organizerKey)], [HOME]: [own] } });
+  const sign = (kind: number, tags: string[][], content = '') => finalizeEvent({ kind, tags, content, created_at: NOW }, organizerKey);
+  const own = sign(31923, [['d', 'sdpy-nov'], ['title', 'SDPy Monthly Meetup'], ['start', '1792720800'], ['r', 'https://www.meetup.com/pythonsd/events/312775793/']]);
+  const h = claimHarness({ held: { [OWN]: [sign(10002, [['r', HOME]])], [HOME]: [own] } });
   h.settings.eventItems = true;
   h.settings.eventsHeader = ITEMS_HEADER;
   await h.tickAt(NOW);
-  const key = h.dir.get(D)!.pubkey!;
   const items = h.by(h.indexPubkey).filter((x) => x.audience === 'own' && isItem(x.event)).map((x) => tag(x.event, 'd')!);
   assert.ok(items.length > 0);
   const claim = h.queues.requestClaim({ d: D, pubkey: organizer, mode: 'own', signer: null, at: NOW });
   h.approve(claim);
   const before = h.sent.length;
-  await h.tickAt(NOW + 60);
+  const report = await h.tickAt(NOW + 60);
+  assert.deepEqual(report.failed, []);
   assert.equal(h.queues.claim(claim.id)!.status, 'done');
-  assert.equal(h.dir.get(D)!.mode, 'own');
-  assert.equal(h.vault.pubkeyFor(D), key, 'the key stays, for its own retirement later');
-  assert.ok(!h.by(key, before).some((x) => x.event.kind === 0 || x.event.kind === 5 || x.event.kind === 31924), 'the key signs no last events');
+  const entry = h.dir.get(D)!;
+  assert.deepEqual([entry.mode, entry.owner, entry.claimedAt], ['own', organizer, NOW + 60]);
+  assert.ok(h.sent.slice(before).every((s) => s.event.pubkey === h.indexPubkey), 'nothing is signed but by the index key');
   const withdrawn = h.by(h.indexPubkey, before).filter((x) => x.audience === 'own' && x.event.kind === 5).map((x) => tag(x.event, 'a')!.split(':')[2]);
-  assert.deepEqual(withdrawn.sort(), items.sort());
+  assert.deepEqual(withdrawn.sort(), items.sort(), 'its items are withdrawn');
+  const listed = h.by(h.indexPubkey, before).filter((s) => s.event.kind === 39999 && !isItem(s.event) && tag(s.event, 'd') === D).at(-1)!.event;
+  assert.deepEqual(listed.tags.filter((t) => t[0] === 'p'), [['p', organizer]]);
+  assert.equal(tag(listed, 'source'), 'nostr');
+  assert.deepEqual(h.events.byCalendar(D, NOW, NOW + 365 * 86400).map((r) => r.title), ['SDPy Monthly Meetup'], 'the organizer\'s own events are served');
+  const oldRecord = h.db.record(h.db.recordsOf(D).find((r) => r.uid === 'event_312775793@meetup.com')!.id)!;
+  assert.match(oldRecord.ics.replace(/\r\n /g, ''), /X-EVENTINDEX-CANONICAL:https:\/\/api\.eventindex\.space\/api\/1\.0\/events\/byid\/[a-z2-7]{32}/, 'the old record points at the organizer\'s copy');
+  const ownRecord = h.db.recordsOf(D).find((r) => r.uid === `31923:${organizer}:sdpy-nov`)!;
+  assert.match(ownRecord.ics, /X-EVENTINDEX-CLAIMED:2026-10-15/, 'a claimed calendar\'s records say when it was claimed');
+  const fetchedBefore = h.fetched.length;
+  h.db.savePollState(D, { ...h.db.pollState(D), nextPollAt: 0 });
+  await h.tickAt(NOW + 7 * 3600);
+  assert.equal(h.fetched.length, fetchedBefore, 'the feed is no longer read');
   h.close();
 });
