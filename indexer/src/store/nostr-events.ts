@@ -132,6 +132,11 @@ export function nostrStore(index: IndexDb) {
     ).all(pubkey).map((r) => ({ event: JSON.parse(r.event) as NostrEvent, relay: r.relay })),
     // Every key with an event kept.
     publishers: () => db.prepare<[], { pubkey: string }>('SELECT DISTINCT pubkey FROM nostr_events ORDER BY pubkey').all().map((r) => r.pubkey),
+    // Where an address's event was first read, and its version's created_at.
+    seen: (address: string): { relay: string | null; createdAt: number } | null => {
+      const row = db.prepare<[string], { relay: string | null; created_at: number }>('SELECT relay, created_at FROM nostr_events WHERE address = ?').get(address);
+      return row ? { relay: row.relay, createdAt: row.created_at } : null;
+    },
     count: () => db.prepare<[], { n: number }>('SELECT count(*) AS n FROM nostr_events').get()!.n,
     // Publishers whose records wait to be built, the longest waiting first.
     dirty: (limit: number) => db.prepare<[number], { pubkey: string }>('SELECT pubkey FROM nostr_dirty ORDER BY since, pubkey LIMIT ?').all(limit).map((r) => r.pubkey),

@@ -29,7 +29,7 @@ import type { Filter } from 'nostr-tools/filter';
 import { setsFor, type RelaySet } from './routing.ts';
 import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
-import { eventItem, expiryDeletions } from '../project/items.ts';
+import { eventItem, expiryDeletions, type ItemCopy } from '../project/items.ts';
 import { relayPauses } from './publisher.ts';
 import { itemStore } from '../store/items.ts';
 import type { City } from './admin.ts';
@@ -464,12 +464,21 @@ export function createIndexer(deps: IndexerDeps) {
     const header = settings.eventsHeader;
     const chosen = settings.eventItemsCalendars;
     const listed = dir.list().filter((e) => mirrored(e) && (!chosen || chosen.has(e.d)));
+    // The aggregators' copies matched to each event, named by its item.
+    const aggregators = new Set(dir.list({ includeUnlisted: true }).filter((e) => e.role === 'aggregator').map((e) => e.d));
+    const copiesOf = new Map<string, ItemCopy[]>();
+    for (const [copyId, { originalId }] of events.copies()) {
+      const copy = events.byId(copyId);
+      if (!copy || !aggregators.has(copy.calendarD) || !/^\d+:[0-9a-f]{64}:/.test(copy.uid)) continue;
+      const seen = store.seen(copy.uid);
+      copiesOf.set(originalId, [...(copiesOf.get(originalId) ?? []), { address: copy.uid, relay: seen?.relay ?? null, createdAt: seen?.createdAt ?? 0 }]);
+    }
     const wanted = new Map<string, { template: EventTemplate; d: string; start: number; ends: number; expires: number; calendarD: string }>();
     for (const entry of listed) {
       const calendar = { d: entry.d, name: entry.name, source: entry.source, feedUrl: entry.feedUrl, location: entry.location, owner: entry.owner };
       const images = adapterFor(entry.source).policy.images;
       for (const row of events.ongoing(entry.d, now)) {
-        const built = eventItem(row, { header, indexPubkey, calendar, cities, image: images ? recordImage(row.recordId, row.uid) : null });
+        const built = eventItem(row, { header, indexPubkey, calendar, cities, image: images ? recordImage(row.recordId, row.uid) : null, copies: copiesOf.get(row.id) ?? [] });
         if ('skip' in built) continue;
         wanted.set(row.id, { template: built.template, d: row.id, start: row.start, ends: built.ends, expires: built.expires, calendarD: entry.d });
       }

@@ -454,4 +454,7 @@ aggregator's.
   original; a mirrored projection that copies an organizer's own event names
   it with `q` ([`nip52-mapping.md`](nip52-mapping.md) § 2). A copy whose
   original is gone stands on its own again.
+- **Named by items**: an event item names the aggregators' copies of its
+  event in `copy` tags ([`event-items.md`](event-items.md) § 1), so a client
+  can show the event once.
 

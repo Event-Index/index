@@ -26,6 +26,19 @@ Status: draft.
   § 5, or a feed's copy of an organizer's own NIP-52 event,
   [`indexer-rules.md`](indexer-rules.md) § 14) has no item; its original is
   the one listed or read.
+- **Aggregators' copies.** An aggregator (an entry with role `aggregator`,
+  such as one that reposts other organizers' events) may publish its own
+  NIP-52 copy of an event the index has an item for. Each NIP-52 event the
+  index matches to the item's event as such a copy
+  ([`indexer-rules.md`](indexer-rules.md) § 15) is named on the item by a tag
+  `["a", "<kind>:<pubkey>:<d>", "<relay>", "copy"]`, with the relay the index
+  read it from (an empty string when not known): the newest 20 copies, by
+  their `created_at`. A copy matched or no longer matched changes the item,
+  which is published again as any change is. A client that shows both NIP-52
+  events and items may hide any event an item names in a `copy` tag. Only
+  aggregators' copies are named: where the original is the organizer's own
+  NIP-52 event, the feed's event has no item (above). The `a` tag is a
+  single-letter tag, so the Events header declares no field for it.
 - An event that runs longer than 92 days is a listing, not an event: it has
   no item, and stays a record.
 
@@ -57,6 +70,7 @@ Tags in this order; a tag with no value is left out. `content` is empty.
 | `i`, `k` | the event's page as a NIP-73 identifier, kind `web` |
 | `expiration` | NIP-40: the event's end (all-day: its exclusive end date at 00:00 UTC; with no end, its start) plus 30 days |
 | `alt` | `<calendar name>: <title>` |
+| `a` … `copy` | one per aggregator's NIP-52 copy matched to the event (§ 1, Aggregators' copies): `["a", "<kind>:<pubkey>:<d>", "<relay the copy was read from, or empty>", "copy"]`, newest first, at most 20 |
 
 The time-zone boundaries are those of timezone-boundary-builder, read through
 geo-tz. A zone named from them contains information from timezone-boundary-builder,

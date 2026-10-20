@@ -38,7 +38,19 @@ export interface ItemContext {
   cities: City[];
   // The event's image, from its record; carried only where its source allows.
   image: string | null;
+  // The aggregators' NIP-52 copies matched to the event (rules/copies.ts):
+  // their addresses, the relay each was read from, and their created_at.
+  copies?: ItemCopy[];
 }
+
+export interface ItemCopy {
+  address: string;
+  relay: string | null;
+  createdAt: number;
+}
+
+// The most copies an item names, the newest.
+export const MAX_COPIES = 20;
 
 export type ItemResult = { template: EventTemplate; ends: number; expires: number } | { skip: 'copy' | 'longer-than-92-days' };
 
@@ -135,8 +147,13 @@ export function eventItem(row: EventRow, ctx: ItemContext): ItemResult {
     ['expiration', String(expires)],
     ['alt', `${name}: ${row.title}`],
   ];
+  // `["a", <address>, <relay or "">, "copy"]` for each copy, newest first.
+  const copies = [...(ctx.copies ?? [])]
+    .sort((a, b) => b.createdAt - a.createdAt || (a.address < b.address ? -1 : a.address > b.address ? 1 : 0))
+    .slice(0, MAX_COPIES)
+    .map((c) => ['a', c.address, c.relay ?? '', 'copy']);
   return {
-    template: { kind: 39999, content: '', tags: tags.filter((t): t is [string, string] => typeof t[1] === 'string' && t[1].trim() !== '') },
+    template: { kind: 39999, content: '', tags: [...tags.filter((t): t is [string, string] => typeof t[1] === 'string' && t[1].trim() !== ''), ...copies] },
     ends,
     expires,
   };
