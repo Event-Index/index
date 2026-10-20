@@ -272,7 +272,6 @@ test('importing the aggregators files each Luma city page once, with its page an
   assert.equal(nyc.pageUrl, 'https://luma.com/nyc');
   assert.equal(nyc.feedUrl, 'https://api.luma.com/ics/get?entity=discover&id=discplace-Izx1rQVSh8njYpP');
   assert.equal(nyc.location, 'New York, US');
-  assert.equal(nyc.pubkey, null);
   assert.equal(nyc.foundVia, 'luma:discover');
   assert.equal(importAggregators(s, cities, NOW + 60).existing.length, withPage.length);
   assert.deepEqual(importAggregators(stores(), cities, NOW, ['nyc', 'austin']).filed.sort(),
@@ -316,7 +315,7 @@ test('approving a native calendar files it as its organizer\'s, in the city they
   const queued = s.queues.submit({ d: `nostr:${pubkey}`, feedUrl: '', source: 'nostr', role: 'calendar', name: 'Lakeside Bitcoin Club', city: 'chicago', at: NOW }, 10);
   const { d } = approveSubmission(s, (queued as { id: number }).id, {}, cities, NOW);
   const entry = s.dir.get(d)!;
-  assert.deepEqual([entry.d, entry.mode, entry.owner, entry.source, entry.feedUrl, entry.pubkey], [`nostr:${pubkey}`, 'own', pubkey, 'nostr', '', null]);
+  assert.deepEqual([entry.d, entry.mode, entry.owner, entry.source, entry.feedUrl], [`nostr:${pubkey}`, 'own', pubkey, 'nostr', '']);
   assert.equal(entry.location, 'Chicago, US');
   assert.equal(entry.name, 'Lakeside Bitcoin Club');
 });

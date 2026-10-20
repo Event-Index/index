@@ -97,7 +97,6 @@ export interface StoredEntry extends Omit<Entry, 'mode' | 'owner' | 'listed'>, O
   listed: boolean;
   // The relays its organizer publishes to, as last read.
   ownerRelays: string[];
-  pubkey: string | null;
   localName: string;
   removed: string | null;
   removedAt: number | null;
@@ -122,7 +121,7 @@ export function ownershipClash(owned: StoredEntry[], d: string, mode: 'own' | 'd
 interface Row {
   d: string; role: Role; source: Source; feed_url: string; page_url: string | null; name: string | null;
   description: string | null; image: string | null; location: string | null; g: string | null; found_via: string | null;
-  pubkey: string | null; added_at: number; removed: string | null; removed_at: number | null;
+  added_at: number; removed: string | null; removed_at: number | null;
   mode: Mode; owner: string | null; claimed_at: number | null; native_calendar: string | null; owner_relays: string | null;
   unlisted: number;
 }
@@ -135,11 +134,14 @@ export function directoryStore(index: IndexDb) {
   const columns = new Set(db.prepare<[], { name: string }>("SELECT name FROM pragma_table_info('directory')").all().map((c) => c.name));
   for (const [name, type] of ADDED) if (!columns.has(name)) db.exec(`ALTER TABLE directory ADD COLUMN ${name} ${type}`);
   db.exec('CREATE INDEX IF NOT EXISTS directory_owner ON directory(owner)');
+  // `pubkey` held a calendar's key while the index held calendar keys; it is
+  // kept empty (SQLite cannot drop a UNIQUE column).
+  db.exec('UPDATE directory SET pubkey = NULL WHERE pubkey IS NOT NULL');
   const toEntry = (row: Row | undefined): StoredEntry | null => (row
     ? {
       d: row.d, role: row.role, source: row.source, feedUrl: row.feed_url, pageUrl: row.page_url, name: row.name,
       description: row.description, image: row.image, location: row.location, g: row.g, foundVia: row.found_via,
-      addedAt: row.added_at, pubkey: row.pubkey, removed: row.removed, removedAt: row.removed_at, localName: index.localNameFor(row.d),
+      addedAt: row.added_at, removed: row.removed, removedAt: row.removed_at, localName: index.localNameFor(row.d),
       mode: row.mode, owner: row.owner, claimedAt: row.claimed_at, nativeCalendar: row.native_calendar,
       ownerRelays: row.owner_relays ? (JSON.parse(row.owner_relays) as string[]) : [],
       listed: row.unlisted === 0,

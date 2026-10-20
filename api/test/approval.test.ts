@@ -29,7 +29,6 @@ test('a named calendar on a known platform is approved at once, filed for its fi
   assert.match(body.message, /minutes/);
   const entry = h.dir.get('meetup:othergroup')!;
   assert.equal(entry.foundVia, 'submission');
-  assert.equal(entry.pubkey, null, 'its key comes with its first poll');
   const sub = h.queues.submission(body.submission)!;
   assert.equal(sub.status, 'approved');
   assert.equal(sub.approvedBy, 'auto');

@@ -16,7 +16,7 @@ export function makeDump(index: IndexDb, out: string, now: number): void {
     db.exec(`
       CREATE TABLE dump.calendars AS
         SELECT directory.d, role, source, feed_url, page_url, directory.name AS name, description, image, location, g, found_via,
-               pubkey, local_names.name AS local_name, added_at, removed, removed_at, mode, owner, claimed_at, native_calendar
+               local_names.name AS local_name, added_at, removed, removed_at, mode, owner, claimed_at, native_calendar
         FROM directory LEFT JOIN local_names ON local_names.calendar_d = directory.d
         ORDER BY directory.d;
       CREATE TABLE dump.poll_stats AS

@@ -121,6 +121,7 @@ test('the dump holds the directory, calendar metadata and poll statistics, and n
     const calendar = dump.prepare('SELECT * FROM calendars').get() as Record<string, unknown>;
     assert.equal(calendar['d'], 'meetup:pythonsd');
     assert.deepEqual([calendar['mode'], calendar['owner'], calendar['claimed_at'], calendar['native_calendar']], ['mirrored', null, null, null]);
+    assert.ok(!('pubkey' in calendar), 'a calendar has no key of the index\'s');
     const stats = dump.prepare('SELECT * FROM poll_stats').get() as Record<string, unknown>;
     assert.equal(stats['last_success_at'], NOW);
     assert.ok(!('etag' in stats));
@@ -129,6 +130,14 @@ test('the dump holds the directory, calendar metadata and poll statistics, and n
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a directory from when the index held calendar keys forgets them on open', () => {
+  const db = openIndexDb(':memory:');
+  directoryStore(db).add(entry('meetup:pythonsd'));
+  db.raw.prepare('UPDATE directory SET pubkey = ? WHERE d = ?').run('c1'.repeat(32), 'meetup:pythonsd');
+  directoryStore(db);
+  assert.deepEqual(db.raw.prepare('SELECT pubkey FROM directory WHERE d = ?').get('meetup:pythonsd'), { pubkey: null });
 });
 
 test('an entry is mirrored until its organizer owns it; ownership and the owner\'s relays are kept', () => {
