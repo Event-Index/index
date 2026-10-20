@@ -29,7 +29,8 @@ import type { Filter } from 'nostr-tools/filter';
 import { setsFor, type RelaySet } from './routing.ts';
 import { createDiscovery } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
-import { eventItem } from '../project/items.ts';
+import { eventItem, expiryDeletions } from '../project/items.ts';
+import { relayPauses } from './publisher.ts';
 import { itemStore } from '../store/items.ts';
 import type { City } from './admin.ts';
 import { outsideRelay, readAuthor, type RelayReader } from '../native/read.ts';
@@ -150,6 +151,8 @@ const ITEMS_PER_TICK = 2000;
 const ITEMS_PER_SECOND = 100;
 const ITEMS_EVERY = 600;
 const ITEM_MISSING_GRACE = DAY;
+// Deletions of expired items signed in one tick (each holds up to 99 items).
+const EXPIRY_DELETIONS_PER_TICK = 50;
 
 // No co-hosts: a native calendar's events are its organizer's own.
 const NO_PLAN: CohostPlan = { yields: new Map(), cohostsOf: new Map(), cohosted: new Map(), canonicalOf: new Map() };
@@ -478,8 +481,13 @@ export function createIndexer(deps: IndexerDeps) {
         if (live.missingSince !== null) items.present(live.d);
         continue;
       }
-      // Relays drop it once it expires (NIP-40); an ended event is left to it.
-      if (live.expiresAt < now) items.forget(live.d);
+      // Relays drop it once it expires (NIP-40); the list relays, which may
+      // not, are sent its deletion (deleteExpired). An ended event is left to it.
+      if (live.expiresAt < now) {
+        db.markWithdrawn(indexPubkey, 39999, live.d, 'expired');
+        items.expire(live, now);
+        continue;
+      }
       if (live.endsAt < now) continue;
       if (kept.has(live.calendarD)) {
         items.missing(live.d, now);
@@ -510,6 +518,43 @@ export function createIndexer(deps: IndexerDeps) {
     if (published) deps.log(`event items: ${batch.length} published, ${withdrawals.length} withdrawn, ${due.length - batch.length} to come, ${items.count()} live`);
     itemsDueAt = due.length > batch.length ? now : now + ITEMS_EVERY;
     return published;
+  }
+
+  // The deletions owed to the list relays for expired items: signed once,
+  // a few items to each, sent to the list relays alone (ours and the search
+  // relay drop an expired event themselves), and sent again, after a restart
+  // or a pause, until the relays' queues have emptied with none paused.
+  const deletionsInFlight = new Set<string>();
+  async function deleteExpired(now: number): Promise<void> {
+    if (!settings.eventItems || listRelays.length === 0) return;
+    const undeleted = items.undeleted().slice(0, EXPIRY_DELETIONS_PER_TICK * 99);
+    if (undeleted.length) {
+      const templates = expiryDeletions(undeleted.map((d) => ({ address: `39999:${indexPubkey}:${d}`, versions: db.versions(indexPubkey, 39999, d) })));
+      const times = spreadCreatedAt(templates.map((_, i) => ({ key: String(i), last: null })), now, 1);
+      templates.forEach((template, i) => {
+        const event = finalizeEvent({ ...template, created_at: times.get(String(i))! }, deps.indexKey);
+        items.addDeletion(event, template.tags.filter((t) => t[0] === 'a').map((t) => t[1]!.split(':')[2]!));
+      });
+      deps.log(`event items: ${undeleted.length} expired, in ${templates.length} deletions for the list relays`);
+    }
+    const pauses = relayPauses(dir);
+    const paused = listRelays.some((relay) => {
+      const state = pauses.get(relay);
+      return !!state && (state.until === null || state.until > now);
+    });
+    // A paused relay may drop what waits for it: what was in flight is sent again.
+    if (paused) {
+      deletionsInFlight.clear();
+      return;
+    }
+    if (listRelays.every((relay) => (publisher.pendingFor?.(relay) ?? 0) === 0)) {
+      for (const id of deletionsInFlight) items.taken(id, now);
+      deletionsInFlight.clear();
+    }
+    const owed = items.owed<VerifiedEvent>().filter((e) => !deletionsInFlight.has(e.id));
+    if (owed.length === 0) return;
+    await publisher.publish(owed, 'lists');
+    for (const e of owed) deletionsInFlight.add(e.id);
   }
 
   // Signs templates (hash-tracked unless `always`) with created_at moving
@@ -1259,6 +1304,7 @@ const NATIVE_BUILD_SHARE = 500;
       }
       try {
         report.published += await publishItems(now);
+        await deleteExpired(now);
       } catch (error) {
         deps.log(`event items: ${(error as Error).stack ?? error}`);
       }

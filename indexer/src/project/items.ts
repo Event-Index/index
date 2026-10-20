@@ -141,3 +141,24 @@ export function eventItem(row: EventRow, ctx: ItemContext): ItemResult {
     expires,
   };
 }
+
+// Deletions for expired items, for the relays that do not drop an expired
+// event themselves: each kind 5 names, for several items, every version (`e`)
+// and the item's address (`a`), with one `k`, in at most `maxTags` tags. An
+// item's tags are never split between two deletions; one with more versions
+// than fit names its newest.
+export function expiryDeletions(items: Array<{ address: string; versions: string[] }>, maxTags = 200): EventTemplate[] {
+  const room = maxTags - 1;
+  const batches: string[][][] = [];
+  let current: string[][] = [];
+  for (const item of items) {
+    const tags = [...item.versions.slice(-(room - 1)).map((id) => ['e', id]), ['a', item.address]];
+    if (current.length + tags.length > room) {
+      batches.push(current);
+      current = [];
+    }
+    current.push(...tags);
+  }
+  if (current.length) batches.push(current);
+  return batches.map((tags) => ({ kind: 5, content: '', tags: [...tags, ['k', '39999']] }));
+}

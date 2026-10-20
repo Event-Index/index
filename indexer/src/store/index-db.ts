@@ -91,7 +91,8 @@ export interface IndexDb {
   raw: Database.Database;
   shouldPublish(pubkey: string, kind: number, d: string, hash: string): boolean;
   markPublished(p: Published): void;
-  markWithdrawn(pubkey: string, kind: number, d: string, status: 'cancelled' | 'deleted'): void;
+  // `expired`: an event item past its expiration (store/items.ts).
+  markWithdrawn(pubkey: string, kind: number, d: string, status: 'cancelled' | 'deleted' | 'expired'): void;
   projection(pubkey: string, kind: number, d: string): ProjectionRow | null;
   versions(pubkey: string, kind: number, d: string): string[];
   lastCreatedAt(pubkey: string, kind: number, d: string): number | null;

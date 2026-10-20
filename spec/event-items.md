@@ -80,12 +80,24 @@ which is made available under the Open Database License (ODbL).
   may drop an event for a while), or at once when its calendar is no longer
   listed or mirrored, is withdrawn with a kind 5 naming every version's `e`,
   then its `a` (`39999:<index key>:<d>`) and its `k` (`39999`). An item whose
-  event has ended is left to expire; the index forgets it after its
-  expiration.
+  event has ended is left to expire.
+- **Expiry.** Once an item passes its `expiration`, the index marks it
+  expired and deletes it from the list relays itself, not counting on them to
+  honor NIP-40: a kind 5 naming, for several expired items, every version's
+  `e` and each item's `a`, with one `k` (`39999`), in at most 200 tags, an
+  item's tags never split between two deletions (one with more versions than
+  fit names its newest 198). Deletions are signed once, with `created_at`
+  spread one a second before now, and kept in `index.db`; each is sent to the
+  list relays alone, at their pace (the index's relay and the search relays
+  drop an expired event themselves), and sent again after a restart, or after
+  a list relay was paused, until the relays' queues have emptied with none
+  paused. An expired item is not published again: an edit to its event, now
+  past, changes nothing. An event moved to end in the future again is upcoming
+  once more, and its item is published anew, later than its deletion.
 - **Where.** The index's relay; and, while the directory is published outside
   ([`directory.md`](directory.md)), the search relays and the list relays,
-  each at its pace. Never the general or profile relays. Their deletions go
-  the same way.
+  each at its pace. Never the general or profile relays. Withdrawals go the
+  same way; deletions of expired items to the list relays only.
 
 ## 4. Records
 
