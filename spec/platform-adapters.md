@@ -24,7 +24,7 @@ Where the full description is not served, public projections carry the summary
 `STYLED-DESCRIPTION`, `STRUCTURED-DATA`, `X-ALT-DESC` and any property with
 `FMTTYPE=text/html`. Where images are not served, `IMAGE` and every image
 `ATTACH` (an `image/*` `FMTTYPE`, or with none, an image file name) are
-dropped, and the calendar key's profile carries no picture. The record keeps
+dropped, and the calendar's directory entry carries no image. The record keeps
 everything.
 
 A calendar's policy is its source's. A calendar claimed by its organizer keeps

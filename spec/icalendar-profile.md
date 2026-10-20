@@ -114,12 +114,12 @@ On every VEVENT of a record:
 | `X-EVENTINDEX-TZID` | on an event whose `DTSTART` is in UTC and that the feed gave a `GEO`: the time zone at that point, from the time-zone boundaries ([`event-items.md`](event-items.md) § 2). It is read before a hidden venue is dropped, and is all the record keeps of its place. |
 | `X-EVENTINDEX-VENUE` | `hidden` when the source shows the venue only to registered guests ([`platform-adapters.md`](platform-adapters.md)). Such an event keeps no `LOCATION` or `GEO`, and no projection carries a place for it. |
 | `X-EVENTINDEX-CANONICAL` | on a record another calendar's record duplicates: that record's public URL (a co-host's copy; a copy of a more original event, [`indexer-rules.md`](indexer-rules.md) § 15); on an old record of a calendar claimed to publish itself, the URL of the organizer's record that replaces it |
-| `X-EVENTINDEX-NOSTR` | the `naddr` of the event's NIP-52 projection, once published; on a record read from its organizer's own key, the `naddr` of their event |
+| `X-EVENTINDEX-NOSTR` | the `naddr` of the event on nostr, once published: its event item ([`event-items.md`](event-items.md) § 4), or for a calendar the index publishes as its organizer, its NIP-52 event; on a record read from its organizer's own key, the `naddr` of their event |
 | `X-EVENTINDEX-CLAIMED` | the date (`YYYY-MM-DD`) the calendar was claimed by its organizer, on its records since |
 
 ## 4. Calendar metadata
 
-Read from the feed for the directory entry and the calendar key's profile:
+Read from the feed for the directory entry:
 
 - **Name**: `NAME`; else `X-WR-CALNAME`, unless it is a platform default
   (Luma's `Personal`); else the organizer name that occurs most often across
@@ -161,10 +161,9 @@ A Luma feed of any other `entity` is refused.
 ### 5.1 Local names
 
 Each directory entry has a local name, used in its calendar page
-`https://eventindex.space/calendar/<local name>` and, for a calendar key the
-index holds, as its NIP-05 name, served at
-`https://eventindex.space/.well-known/nostr.json`. The index names no key it
-does not hold (an organizer's own). It is derived from the `d`:
+`https://eventindex.space/calendar/<local name>`. It names no key: the index's
+NIP-05 names only its own key (`_`), and an organizer's key is theirs to name.
+It is derived from the `d`:
 
 1. An `ics:` entry: `ics-` and the first 16 hex digits of its hash; a
    `nostr:` entry: `nostr-` and the first 16 hex digits of its key.

@@ -29,16 +29,16 @@ header, and the index key, as its curator, signs one entry per calendar
 
 Status: early. Implemented and tested against captured feeds and local
 relays: the normalizer, the platform adapters (Luma, Meetup, Mobilizon,
-Google), the projector (NIP-52, `.ics`, jCal, JSON-LD and the calendar keys'
-own events), the indexer rules (co-hosts, vanished events, quarantine,
+Google), the projector (event items, `.ics`, jCal, JSON-LD, and NIP-52 for a
+calendar published as its organizer), the indexer rules (co-hosts, vanished events, quarantine,
 schedule, submission checks), every public NIP-52 event read by kind,
 publishers listed and copies marked, claims with an organizer's own key
 (publishing themselves, or through their signer), links resolved to the
 calendars they name, the poll service (`indexer/src/main.ts`), which publishes the
 directory and carries out removals and claims, the maintainer's commands
 (`indexer/src/admin.ts`), and the HTTP service (`api/src/main.ts`): the API,
-NIP-05 names and the pages of eventindex.space. Not implemented: discovery
-through aggregator feeds, and handing a calendar key to its organizer.
+the index key's NIP-05 name and the pages of eventindex.space. Not
+implemented: discovery through aggregator feeds.
 
 ## Layout
 

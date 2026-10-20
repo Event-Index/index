@@ -55,15 +55,14 @@ City identifiers are GeoNames ids (geonames.org, CC BY 4.0).
 
 ## Filing a seed list
 
-`scripts/seed-entries.ts` fetches and validates each listed calendar's feed,
-skips platform default calendars, creates each filed calendar's key in the
-vault, and writes the directory entries, unsigned and with `created_at`
-spread, one JSON event per line, for the index key to sign. Each calendar's
-outcome (`filed`, `skipped`, `refused` with its reason) goes to stderr.
+`eventindex-admin import-seeds` files each listed calendar in the directory,
+in the city's area, unless it is listed already or on the do-not-index list;
+the poll service then reads its feed and publishes its entry and its events.
+It reports how many it filed, how many were listed already and which it left
+out.
 
 ```sh
-CALENDAR_KEY_SECRET=<64 hex digits> node scripts/seed-entries.ts seeds/luma/new-york.json \
-  --index-pubkey <hex> --vault vault.db > entries.jsonl
+eventindex-admin import-seeds seeds/luma/new-york.json seeds/meetup/new-york.json
 ```
 
 ## The communities list

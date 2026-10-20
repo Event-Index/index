@@ -21,9 +21,8 @@ The tags come in this order, and a tag with no value is left out:
 | `z` | the header's coordinate |
 | `name` | the calendar's name ([`icalendar-profile.md`](icalendar-profile.md) § 4) |
 | `role` | `calendar`; or `aggregator`, for a feed that only leads to calendars, or a nostr key that publishes other organizers' events under its own |
-| `p` | the key the calendar's events are signed with now (hex): the calendar key, or its organizer's own (below); for an aggregator on nostr, its key; none for a feed aggregator. With event items ([`event-items.md`](event-items.md)), only the organizer's own key: a nostr publisher's, or one a feed's organizer verified (`link`); never a calendar key |
-| `p` | after a claim, the calendar key the index held, while events it signed are still to come (below); none with event items |
-| `index-name` | the calendar's local name: its page is `eventindex.space/calendar/<name>`, and, while the index holds its key, its NIP-05 name `<name>@eventindex.space` |
+| `p` | the organizer's own key (hex): a nostr publisher's, or one a feed's organizer verified (`link`, [`event-items.md`](event-items.md) § 5); for an aggregator on nostr, its key; none otherwise |
+| `index-name` | the calendar's local name: its page is `eventindex.space/calendar/<name>` |
 | `feed` | the feed URL the calendar is read from; none when its events are read from nostr |
 | `source` | `luma`, `meetup`, `mobilizon`, `gancio`, `google`, `ics`, or `nostr` when its events are read from its organizer's own key |
 | `location` | the calendar's area, `<city>, <country code>` |
@@ -45,20 +44,17 @@ An entry's events are published in one of three ways:
 
 | | Who signs its events | `p` | `source`, `feed` | `calendar` |
 |---|---|---|---|---|
-| **Mirrored** | the calendar key the index holds ([`nip52-mapping.md`](nip52-mapping.md) § 6) | the calendar key | the platform, the feed | none |
+| **Mirrored** | none: the index lists them as its items ([`event-items.md`](event-items.md)) | the organizer's key once they verify it (`link`), else none | the platform, the feed | none |
 | **By its organizer** | the organizer, from their own key; the index reads their events ([`indexer-rules.md`](indexer-rules.md) § 12) | the organizer's key | `nostr`, none | their newest kind 31924, if any |
 | **As its organizer** | the index, with the organizer's key, through a remote signer they connected ([`indexer-rules.md`](indexer-rules.md) § 13) | the organizer's key | the platform, the feed | `31924:<organizer>:<the entry's d>` |
 
 - A **native calendar** is published by its organizer from the start. Its
   `d` is `nostr:<organizer's hex key>` ([`icalendar-profile.md`](icalendar-profile.md) § 5),
-  it has no feed, and the index makes no calendar key for it.
+  and it has no feed.
 - A **claimed** calendar was mirrored until its organizer claimed it
   ([`indexer-rules.md`](indexer-rules.md) § 13). It keeps its `d`, its
-  `index-name` and its platform id (`luma-id`, `meetup-group`). Until the
-  last event its old calendar key signed has started, the entry names that
-  key in a second `p`, after the organizer's, so readers who find events
-  through the directory still find those; then it is republished without it.
-  The first `p` is always the calendar's current key.
+  `index-name` and its platform id (`luma-id`, `meetup-group`), and names the
+  organizer's key.
 - A **publisher listed from what it posts**: the index reads every public
   NIP-52 event ([`indexer-rules.md`](indexer-rules.md) § 14) and lists every
   key it keeps events of, filed by the index key as curator, with no review:

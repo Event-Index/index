@@ -1,15 +1,16 @@
 # The NIP-52 mapping
 
 Status: draft. The nostr wire format (the directory and events list headers,
-the projection, calendar keys, removal and claims) is specified in the Event
+the projection, removal and claims) is specified in the Event
 Index protocol draft; where this document and the draft differ, the draft
 governs. This document fixes what the draft leaves to the index.
 
 Event items ([`event-items.md`](event-items.md)) are how the index lists
 events under its own key. This document gives the projection window, the
-summary and co-hosts they share, the NIP-52 events calendar keys sign (while
-calendar keys are paused, deletions only: [`indexer-rules.md`](indexer-rules.md)
-§ 11), and how an organizer's own NIP-52 events become records (§ 8).
+summary and co-hosts they share; the NIP-52 events the index signs for an
+organizer who has it publish their calendar as them
+([`indexer-rules.md`](indexer-rules.md) § 13, `delegated`; § 7); and how an
+organizer's own NIP-52 events become records (§ 8).
 
 Reference values used below: index relay `wss://relay.eventindex.space`, API
 `https://api.eventindex.space/api/1.0`, domain `eventindex.space`, client name
@@ -42,8 +43,8 @@ Reference values used below: index relay `wss://relay.eventindex.space`, API
 - A record that cannot be expanded is logged and projects nothing; the rest of
   the calendar is projected.
 - A record whose `DTSTART` is a date becomes a kind `31922`; every other record
-  a kind `31923`. The calendar's key signs it.
-- At most 10,000 occurrences per calendar key, soonest first; the rest are
+  a kind `31923`. The organizer's key signs it (§ 7).
+- At most 10,000 occurrences per calendar, soonest first; the rest are
   logged and not projected.
 
 ## 2. Tags from the record
@@ -69,8 +70,8 @@ Reference values used below: index relay `wss://relay.eventindex.space`, API
 Tags the index adds, in this order after the tags above:
 
 ```
-["p", "<calendar key>", "wss://relay.eventindex.space", "host"]
-["p", "<co-host calendar key>", "wss://relay.eventindex.space", "host"]   one per co-host (§ 5)
+["p", "<organizer's key>", "<relay>", "host"]
+["p", "<co-host's key>", "<relay>", "host"]                               one per co-host whose events are signed (§ 5)
 ["t", …]                                                                  from CATEGORIES
 ["r", "<the event's page>"]                                               when there is one
 ["r", "https://api.eventindex.space/api/1.0/events/byid/<public id>.ics"]
@@ -137,62 +138,29 @@ so an event never yields to a copy that will not be published.
 - A calendar whose event now yields to another signer deletes its own copy at
   once (§ 4), RSVPs or not: the event lives on at the signer's address.
 
-## 6. The calendar key's events
+## 6. The calendar, and the index key's own events
 
-**Kind 0.** `content` is a JSON object with, in this order: `name` (the
-calendar's name, [`icalendar-profile.md`](icalendar-profile.md) § 4), `about`,
-`picture` (the calendar's image, where the source's policy allows images),
-`website` (the calendar's page), `nip05` (`<local name>@eventindex.space`).
-`about` by state:
+**Kind 31924.** `d` = the directory entry's `d` (for example
+`meetup:pythonsd`), `title` = the calendar's name, `content` = its description
+(or empty), and `["a", <address>, <relay>]` for every event the calendar
+signs or co-hosts that starts no earlier than 30 days before the poll,
+soonest first, at most 300 (which keeps the event under 65,536 bytes).
+Republished when it changes, like any projection. The directory entry's
+`calendar` names it.
 
-| State | `about` |
-|---|---|
-| Mirrored, from a platform | `Events of <name>, mirrored from <platform> by Event Index, which is not affiliated with <owner>. Organizer? You can claim this calendar or have it removed: https://eventindex.space/calendar/<local name>.` |
-| Mirrored, from any other feed | `Events of <name>, mirrored from its calendar feed by Event Index. Organizer? You can claim this calendar or have it removed: https://eventindex.space/calendar/<local name>.` |
-| Removed | `No longer mirrored by Event Index at its organizer's request.` |
-| Claimed (its organizer publishes it from their own key, [`indexer-rules.md`](indexer-rules.md) § 13) | `This calendar now publishes as <organizer's npub>.` |
-
-`<platform>` is the platform as its owner styles it, and `<owner>` who owns
-it: `Luma` / `Luma`, `Meetup®` / `Meetup`, `Mobilizon` / `Mobilizon`, `Gancio` /
-`Gancio`, `Google Calendar` / `Google`.
-
-A calendar key's `picture` is only ever its calendar's own image; one with no
-image has no `picture`. The Event Index mark is the index key's alone: its
-kind 0 is `name` `Event Index`, `about`, `picture`
+**The index key.** Its kind 0 is `name` `Event Index`, `about`, `picture`
 `https://eventindex.space/brand/mark-tile-512.png` (the mark on its tile,
 [`../brand/`](../brand/README.md)), `website` `https://eventindex.space`,
-`nip05` `_@eventindex.space`. Its kind 10002 follows the rule below, and its
-kind 3 lists the calendar keys the index holds, up to a cap
-([`indexer-rules.md`](indexer-rules.md) § 11).
+`nip05` `_@eventindex.space`; the mark is the index key's alone. Its kind
+10002 is `["r", "wss://relay.eventindex.space"]` with no marker, then
+`["r", <relay>, "write"]` for each general relay the index publishes to,
+none while it publishes only to its own relay, and each list relay once the
+directory goes outside. Its kind 3 follows no one.
 
-**Kind 10002.** `["r", "wss://relay.eventindex.space"]` with no marker (RSVPs
-and comments sent to the host's inbox reach the index), then
-`["r", <relay>, "write"]` for each general relay the index publishes to
-(`wss://nos.lol`, `wss://relay.primal.net`, `wss://relay.damus.io`), none
-while it publishes only to its own relay. It never names a relay that does
-not hold the calendar's events. The index key's kind 10002 follows the same
-rule.
+## 7. Signing as the organizer
 
-**Kind 31924.** `d` = `calendar`, `title` = the calendar's name, `content` =
-its description (or empty), and `["a", <address>, "wss://relay.eventindex.space"]`
-for every event the calendar signs or co-hosts that starts no earlier than 30
-days before the poll, soonest first, at most 300 (which keeps the event under
-65,536 bytes). Republished when it changes, like any projection. A claimed
-calendar key's last 31924 lists only the events it still has (past ones, and
-upcoming ones kept as cancelled), and its `content` is the claimed sentence
-followed by a NIP-21 link to where the calendar now is:
-`This calendar now publishes as <npub>. nostr:<naddr of the organizer's 31924>`,
-or `nostr:<npub>` when they have none.
-
-Calendar keys are random, one per `calendar` entry the index adopts, never
-derived and never created for an aggregator or a native NIP-52 calendar.
-
-## 7. Calendars published as their organizers
-
-When its organizer has the index publish a calendar as them
-([`indexer-rules.md`](indexer-rules.md) § 13, `delegated`), the projection is
-the one above, signed with the organizer's key through their remote signer,
-with these differences:
+The projection is signed with the organizer's key, through their remote
+signer ([`indexer-rules.md`](indexer-rules.md) § 13):
 
 - The host `p` is the organizer's key, and every relay hint (on `p`, and on
   the 31924's `a` tags) is the relay their events are on: the index's relay
@@ -200,13 +168,8 @@ with these differences:
   first general relay.
 - No kind 0 or 10002 is written: the organizer's profile and relay list are
   their own.
-- The calendar's kind 31924 has the directory entry's `d` (for example
-  `meetup:pythonsd`), so each calendar an organizer has the index publish is
-  a calendar of its own, and it does not touch a 31924 the organizer keeps.
-  The entry's `calendar` names it.
-- The `d` of each event is the same as under the calendar key, so a reader
-  finds the organizer's copy of an old event at the same `d` under their key;
-  the old key's cancelled copies name it with `q` ([`indexer-rules.md`](indexer-rules.md) § 13).
+- Each calendar an organizer has the index publish is a calendar of its own
+  (§ 6), and it does not touch a 31924 the organizer keeps.
 - Only kinds 31922, 31923, 31924 and 5 are signed as the organizer.
 
 ## 8. From NIP-52 to the record

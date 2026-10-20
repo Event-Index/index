@@ -9,7 +9,8 @@ path. Read endpoints need no key and send `Access-Control-Allow-Origin: *`.
 
 - **Calendar**: its directory entry's `d` ([`icalendar-profile.md`](icalendar-profile.md) § 5).
   In a path, a calendar is named by its local name (§ 5.1 there), which is
-  URL-safe. The calendar key is its `guid`.
+  URL-safe. An organizer's key, for a calendar published from it or as it,
+  is its `guid`.
 - **Event**: its public id, 32 characters of `a-z2-7`
   ([`icalendar-profile.md`](icalendar-profile.md) § 6). One URL per record or
   occurrence: `/events/byid/<id>`.
@@ -39,7 +40,7 @@ are unix seconds.
 |---|---|
 | `GET /calendars/byfeedurl?url=<feed URL>` | the entry whose feed URL, canonicalized, matches |
 | `GET /calendars/byslug/<local name>` | one entry |
-| `GET /calendars/byguid/<npub or hex>` | the entry of a calendar key, or of an organizer's own key |
+| `GET /calendars/byguid/<npub or hex>` | the entry of an organizer's key |
 | `GET /search/calendars/byterm?q=&near=<geohash>&tag=&limit=` | `{"calendars": [...], "count": n}`, removed entries left out |
 
 `q` matches the name, description and area; `near` matches an entry whose area
@@ -67,7 +68,7 @@ A calendar response:
     "local_name": "meetup-pythonsd",
     "listed": true,
     "address": "39999:<index key>:meetup:pythonsd",
-    "nostr": { "npub": "npub1…", "nip05": "meetup-pythonsd@eventindex.space", "calendar": "naddr1…" },
+    "nostr": null,
     "publishing": "mirrored",
     "page": "https://eventindex.space/calendar/meetup-pythonsd",
     "ics": "https://api.eventindex.space/api/1.0/ics/calendar/meetup-pythonsd.ics",
@@ -81,15 +82,15 @@ A calendar response:
 }
 ```
 
-`image` is null where the source's policy serves no images. `nostr` is the
-key the calendar's events are signed with now; it is null until the
-calendar's first poll has created its key. `publishing` says who signs them
-([`directory.md`](directory.md)): `mirrored` (a calendar key the index
-holds), `organizer` (the organizer, from their own key; the index reads their
+`image` is null where the source's policy serves no images. `publishing`
+says who signs the calendar's events on nostr ([`directory.md`](directory.md)):
+`mirrored` (the index key, as event items, [`event-items.md`](event-items.md)),
+`organizer` (the organizer, from their own key; the index reads their
 events, `source` is `nostr` and `feed` null), or `delegated` (the index, as
-the organizer, through their signer). For an organizer's key, `nostr.nip05`
-is null (the index names no key it does not hold) and `nostr.calendar` is the
-31924 the entry names, if any. `claimed` and `claimed_at` say whether and
+the organizer, through their signer). `nostr` is the organizer's key for the
+last two and null for a mirrored calendar: `nostr.nip05` is null (the index
+names no key but its own) and `nostr.calendar` is the 31924 the entry names,
+if any. `claimed` and `claimed_at` say whether and
 when its organizer claimed it. `last_indexed` is the last successful poll or
 read. A removed calendar is still answered by these lookups, with
 `removed: true` and no events. A nostr publisher kept without a listing
@@ -161,7 +162,7 @@ its area is `<city name>, <country code>`.
 |---|---|
 | `GET /dump/index.db` | a nightly SQLite file: directory entries, calendar metadata and poll statistics. No event content. CC0 1.0. |
 | `GET /stats` | counts of calendars, events and polls |
-| `GET /.well-known/nostr.json?name=<local name>` (on `eventindex.space`) | NIP-05 names of calendar keys and of the index key (`_`) |
+| `GET /.well-known/nostr.json?name=_` (on `eventindex.space`) | the NIP-05 name of the index key (`_`) |
 
 `/stats`:
 
@@ -175,9 +176,9 @@ its area is `<city name>, <country code>`.
 }
 ```
 
-NIP-05 answers `{"names": {"<name>": "<hex key>"}, "relays": {"<hex key>":
-["wss://relay.eventindex.space"]}}`; names are matched case-insensitively.
-Without `name` it answers `_`.
+NIP-05 answers `{"names": {"_": "<hex key>"}, "relays": {"<hex key>":
+["wss://relay.eventindex.space"]}}`, with or without `name`; any other name
+answers `{"names": {}}`.
 
 Every event response names its source in `eventindex.source` (or the record's
 `X-EVENTINDEX-SOURCE`); responses about one calendar carry
@@ -214,7 +215,7 @@ when the calendar is added at once, and `202` with
 when it waits for review; `found` says in plain words what was found
 (`Found the Meetup group "…".`). Once approved, by the index or a maintainer,
 the entry is filed under the index key and the next poll (within a minute)
-creates its calendar key and publishes its events. For a nostr publisher it
+reads its events. For a nostr publisher it
 answers `201` with
 `{"status": "listed", "d": "nostr:<hex key>", "local_name", "name", "events": n, "found", "message"}`,
 or, when none of its events is upcoming, `202` with the same fields and

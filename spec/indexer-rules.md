@@ -47,9 +47,7 @@ Status: draft.
     day or more later; one whose feed turns out to be a platform default is
     skipped.
   - Caps: one run of one page takes at most 25 new calendars (the rest wait
-    for its next run); discovery files at most 300 calendars a day, and none
-    once the index key follows as many keys as its follow list may name
-    (§ 11; publishers listed from what they post are not followed). A tick
+    for its next run); discovery files at most 300 calendars a day. A tick
     checks at most 5 feeds.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
 - Filing many entries at once spreads their `created_at` so that no second
@@ -140,74 +138,38 @@ needed to render one in a nostr client. Current events can be rebuilt from the
 feeds; past events cannot, because feeds drop them, so `index.db` is history
 and is backed up as such.
 
-## 8. Calendar keys at rest
+## 8. Secrets at rest
 
-- Each adopted `calendar` entry gets one random key, created on first use and
-  belonging to the entry's `d`. Keys are never derived from anything.
-- Keys live in `vault.db`, apart from `index.db`, and are never dumped. Each is
-  encrypted with XChaCha20-Poly1305 under a key derived with HKDF-SHA256 from
-  the calendar-key secret (info `event-index/calendar-key/v1`), with a random
-  24-byte nonce and the entry's `d` as associated data, so a ciphertext copied
-  to another row does not decrypt.
-- `vault.db` also keeps, for a calendar the index publishes as its organizer,
-  the connection to their remote signer (§ 13): the index's own client key
-  for it and the signer's key, relays and secret, encrypted the same way under
-  a key derived from the **signer secret** (info
-  `event-index/signer-connection/v1`), with the entry's `d` and the
-  organizer's key as associated data. A connection sealed under the
-  calendar-key secret is sealed again under the signer secret. It is deleted when the
+- The index signs with one key of its own, the **index key**: its profile,
+  relay list and follow list, the directory's entries and the event items
+  ([`event-items.md`](event-items.md)). It holds no key per calendar, and
+  never reads a key that once signed for one of its calendars as a publisher
+  (§ 14).
+- `vault.db` keeps, for a calendar the index publishes as its organizer, the
+  connection to their remote signer (§ 13): the index's own client key for it
+  and the signer's key, relays and secret, encrypted with XChaCha20-Poly1305
+  under a key derived with HKDF-SHA256 from the **signer secret** (info
+  `event-index/signer-connection/v1`), with a random 24-byte nonce and the
+  entry's `d` and the organizer's key as associated data, so a ciphertext
+  copied to another row or owner does not decrypt. It is deleted when the
   organizer disconnects the signer, or the calendar is removed.
 - Organizers seal what they hand the index for the poll service alone (a
   signer's address) with NIP-44 to the **intake key**, a key derived from the
   signer secret (info `event-index/intake/v1`) whose public key the poll
   service writes to `index.db`; the HTTP service seals, and only the poll
   service can open it.
-- A key leaves the vault only as a signature; it is never handed to anyone.
-  After a removal or a claim the key is deleted (unless calendar keys are
-  paused, § 11), and backups of `vault.db` are kept for a bounded time only,
-  so a deleted key is eventually forgotten.
-- With event items ([`event-items.md`](event-items.md)) the index lists events
-  under its own key, and the directory names no calendar key; calendar keys
-  sign nothing new while paused.
-- The index key, the signer secret and the calendar-key secret are separate
-  secrets. The calendar-key secret is needed only while `vault.db` holds
-  calendar keys; the poll service refuses to start without it until then.
-
-### Retirement
-
-Calendar keys are retired once the events they published are listed as items,
-in this order; each step waits for the one before it:
-
-1. **Signed once.** Each key signs its last profile (kind 0: the name
-   `Retired Event Index mirror`, no NIP-05, website or picture, and an about
-   line naming the calendar's page) and kind 5 deletions naming every version
-   (`e`) and address (`a`; a relay list as `10002:<key>:`) of every 31922,
-   31923, 31924 and 10002 it signed, with their kinds (`k`), at most 200 tags
-   in one deletion; all of them newer than anything the key signed. The index
-   keeps them signed, so they can be sent again without the key.
-2. **Sent.** To the index's relay, then the search, general and profile relays
-   at their pace, never the list relays; again after a restart until the
-   outside relays have taken them.
-3. **No longer named.** Once they have been taken, the index key follows no
-   one, NIP-05 and the API name no calendar key, and no page shows one.
-4. **Destroyed.** On the operator's request, every key is deleted from
-   `vault.db` with its space overwritten, the directory names none, and the
-   relay accepts none. The calendar-key secret is then deleted; backups of
-   `vault.db` are useless once its last copy is gone.
+- `vault.db` is never dumped, and its backups are kept for a bounded time
+  only. A table of keys in a vault restored from an older backup, which no
+  secret opens, is dropped when the vault is opened.
+- The index key and the signer secret are separate secrets.
 
 ## 9. Seeding
-
-`scripts/seed-entries.ts` turns a seed list into unsigned directory entries
-for the index key to sign: each feed is fetched and validated (§ 4), platform
-default calendars are skipped (§ 2), each filed calendar's key is created, and
-`created_at` is spread (§ 2).
 
 The poll service files a seed list's `calendars` as entries directly
 (`indexer/src/admin.ts import-seeds`): each with its city's area, `location`
 `<city name>, <country code>` and `g` the geohash of the city's coordinates at
 precision 4, and its `found_via`. Its `skipped` calendars are not filed, nor
-is any `d` on the do-not-index list. The first poll validates the feed and
-creates the calendar key.
+is any `d` on the do-not-index list. The first poll validates the feed.
 
 ## 10. Submissions and removals
 
@@ -233,25 +195,19 @@ creates the calendar key.
 - **By the calendar's own key.** A remove request signed (NIP-98) with the
   key a calendar is published with (an organizer's own key: a native
   calendar, or a claimed one) is approved at once, without review, and
-  carried out at the next tick. A calendar key the index holds cannot sign
-  one, so a mirrored calendar's removal is always reviewed.
-- **Removal.** At its next tick after the approval, the poll service, with the
-  calendar key:
-  - deletes every upcoming projection (kind `5`, [`nip52-mapping.md`](nip52-mapping.md) § 4),
-    with or without RSVPs;
-  - publishes the kind 0 of the removed state ([`nip52-mapping.md`](nip52-mapping.md) § 6)
-    and a kind 31924 listing only its past events;
-  - deletes the calendar key from the vault (§ 8).
-
-  The entry is republished with `["removed", "organizer request"]`, its events
+  carried out at the next tick. A mirrored calendar has no key of its own to
+  sign one, so its removal is always reviewed.
+- **Removal.** At its next tick after the approval, the poll service withdraws
+  the calendar's event items ([`event-items.md`](event-items.md) § 3),
+  republishes its entry with `["removed", "organizer request"]`; its events
   leave the API, its `d` goes on the do-not-index list, and the feed is never
-  polled again. Past events stay on relays as they were published.
+  polled again.
 
-  A calendar its organizer publishes (§§ 12, 13) has no calendar key left to
-  sign with: its removal retires the entry, forgets any signer connection,
-  drops the events the index kept of that key, and puts `nostr:<their key>`
-  on the do-not-index list, so the key is not listed again from what it
-  posts (§ 14). Its organizer's events stay theirs.
+  A calendar its organizer publishes (§§ 12, 13) keeps its events, which are
+  theirs: its removal also forgets any signer connection, drops the events
+  the index kept of their key, and puts `nostr:<their key>` on the
+  do-not-index list, so the key is not listed again from what it posts
+  (§ 14).
 
 ## 11. The poll service
 
@@ -263,13 +219,13 @@ creates the calendar key.
   read instead, § 12), reads what is new among public NIP-52 events and
   builds the records of publishers whose events changed (§ 14), marks copies
   (§ 15), publishes the index key's events that changed (its kind 0, 3 and
-  10002, the events list header, and every directory entry with a key, or
-  none for a feed aggregator; [`directory.md`](directory.md)), and writes the
-  dump once a day. One feed's failure does not stop the others.
+  10002, the events list header, every directory entry
+  ([`directory.md`](directory.md)) and the event items
+  ([`event-items.md`](event-items.md))), and writes the dump once a day. One feed's failure does not stop the others.
 - Events go to the index's own relay; a publish it refuses fails the poll,
   which is retried. The relay accepts only the keys in the allowlist the
-  service keeps ([`relay.md`](relay.md)): the index key, each calendar key
-  (named before its first events go out) and removed calendars' keys.
+  service keeps ([`relay.md`](relay.md)): the index key, and the organizers it
+  publishes as while the operator has the relay host them.
 - Publishing beyond the index's own relay is off unless the operator turns it
   on. Then each event also goes to the sets of relays its kind calls for.
   Every relay has a queue of its own, drained at its set's pace: a small
@@ -278,55 +234,26 @@ creates the calendar key.
 
   | Kind | Search relays | List relays | Profile relays | General relays |
   |---|---|---|---|---|
-  | 39999 (the directory's entries)¹ | yes | yes | | |
-  | 0, 10002 (any key) | yes | | yes | yes |
+  | 39999 (the directory's entries and the event items)¹ | yes | yes | | |
+  | 0, 10002 (the index key's) | yes | | yes | yes |
   | 3 (the index key's follow list) | yes | | yes | yes |
-  | 31924 | yes | | | yes |
-  | 31922, 31923 | yes, in the window | | | while upcoming |
-  | 5 | yes | | | yes |
+  | 31924 (an organizer's, § 13) | yes | | | yes |
+  | 31922, 31923 (an organizer's, § 13) | yes, in the window | | | while upcoming |
+  | 5 | yes; with the items¹ | with the items¹ | | yes, but not an item's |
 
   ¹ Only once publishing the directory outside is turned on of its own;
   until then the entries stay on the index's relay. A list header the index
   key signs (the events header) stays on its relay.
 
   Each relay gets, once, what the index's relay holds of the kinds its set
-  takes (deletions excepted; the directory's kinds once the directory goes
-  outside), so past events reach the search relays and never the general
-  relays, and a relay added later gets it too. A relay that answers
+  takes from the index key (deletions excepted; the directory's kinds once the
+  directory goes outside), and a relay added later gets it too. A relay that answers
   `rate-limited` or `banned` is paused for 24 hours and keeps its queue; after
   the pause it is tried again at half its pace, and a second such answer
   leaves it off until the operator resumes it. Pauses are kept in
   `index.db`. Other refusals are logged. The index key's kind 0 and 10002 go
   to the profile and general relays even while outside publishing is off.
-- The index key's kind 3 follows every key a listed entry names in `p` (`p`
-  with the index relay as hint): the calendar keys it holds, organizers'
-  own keys, and a claimed calendar's old key while events it signed are
-  still to come. A publisher listed from what it posts, or from a link
-  someone pasted, is not followed until its organizer proves the key (§ 12).
-  It names at most 1,900 keys: relays keep a list of at most 2,000 tags.
-  Past that, the calendars filed first stay followed and later ones are not
-  added; the service logs, once a day, when the list is within 10% of the cap
-  or past it. A removed calendar is unfollowed.
-- **Paused calendar keys.** The operator can pause calendar keys. While they
-  are paused, no calendar key is made: a calendar without one is still polled
-  and its records, events and pages are served, but nothing is projected or
-  signed for it and its directory entry waits for its key. A calendar that
-  has a key signs only deletions, on the index's relay: a withdrawal its
-  source calls for; no new or changed event, calendar, profile or relay
-  list. What else changed is held, the feed's validators are dropped, and the
-  first poll after the pause publishes it from the feed read in full (a held
-  cancellation is decided again then). Its records, events and pages follow
-  the feed meanwhile. Nothing a calendar key signs goes to the outside
-  relays or is sent to them again. No calendar key is deleted: a removal or
-  a claim deletes the calendar's events on the index's relay, signs nothing
-  else there, keeps its key, and the key clears the
-  calendar from the outside relays (search, general and profile relays): a
-  last kind 0 with the name `Retired Event Index mirror`, no `nip05`,
-  `website` or `picture`, and an `about` naming the calendar's page; and a
-  kind 5 for every 31922, 31923 and 31924 it signed, naming each version's
-  `e`, then the `a` and the `k`. The clearing is resent after a restart
-  until the outside relays have taken it. When the pause ends, keys are made
-  at each calendar's next poll and the outside relays get what they missed.
+- The index key's kind 3 follows no one.
 - On SIGTERM the service stops after the poll in progress.
 
 ## 12. Calendars published by their organizers
@@ -364,14 +291,12 @@ its directory entry.
   lists it at once when its relays hold an upcoming NIP-52 event from it, and
   keeps it without a listing (§ 14) when they hold only past ones. Its `d`
   is `nostr:<their hex key>`
-  ([`icalendar-profile.md`](icalendar-profile.md) § 5), and no calendar key is
-  made for it.
+  ([`icalendar-profile.md`](icalendar-profile.md) § 5).
 - **The organizer's key.** Proof is needed to act on it: a request signed
   with the publisher's key ([`api.md`](api.md), "Requests signed with your
   key") lists it at once, upcoming events or not, as its organizer asks, or,
   when it is filed, lists it and sets its city; it is then
-  read from the organizer's own relays as well, and followed by the index key
-  (§ 11). Signed with that key, a remove request is carried out at once
+  read from the organizer's own relays as well. Signed with that key, a remove request is carried out at once
   (§ 10).
 
 ## 13. Claims
@@ -423,23 +348,13 @@ mirrors, so that its events are published from their own key.
     minutes, and the rest a minute later, at the next poll. While the signer
     does not answer, the calendar's polls fail and back off (§ 3), and nothing
     is signed for it.
-- **The calendar key retires**, in `own` or `delegated` mode while the index
-  does not list events as items, before anything is signed as the organizer.
-  With event items, no calendar key retires at a claim: the calendar's items
-  are withdrawn instead, and its key stays until all calendar keys retire
-  together. Otherwise: its upcoming events are withdrawn (republished as cancelled where
-  they have RSVPs, else deleted; [`nip52-mapping.md`](nip52-mapping.md) § 4).
-  A cancelled copy names the organizer's own copy of the event with
-  `["q", "<kind>:<organizer>:<d>", "<relay>"]`: in `delegated` mode the same
-  `d` under the organizer's key; in `own` mode the organizer's event with the
-  same page (`r`), or the same `start` and title. Its kind 0 and 31924 say
-  where the calendar now publishes ([`nip52-mapping.md`](nip52-mapping.md) § 6),
-  and the key is deleted from the vault. On the index's relay the old key
-  keeps kinds 0 and 5 ([`relay.md`](relay.md)).
-- **After.** The entry names the organizer's key first and the old key second
-  while events it signed are to come ([`directory.md`](directory.md)). In
-  `own` mode, the old records the organizer's own events replace carry
-  `X-EVENTINDEX-CANONICAL` with the replacement's URL, and every record of a
+- **The calendar's items.** In `own` or `delegated` mode, the calendar's event
+  items are withdrawn ([`event-items.md`](event-items.md) § 5): its events are
+  the organizer's from then on.
+- **After.** The entry names the organizer's key ([`directory.md`](directory.md)).
+  In `own` mode, the old records the organizer's own events replace (the same
+  page, `r`, or the same `start` and title) carry `X-EVENTINDEX-CANONICAL`
+  with the replacement's URL, and every record of a
   claimed calendar carries `X-EVENTINDEX-CLAIMED`
   ([`icalendar-profile.md`](icalendar-profile.md) § 3.5).
 - **The organizer's own requests.** Once a calendar is theirs, its organizer
@@ -476,8 +391,9 @@ other direction at full width.
 - **What is kept.** Every event whose signature checks, with a `d`, a title
   (or the older `name`) and a readable start between 1990 and ten years
   ahead. Trust is a reader's concern, so nothing else is judged. Left out:
-  what the index signs itself (its calendar keys' events, and any event of
-  a key that owns no listed calendar carrying the index's events header),
+  what the index signs itself (and any event of a key that owns no listed
+  calendar carrying the index's events header), events of a key that once
+  signed for one of the index's calendars (§ 8),
   events of a key whose secret is public (the key of secret 1), and
   publishers removed at their request. Each event is kept as it was signed,
   the newest version of each address (later `created_at`, then the lower
