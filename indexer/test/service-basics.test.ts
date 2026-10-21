@@ -25,6 +25,8 @@ test('settings come from the environment the deploy unit sets, with safe default
   assert.equal(s.apiPort, 8080);
   assert.equal(s.publishToGeneralRelays, false);
   assert.equal(s.meetupPages, false);
+  assert.equal(s.discoveryPerRun, 25, 'a run of one page stays capped, for politeness');
+  assert.equal(s.discoveryPerDay, 1000);
   assert.equal(loadSettings({ EVENTINDEX_MEETUP_PAGES: '1' }).meetupPages, true);
   assert.deepEqual(s.generalRelays, ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.damus.io']);
   assert.deepEqual(s.listRelays, []);

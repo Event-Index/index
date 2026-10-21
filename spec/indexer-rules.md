@@ -47,7 +47,7 @@ Status: draft.
     day or more later; one whose feed turns out to be a platform default is
     skipped.
   - Caps: one run of one page takes at most 25 new calendars (the rest wait
-    for its next run); discovery files at most 300 calendars a day. A tick
+    for its next run); discovery files at most 1,000 calendars a day. A tick
     checks at most 5 feeds.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
 - Filing many entries at once spreads their `created_at` so that no second

@@ -160,7 +160,7 @@ export function loadSettings(env: Record<string, string | undefined>): Settings 
     searchRelays,
     profileRelays: relays(env['EVENTINDEX_PROFILE_RELAYS'], PROFILE_RELAYS, 'EVENTINDEX_PROFILE_RELAYS'),
     discoveryPerRun: count(env['EVENTINDEX_DISCOVERY_PER_RUN'], 25, 'EVENTINDEX_DISCOVERY_PER_RUN'),
-    discoveryPerDay: count(env['EVENTINDEX_DISCOVERY_PER_DAY'], 300, 'EVENTINDEX_DISCOVERY_PER_DAY'),
+    discoveryPerDay: count(env['EVENTINDEX_DISCOVERY_PER_DAY'], 1000, 'EVENTINDEX_DISCOVERY_PER_DAY'),
     coveragePubkey: pubkey(env['EVENTINDEX_COVERAGE_PUBKEY'], 'EVENTINDEX_COVERAGE_PUBKEY'),
     coverageRelay: relays(env['EVENTINDEX_COVERAGE_RELAY'], [], 'EVENTINDEX_COVERAGE_RELAY')[0] ?? null,
     hostClaimants: env['EVENTINDEX_RELAY_HOSTS_CLAIMANTS'] === '1',

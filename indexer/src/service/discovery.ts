@@ -4,9 +4,8 @@
 // and filed under the page's area, to be polled at the next tick; a
 // platform default or a calendar that is not public is skipped, and each skip
 // is recorded once. Caps keep a bad page from flooding the directory: new
-// calendars per page and run, calendars filed per day, and the follow list's
-// size. A step reads at most one page and checks a few feeds, so a tick stays
-// short.
+// calendars per page and run, and calendars filed per day. A step reads at
+// most one page and checks a few feeds, so a tick stays short.
 
 import { identify } from '../directory/id.ts';
 import { seedFeedUrl } from '../directory/seed.ts';
