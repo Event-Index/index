@@ -162,7 +162,21 @@ Feed: `https://calendar.google.com/calendar/ical/<id>/public/basic.ics`.
   with many `ATTENDEE`s (not kept).
 - `…/private-<token>/basic.ics` addresses are private and are refused.
 
-## Generic iCalendar (`ics`, `gancio`)
+## Gancio (`gancio`)
+
+Feed: an instance's own feed of all its events, `https://<host>/feed/ics`
+(with a query, `?tags=…` or `?places=…`, it is a filtered view, read as a
+generic feed). A Gancio instance is one city's or one community's shared
+agenda, so the instance is one calendar, named for the instance: its
+`nodeinfo` name, or its host where that name is just `Gancio`. Feeds carry no
+calendar name, no `ORGANIZER`, `ATTENDEE` or `CONTACT` (so no event names who
+submitted it), no `GEO` and no images; `LOCATION` is the place's name and
+address as text. Instances come from the project's list at
+`gancio.org/instances` (`seeds/gancio.json`), those whose robots.txt allows
+the feed; an instance states no area, so its entry has no `location` or `g`.
+No adapter rules beyond the profile otherwise.
+
+## Generic iCalendar (`ics`)
 
 No adapter rules beyond the profile. HTML in `DESCRIPTION` is detected and
 handled for every source.

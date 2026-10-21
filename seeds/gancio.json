@@ -1,0 +1,325 @@
+{
+  "note": "Gancio instances from the project's list at gancio.org/instances whose instance-wide feed robots.txt allows and the index can read, each filed as one community calendar named for the instance (eventindex-admin import-gancio). Names are the instances' own (nodeinfo nodeName), or the host where that is just \"Gancio\".",
+  "instances": [
+    {
+      "host": "agenda.arree.bzh",
+      "name": "Agenda des monts d'Arrée",
+      "feed": "https://agenda.arree.bzh/feed/ics"
+    },
+    {
+      "host": "agenda.henares.org",
+      "name": "Agenda del Henares",
+      "feed": "https://agenda.henares.org/feed/ics"
+    },
+    {
+      "host": "agenda.reteappenninica.it",
+      "name": "Agenda Rete Appenninica",
+      "feed": "https://agenda.reteappenninica.it/feed/ics"
+    },
+    {
+      "host": "agenda.rouen-luttes.org",
+      "name": "Agenda des Luttes Rouen",
+      "feed": "https://agenda.rouen-luttes.org/feed/ics"
+    },
+    {
+      "host": "agenda.subterrania.es",
+      "name": "Agenda Subterrania",
+      "feed": "https://agenda.subterrania.es/feed/ics"
+    },
+    {
+      "host": "agendamilitantloiret.emancipe.org",
+      "name": "Agenda militant du Loiret",
+      "feed": "https://agendamilitantloiret.emancipe.org/feed/ics"
+    },
+    {
+      "host": "akce.nolog.cz",
+      "name": "AKCE.NOLOG.CZ",
+      "feed": "https://akce.nolog.cz/feed/ics"
+    },
+    {
+      "host": "balotta.org",
+      "name": "Balotta",
+      "feed": "https://balotta.org/feed/ics"
+    },
+    {
+      "host": "bcn.convoca.la",
+      "name": "Convoca-la BCN",
+      "feed": "https://bcn.convoca.la/feed/ics"
+    },
+    {
+      "host": "berlin.askapunk.de",
+      "name": "berlin.askapunk.de",
+      "feed": "https://berlin.askapunk.de/feed/ics"
+    },
+    {
+      "host": "bonn.jetzt",
+      "name": "Bonn.jetzt",
+      "feed": "https://bonn.jetzt/feed/ics"
+    },
+    {
+      "host": "botep.org",
+      "name": "Botép",
+      "feed": "https://botep.org/feed/ics"
+    },
+    {
+      "host": "burgos.convoca.la",
+      "name": "burgos.convoca.la",
+      "feed": "https://burgos.convoca.la/feed/ics"
+    },
+    {
+      "host": "calendar.clonmel.town",
+      "name": "What's On Clonmel",
+      "feed": "https://calendar.clonmel.town/feed/ics"
+    },
+    {
+      "host": "calendari.cc",
+      "name": "calendari.cc",
+      "feed": "https://calendari.cc/feed/ics"
+    },
+    {
+      "host": "calndr.de",
+      "name": "calndr.de",
+      "feed": "https://calndr.de/feed/ics"
+    },
+    {
+      "host": "camifa.net",
+      "name": "c'ami fa?",
+      "feed": "https://camifa.net/feed/ics"
+    },
+    {
+      "host": "carbondale.info",
+      "name": "carbondale.info",
+      "feed": "https://carbondale.info/feed/ics"
+    },
+    {
+      "host": "castello.convoca.la",
+      "name": "Agenda Combativa de Castelló",
+      "feed": "https://castello.convoca.la/feed/ics"
+    },
+    {
+      "host": "devent.cz",
+      "name": "Decentralizované Eventy",
+      "feed": "https://devent.cz/feed/ics"
+    },
+    {
+      "host": "eif.convoca.la",
+      "name": "Convoca-la Eivissa i Formentera",
+      "feed": "https://eif.convoca.la/feed/ics"
+    },
+    {
+      "host": "emporda.figueres.social",
+      "name": "Convoca-la alternativa",
+      "feed": "https://emporda.figueres.social/feed/ics"
+    },
+    {
+      "host": "enredad.es",
+      "name": "enredad·es",
+      "feed": "https://enredad.es/feed/ics"
+    },
+    {
+      "host": "eventos.lhc.net.br",
+      "name": "Laboratório Hacker de Campinas",
+      "feed": "https://eventos.lhc.net.br/feed/ics"
+    },
+    {
+      "host": "eventosmurcia.org",
+      "name": "Eventos Murcia",
+      "feed": "https://eventosmurcia.org/feed/ics"
+    },
+    {
+      "host": "events.rheinmain.social",
+      "name": "Rhein-Main Events",
+      "feed": "https://events.rheinmain.social/feed/ics"
+    },
+    {
+      "host": "flyinghigh-bonn.org",
+      "name": "Flying High Bonn",
+      "feed": "https://flyinghigh-bonn.org/feed/ics"
+    },
+    {
+      "host": "fuori.org",
+      "name": "Fuori.org",
+      "feed": "https://fuori.org/feed/ics"
+    },
+    {
+      "host": "gancio.blablalinux.be",
+      "name": "Gancio BlablaLinux",
+      "feed": "https://gancio.blablalinux.be/feed/ics"
+    },
+    {
+      "host": "gancio.cisti.org",
+      "name": "gancio.cisti.org",
+      "feed": "https://gancio.cisti.org/feed/ics"
+    },
+    {
+      "host": "gancio.daghe.xyz",
+      "name": "gancio.daghe.xyz",
+      "feed": "https://gancio.daghe.xyz/feed/ics"
+    },
+    {
+      "host": "gancio.graz.events",
+      "name": "gancio.graz.events",
+      "feed": "https://gancio.graz.events/feed/ics"
+    },
+    {
+      "host": "gancio.invegendo.org",
+      "name": "gancio.invegendo.org",
+      "feed": "https://gancio.invegendo.org/feed/ics"
+    },
+    {
+      "host": "hacker.convoca.la",
+      "name": "Hacker Convoca.la",
+      "feed": "https://hacker.convoca.la/feed/ics"
+    },
+    {
+      "host": "keepkarlsruheboring.org",
+      "name": "Keep Karlsruhe Boring...",
+      "feed": "https://keepkarlsruheboring.org/feed/ics"
+    },
+    {
+      "host": "kinkcalendar.site",
+      "name": "kinkcalendar.site",
+      "feed": "https://kinkcalendar.site/feed/ics"
+    },
+    {
+      "host": "koledar.kompot.si",
+      "name": "Koledar Kompot",
+      "feed": "https://koledar.kompot.si/feed/ics"
+    },
+    {
+      "host": "lakelogaztetxea.net",
+      "name": "lakelogaztetxea.net",
+      "feed": "https://lakelogaztetxea.net/feed/ics"
+    },
+    {
+      "host": "lamanifestive.fr",
+      "name": "LA MANIFESTIVE 68",
+      "feed": "https://lamanifestive.fr/feed/ics"
+    },
+    {
+      "host": "lapunta.org",
+      "name": "LaPunta",
+      "feed": "https://lapunta.org/feed/ics"
+    },
+    {
+      "host": "lasitua.org",
+      "name": "LaSitua",
+      "feed": "https://lasitua.org/feed/ics"
+    },
+    {
+      "host": "lucitr.one",
+      "name": "lu citrone",
+      "feed": "https://lucitr.one/feed/ics"
+    },
+    {
+      "host": "mad.convoca.la",
+      "name": "Convócala Madrid",
+      "feed": "https://mad.convoca.la/feed/ics"
+    },
+    {
+      "host": "mallorca.convoca.la",
+      "name": "Convoca-la Mallorca",
+      "feed": "https://mallorca.convoca.la/feed/ics"
+    },
+    {
+      "host": "meh.convoca.la",
+      "name": "Meh!",
+      "feed": "https://meh.convoca.la/feed/ics"
+    },
+    {
+      "host": "mlg.convoca.la",
+      "name": "Málaga Convócala",
+      "feed": "https://mlg.convoca.la/feed/ics"
+    },
+    {
+      "host": "montreal.askapunk.net",
+      "name": "MONTREAL Ask A Punk",
+      "feed": "https://montreal.askapunk.net/feed/ics"
+    },
+    {
+      "host": "puntello.org",
+      "name": "Puntello",
+      "feed": "https://puntello.org/feed/ics"
+    },
+    {
+      "host": "queerleven.be",
+      "name": "The Trans Agenda™",
+      "feed": "https://queerleven.be/feed/ics"
+    },
+    {
+      "host": "rebaltela.org",
+      "name": "REBALTÈLA",
+      "feed": "https://rebaltela.org/feed/ics"
+    },
+    {
+      "host": "rezonek.fr",
+      "name": "RezoneK",
+      "feed": "https://rezonek.fr/feed/ics"
+    },
+    {
+      "host": "roma.convoca.la",
+      "name": "Gancio de Roma",
+      "feed": "https://roma.convoca.la/feed/ics"
+    },
+    {
+      "host": "sabina.convoca.la",
+      "name": "LaComunella Sabina",
+      "feed": "https://sabina.convoca.la/feed/ics"
+    },
+    {
+      "host": "sapratza.in",
+      "name": "Sa Pratza",
+      "feed": "https://sapratza.in/feed/ics"
+    },
+    {
+      "host": "sciamsciam.org",
+      "name": "sciam!",
+      "feed": "https://sciamsciam.org/feed/ics"
+    },
+    {
+      "host": "scruscio.org",
+      "name": "Scruscio",
+      "feed": "https://scruscio.org/feed/ics"
+    },
+    {
+      "host": "sottosuolo.ch",
+      "name": "Sottosuolo",
+      "feed": "https://sottosuolo.ch/feed/ics"
+    },
+    {
+      "host": "tramuntana.convoca.la",
+      "name": "Tramuntana",
+      "feed": "https://tramuntana.convoca.la/feed/ics"
+    },
+    {
+      "host": "vamosjuntes.com.ar",
+      "name": "Vamos Juntes",
+      "feed": "https://vamosjuntes.com.ar/feed/ics"
+    },
+    {
+      "host": "www.aleale.org",
+      "name": "ALÉ !",
+      "feed": "https://www.aleale.org/feed/ics"
+    },
+    {
+      "host": "www.attoppa.it",
+      "name": "AttoppA",
+      "feed": "https://www.attoppa.it/feed/ics"
+    },
+    {
+      "host": "www.bilbi.info",
+      "name": "Bilbo Zaharreko Agenda",
+      "feed": "https://www.bilbi.info/feed/ics"
+    },
+    {
+      "host": "www.fuorinellanebbia.it",
+      "name": "FuoriNellaNebbia",
+      "feed": "https://www.fuorinellanebbia.it/feed/ics"
+    },
+    {
+      "host": "zgz.convoca.la",
+      "name": "Zaragoza",
+      "feed": "https://zgz.convoca.la/feed/ics"
+    }
+  ]
+}

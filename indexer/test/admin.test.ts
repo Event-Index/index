@@ -9,7 +9,7 @@ import { eventPagesStore } from '../src/store/event-pages.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type Cities, type Communities } from '../src/service/admin.ts';
+import { importSeeds, importCommunities, importGancio, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type Cities, type Communities, type GancioList } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
 import { discoveredStore } from '../src/store/discovered.ts';
 import { identify } from '../src/directory/id.ts';
@@ -267,6 +267,23 @@ test('importing the communities list files its feed calendars by their city, and
   const again = importCommunities(s, list, cities, NOW + 60);
   assert.deepEqual(again.filed, []);
   assert.equal(again.existing.length, 3);
+});
+
+test('importing the Gancio list files each instance as one community calendar, named for the instance, with no area', () => {
+  const s = stores();
+  const list: GancioList = { instances: [
+    { host: 'bcn.convoca.la', name: 'Convoca-la BCN', feed: 'https://bcn.convoca.la/feed/ics' },
+    { host: 'gancio.example.org', name: 'gancio.example.org', feed: 'https://gancio.example.org/feed/ics' },
+    { host: 'gone.example.org', name: 'Gone', feed: 'https://gone.example.org/feed/ics' },
+  ] };
+  s.dir.block('gancio:gone.example.org', 'organizer request', NOW);
+  const report = importGancio(s, list, NOW);
+  assert.deepEqual(report, { filed: ['gancio:bcn.convoca.la', 'gancio:gancio.example.org'], existing: [], blocked: ['gancio:gone.example.org'] });
+  const bcn = s.dir.get('gancio:bcn.convoca.la')!;
+  assert.deepEqual([bcn.name, bcn.source, bcn.role, bcn.feedUrl, bcn.pageUrl, bcn.location, bcn.g, bcn.foundVia],
+    ['Convoca-la BCN', 'gancio', 'calendar', 'https://bcn.convoca.la/feed/ics', 'https://bcn.convoca.la', null, null, 'gancio.org/instances']);
+  assert.deepEqual(importGancio(s, list, NOW + 60).existing, ['gancio:bcn.convoca.la', 'gancio:gancio.example.org']);
+  assert.throws(() => importGancio(s, { instances: [{ host: 'x.example.org', name: 'X', feed: 'https://x.example.org/feed/ics?tags=a' }] }, NOW), /not a Gancio instance feed/);
 });
 
 test('the admin command imports a communities list like a seed list', () => {

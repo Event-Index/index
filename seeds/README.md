@@ -102,6 +102,18 @@ files the named public calendars of its events, found via the page's `d`
 (`../spec/indexer-rules.md` § 2); `eventindex-admin discoveries [--hours <n>]`
 lists what it filed, skipped and refused.
 
+## Gancio instances
+
+`gancio.json` lists Gancio instances from the project's list at
+`gancio.org/instances` whose instance-wide feed robots.txt allows and the
+index can read. `eventindex-admin import-gancio seeds/gancio.json` files
+each as one community calendar, named for the instance, with no area
+(`../spec/platform-adapters.md`, Gancio).
+
+```json
+{ "instances": [{ "host": "bcn.convoca.la", "name": "Convoca-la BCN", "feed": "https://bcn.convoca.la/feed/ics" }] }
+```
+
 ## Luma listing pages
 
 `luma-pages.json` lists the Luma pages discovery reads besides the city

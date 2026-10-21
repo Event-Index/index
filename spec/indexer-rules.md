@@ -67,6 +67,9 @@ Status: draft.
     [`event-items.md`](event-items.md)). A calendar that states it is online
     (no Luma calendar does today) would be `Online`, tagged `global` too.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
+  `seeds/gancio.json` lists Gancio instances, each filed as one community
+  calendar named for the instance (`eventindex-admin import-gancio`,
+  [`platform-adapters.md`](platform-adapters.md), Gancio).
 - Filing many entries at once spreads their `created_at` so that no second
   holds more than 1,000 events.
 

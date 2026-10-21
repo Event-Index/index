@@ -106,6 +106,18 @@ export function identify(input: string): DirectoryIdentity {
     };
   }
 
+  // A Gancio instance's own feed, of all its events: the instance is one
+  // community calendar. A feed with a query is a filtered view, not it.
+  if (url.pathname.replace(/\/$/, '') === '/feed/ics' && !url.search) {
+    return {
+      d: `gancio:${host}`,
+      source: 'gancio',
+      role: 'calendar',
+      feedUrl: `https://${host}/feed/ics`,
+      pageUrl: `https://${host}`,
+    };
+  }
+
   const feedUrl = serialize(url);
   return {
     d: `ics:${createHash('sha256').update(feedUrl).digest('hex')}`,

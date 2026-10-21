@@ -112,6 +112,33 @@ export function importCommunities(s: AdminStores, list: Communities, cities: Cit
   return report;
 }
 
+// The Gancio instances to file (seeds/gancio.json), from the project's list
+// at gancio.org/instances: each instance's own feed, and its name.
+export interface GancioList {
+  instances: Array<{ host: string; name: string; feed: string }>;
+}
+
+// Files each Gancio instance as one community calendar, named for the
+// instance, with no area: an instance is a city's or a community's shared
+// agenda, and states no place of its own.
+export function importGancio(s: AdminStores, list: GancioList, now: number) {
+  const report = { filed: [] as string[], existing: [] as string[], blocked: [] as string[] };
+  for (const instance of list.instances) {
+    const identity = identify(instance.feed);
+    if (identity.source !== 'gancio') throw new Error(`${instance.feed} is not a Gancio instance feed (${instance.host})`);
+    if (s.dir.doNotIndex(identity.d)) {
+      report.blocked.push(identity.d);
+      continue;
+    }
+    const added = s.dir.add({
+      d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
+      name: instance.name.trim() || instance.host, description: null, image: null, location: null, g: null, foundVia: 'gancio.org/instances', addedAt: now,
+    });
+    (added ? report.filed : report.existing).push(identity.d);
+  }
+  return report;
+}
+
 // Files each city's Luma Discover page as an aggregator, with the page that
 // discovery reads (service/discovery.ts) and the city's area. `only` names
 // cities by slug or by the page's slug.

@@ -147,6 +147,7 @@ field that may change.
 | Luma city page (aggregator) | `…?entity=discover&id=discplace-…` | `luma:discplace-…` | none |
 | Meetup group | `https://www.meetup.com/<urlname>/events/ical/` | `meetup:<urlname>`, lowercased | `https://www.meetup.com/<urlname>/` |
 | Mobilizon group | `https://<host>/@<group>/feed/ics` | `mobilizon:<host>/@<group>` | `https://<host>/@<group>` |
+| Gancio instance | `https://<host>/feed/ics`, with no query (a query filters it) | `gancio:<host>` | `https://<host>` |
 | Public Google calendar | `https://calendar.google.com/calendar/ical/<id>/public/<file>.ics` | `google:<id>` (percent-decoded) | `https://calendar.google.com/calendar/embed?src=<id>` |
 | Native NIP-52 calendar | (none) | `nostr:<pubkey>`: its organizer's key, lowercase hex | its organizer's `website` |
 | Anything else | any `http(s)` or `webcal` URL | `ics:` + lowercase hex SHA-256 of the canonical URL | `URL` from the feed |

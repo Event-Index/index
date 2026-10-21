@@ -46,6 +46,14 @@ test('a Mobilizon group is identified by instance and group', () => {
   assert.equal(id.pageUrl, 'https://mobilizon.fr/@lyontechhub');
 });
 
+test('a Gancio instance is identified by its host, from its instance-wide feed', () => {
+  const id = identify('webcal://BCN.Convoca.la/feed/ics');
+  assert.deepEqual(id, { d: 'gancio:bcn.convoca.la', source: 'gancio', role: 'calendar', feedUrl: 'https://bcn.convoca.la/feed/ics', pageUrl: 'https://bcn.convoca.la' });
+  assert.equal(identify('https://bcn.convoca.la/feed/ics?tags=musica').source, 'ics', 'a filtered feed is not the instance');
+  assert.equal(identify('https://example.org/other/feed/ics').source, 'ics');
+  assert.equal(localName('gancio:bcn.convoca.la'), 'gancio-bcn-convoca-la');
+});
+
 test('a public Google calendar is identified by its calendar id', () => {
   const id = identify('https://calendar.google.com/calendar/ical/calendar%40kubernetes.io/public/basic.ics');
   assert.equal(id.d, 'google:calendar@kubernetes.io');

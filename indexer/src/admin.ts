@@ -36,7 +36,7 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, importCommunities, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type AdminStores, type Cities, type Communities } from './service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, importGancio, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type AdminStores, type Cities, type Communities, type GancioList } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 import { discoveredStore, type Found } from './store/discovered.ts';
@@ -50,6 +50,7 @@ const USAGE = `usage: admin.ts <command>
   status
   import-seeds <seed.json>... [--cities <cities.json>]
   import-aggregators [--cities <cities.json>] [--only <slug>,...]
+  import-gancio <gancio.json>
   discoveries [--hours <n>]
   coverage [--pubkey <hex or npub>] [--relay <wss://…>] [--save]
   submissions
@@ -123,6 +124,13 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
       for (const name of r.native) out(`native publisher, not filed: ${name}`);
       out(`filed ${r.filed.length}, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
+      return;
+    }
+    case 'import-gancio': {
+      if (!args[0]) throw new UsageError('import-gancio needs the Gancio list (seeds/gancio.json)');
+      const r = importGancio(s, JSON.parse(readFileSync(args[0], 'utf8')) as GancioList, now);
+      for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
+      out(`filed ${r.filed.length} Gancio instances, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
       return;
     }
     case 'import-aggregators': {
