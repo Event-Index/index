@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeFeed, type NormalizedFeed } from '../src/normalize/normalize.ts';
 import { openIndexDb, type IndexDb } from '../src/store/index-db.ts';
-import { projectFeed, cohostPlan, type Planned, type ProjectorInput } from '../src/project/projector.ts';
+import { projectFeed, cohostPlan, cohostPlanOf, listingsFor, type Planned, type ProjectorInput } from '../src/project/projector.ts';
 import { identify } from '../src/directory/id.ts';
 import { nostrD } from '../src/project/ids.ts';
 import { readFixture, feedUrlFor, NOW } from './helpers.ts';
@@ -175,4 +175,13 @@ test('a co-host whose copy has no title does not take the event from the others'
   const db = openIndexDb(':memory:');
   const published = run(higher, db, NOW, { plan }).publish.filter((p) => p.template.kind === 31923);
   assert.equal(published.length, 1);
+});
+
+test('the co-host plan from each calendar\'s listings is the plan from their feeds, and listings hold no parsed feed', () => {
+  const feeds = ['luma-calendar-craftnook.ics', 'luma-calendar-journaling.ics', 'meetup-pythonsd.ics'].map((f) => feed(f));
+  const listings = feeds.map((f) => listingsFor(f, NOW));
+  for (const list of listings) assert.deepEqual(JSON.parse(JSON.stringify(list)), list, 'plain strings and numbers');
+  const fromListings = cohostPlanOf(listings.flat());
+  assert.deepEqual(fromListings, cohostPlan(feeds, NOW));
+  assert.ok(fromListings.canonicalOf.size > 0, 'the fixtures co-host');
 });

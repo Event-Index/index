@@ -93,6 +93,25 @@ test('a copy of another calendar\'s event is not an item; the original is', asyn
   for (const id of originals) assert.ok(ids.has(id), 'the original is an item');
 });
 
+test('after a restart, a calendar polled alone still yields its copy to the other calendar, known from its stored records', async () => {
+  const s = stores();
+  const shared = readFixture(FIXTURES[0]!).split(/(?=^BEGIN:VEVENT$)/m).find((b) => b.includes('SUMMARY:craftyween party'))!.replace(/END:VCALENDAR\s*$/, '');
+  const cohosting = readFixture(FIXTURES[1]!).replace(/END:VCALENDAR\s*$/, `${shared}END:VCALENDAR\n`);
+  const first = service(s, ITEMS, { texts: { [FIXTURES[1]!]: cohosting } });
+  await first.indexer.tick();
+  for (const f of FIXTURES) pollAgain(s, identify(feedUrlFor(f)).d);
+  await first.indexer.tick();
+  const copiesBefore = FIXTURES.flatMap((f) => first.events.byCalendar(identify(feedUrlFor(f)).d, NOW, NOW + 400 * 86400)).filter((r) => r.canonical).map((r) => [r.id, r.canonical]);
+  assert.ok(copiesBefore.length > 0);
+
+  // A restart; then only the co-hosting calendar is polled.
+  const second = service(s, ITEMS, { texts: { [FIXTURES[1]!]: cohosting }, at: NOW + 60 });
+  pollAgain(s, identify(feedUrlFor(FIXTURES[1]!)).d);
+  await second.indexer.tick();
+  const copiesAfter = FIXTURES.flatMap((f) => second.events.byCalendar(identify(feedUrlFor(f)).d, NOW, NOW + 400 * 86400)).filter((r) => r.canonical).map((r) => [r.id, r.canonical]);
+  assert.deepEqual(copiesAfter, copiesBefore);
+});
+
 test('an unchanged item is not sent again; a changed one is, newer', async () => {
   const s = stores();
   const first = service(s, ITEMS);

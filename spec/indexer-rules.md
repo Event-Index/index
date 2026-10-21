@@ -101,6 +101,12 @@ An accepted URL is canonicalized ([`icalendar-profile.md`](icalendar-profile.md)
 Across directory calendars: [`nip52-mapping.md`](nip52-mapping.md) § 5. Within
 one feed: [`icalendar-profile.md`](icalendar-profile.md) § 3.
 
+A poll resolves its calendar's events against every other mirrored
+calendar's as of that calendar's last poll (after a restart, as its stored
+records give them). The poll service keeps only each calendar's listings
+for this (UID, URL, start, organizer and ids per occurrence), not its parsed
+feed.
+
 ## 6. Vanished events and quarantine
 
 Each poll is compared with the events the calendar has published.

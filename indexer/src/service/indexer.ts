@@ -13,7 +13,8 @@ import { adapterFor } from '../adapters/index.ts';
 import { recordFromText, type CalendarMeta, type NormalizedFeed } from '../normalize/normalize.ts';
 import { pollCalendar } from '../poller/poll.ts';
 import type { FetchResult, Validators } from '../poller/fetch.ts';
-import { cohostPlan, cohostsIn, projectable, type CohostPlan } from '../project/projector.ts';
+import { cohostPlanOf, cohostsIn, listingsFor, projectable, type CohostPlan } from '../project/projector.ts';
+import type { Listing } from '../rules/dedupe.ts';
 import { deletionFor, INDEX_NAME } from '../project/profile.ts';
 import { geoOf, imageOf, locationsOf, summaryOf, venueHidden, type EventTemplate } from '../project/nip52.ts';
 import { encodeGeohash } from '../project/geohash.ts';
@@ -224,7 +225,13 @@ export function createIndexer(deps: IndexerDeps) {
   dir.setFact('index_pubkey', indexPubkey);
   // What organizers seal their signer's connection to (claim/seal.ts).
   dir.setFact('intake_pubkey', vault.intakePubkey);
-  const feeds = new Map<string, NormalizedFeed>();
+  // Each mirrored calendar's listings for co-host resolution (rules/dedupe.ts),
+  // as of its last poll, or its stored records until it polls: plain data,
+  // not the parsed feed (spec/indexer-rules.md § 5).
+  const listings = new Map<string, Listing[]>();
+  // The co-host plan of one calendar's fresh listings with every other's.
+  const planWith = (d: string, own: Listing[]): CohostPlan =>
+    cohostPlanOf([...[...listings].filter(([other]) => other !== d).flatMap(([, list]) => list), ...own]);
   // The NIP-52 events read from relays, as their publishers signed them.
   const store = nostrStore(db);
   const aggregators = deps.aggregators ?? loadAggregators();
@@ -308,48 +315,57 @@ export function createIndexer(deps: IndexerDeps) {
   async function readPages(now: number): Promise<void> {
     if (!pages || !pageReader) return;
     pages.forgetBefore(now - PAGE_KEPT);
-    const touched = new Set<string>();
+    // A touched calendar's feed is built from its stored records, once.
+    const touched = new Map<string, NormalizedFeed | null>();
     for (const { calendarD, uid } of await pageReader.step(now, PAGES_PER_TICK)) {
       const entry = dir.get(calendarD);
-      const feed = feeds.get(calendarD);
       const row = pages.get(calendarD, uid);
-      const record = feed?.records.find((r) => r.uid === uid);
-      if (!entry || !readsPages(entry) || !row || !record?.master) continue;
+      if (!entry || !readsPages(entry) || !row) continue;
+      if (!touched.has(calendarD)) touched.set(calendarD, storedFeed(entry));
+      const record = touched.get(calendarD)?.records.find((r) => r.uid === uid);
+      if (!record?.master) continue;
       applyPage(record.master, row.feed, row.facts, row.url);
       db.putRecord({ calendarD, uid, id: record.id, ics: `${ICAL.stringify(record.component.toJSON())}\r\n`, now });
-      touched.add(calendarD);
     }
-    for (const d of touched) events.replaceCalendar(d, eventRows(feeds.get(d)!, cohostPlan([...feeds.values()], now), now));
+    for (const [d, feed] of touched) {
+      if (!feed) continue;
+      const own = listingsFor(feed, now);
+      listings.set(d, own);
+      events.replaceCalendar(d, eventRows(feed, planWith(d, own), now));
+    }
   }
 
-  // The co-host plan needs every calendar's events; until a calendar polls,
-  // its stored records stand in for its feed.
-  for (const entry of dir.list()) {
-    if (entry.role !== 'calendar' || entry.mode === 'own') continue;
+  // A calendar's feed as its stored records give it, for one use.
+  function storedFeed(entry: StoredEntry): NormalizedFeed | null {
     const records = db.recordsOf(entry.d);
-    if (records.length === 0) continue;
+    if (records.length === 0) return null;
     try {
-      feeds.set(entry.d, {
+      return {
         context: { ...identityOf(entry), entryName: entry.name },
         calendar: metaOf(entry, dir.calendarMeta(entry.d)),
         records: records.map((r) => recordFromText(r.ics, r.uid, r.id)),
         zones: { resolved: new Map(), fromFeed: [], unknown: [] },
         log: [],
-      });
+      };
     } catch (error) {
       deps.log(`stored records of ${entry.d}: ${(error as Error).message}`);
+      return null;
     }
   }
-  // Events stored before their pages were read are read from now on; a
-  // record a page already added to has its row.
-  if (pages) {
-    for (const entry of dir.list()) {
-      const feed = feeds.get(entry.d);
-      if (!feed || !readsPages(entry)) continue;
-      for (const { record, master, url, start, end } of pageEvents(feed)) {
-        if (pages.get(entry.d, record.uid) || master.hasProperty('x-eventindex-enriched')) continue;
-        pages.observe({ calendarD: entry.d, uid: record.uid, url, start, end, feed: feedSays(master) });
-      }
+
+  // The co-host plan needs every calendar's events; until a calendar polls,
+  // its stored records give its listings. Events stored before their pages
+  // were read are read from now on; a record a page already added to has
+  // its row.
+  for (const entry of dir.list()) {
+    if (entry.role !== 'calendar' || entry.mode === 'own') continue;
+    const feed = storedFeed(entry);
+    if (!feed) continue;
+    listings.set(entry.d, listingsFor(feed, deps.now()));
+    if (!pages || !readsPages(entry)) continue;
+    for (const { record, master, url, start, end } of pageEvents(feed)) {
+      if (pages.get(entry.d, record.uid) || master.hasProperty('x-eventindex-enriched')) continue;
+      pages.observe({ calendarD: entry.d, uid: record.uid, url, start, end, feed: feedSays(master) });
     }
   }
 
@@ -988,7 +1004,7 @@ const NATIVE_BUILD_SHARE = 500;
     }
     dir.setOwnership(entry.d, { mode: 'own', owner, claimedAt: now, nativeCalendar: ownerCalendar });
     itemsSoon();
-    feeds.delete(entry.d);
+    listings.delete(entry.d);
     for (const [oldD, copy] of matched) pointRecord(entry, oldD, publicEventId(entry.d, nostrD(nativeUid(copy.event))), now);
     applyOwnRead(dir.get(entry.d)!, read, now);
     return 'done';
@@ -1027,7 +1043,7 @@ const NATIVE_BUILD_SHARE = 500;
       vault.forgetConnection(entry.d);
       dir.setOwnership(entry.d, { mode: 'own', owner: entry.owner, claimedAt: entry.claimedAt, nativeCalendar: null });
       rehost();
-      feeds.delete(entry.d);
+      listings.delete(entry.d);
       if (deps.reader) {
         const read = await readOwner(entry.owner);
         if (read.ok) applyOwnRead(dir.get(entry.d)!, read, now);
@@ -1151,7 +1167,7 @@ const NATIVE_BUILD_SHARE = 500;
     itemsSoon();
     if (entry.mode === 'delegated') rehost();
     events.removeCalendar(entry.d);
-    feeds.delete(entry.d);
+    listings.delete(entry.d);
     deps.log(`removed ${entry.d}`);
   }
 
@@ -1195,8 +1211,9 @@ const NATIVE_BUILD_SHARE = 500;
   }
 
   async function poll(entry: StoredEntry, now: number, report: TickReport): Promise<void> {
-    const planFor = (feed: NormalizedFeed): CohostPlan =>
-      cohostPlan([...[...feeds.entries()].filter(([d]) => d !== entry.d).map(([, f]) => f), feed], now);
+    // The fresh feed's listings, kept for the next polls of other calendars.
+    let fresh: Listing[] | null = null;
+    const planFor = (feed: NormalizedFeed): CohostPlan => planWith(entry.d, (fresh = listingsFor(feed, now)));
     const delegated = entry.mode === 'delegated';
     const home = delegated ? homeOf(entry) : null;
     const sessions: RemoteSession[] = [];
@@ -1235,7 +1252,7 @@ const NATIVE_BUILD_SHARE = 500;
     dir.setCalendarMeta(entry.d, feed.calendar);
     verifyTokens(entry.d, result.text, now);
     if (result.status === 'aggregator') return;
-    feeds.set(entry.d, feed);
+    listings.set(entry.d, fresh ?? listingsFor(feed, now));
     events.replaceCalendar(entry.d, eventRows(feed, result.plan, now));
     report.published += result.published;
     for (const line of result.log) deps.log(`poll ${entry.d}: ${line}`);

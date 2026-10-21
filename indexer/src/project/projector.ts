@@ -3,10 +3,10 @@
 // calendar, and withdrawals (republished as cancelled, or deleted). The caller signs and
 // publishes them, then records each with the store's markPublished.
 
-import type { NormalizedFeed } from '../normalize/normalize.ts';
+import type { EventRecord, NormalizedFeed } from '../normalize/normalize.ts';
 import type { IndexDb, Published } from '../store/index-db.ts';
 import { reconcilePoll, observe, type PresenceState, type QuarantineReason } from '../rules/presence.ts';
-import { resolveCohosts, listingsOf } from '../rules/dedupe.ts';
+import { resolveCohosts, listingsOf, type Listing } from '../rules/dedupe.ts';
 import { capPerCalendar, spreadCreatedAt, MAX_PER_SECOND } from '../rules/limits.ts';
 import { occurrences, projectionWindow, type Occurrence } from './window.ts';
 import { projectOccurrence, projectionContext, API_BASE, CANCELLED_PREFIX, type EventTemplate, type Tag } from './nip52.ts';
@@ -54,13 +54,17 @@ export function projectable(feed: NormalizedFeed, now: number, log: string[] = [
   });
 }
 
-// Co-hosts across every directory calendar the index polls.
-export function cohostPlan(feeds: NormalizedFeed[], now: number): CohostPlan {
+// A calendar's listings for co-host resolution (rules/dedupe.ts): plain
+// strings and numbers, so the poll service keeps these, not the parsed feed.
+export function listingsFor(feed: NormalizedFeed, now: number): Listing[] {
+  const byRecord = new Map<EventRecord, Occurrence[]>();
+  for (const o of projectable(feed, now)) byRecord.set(o.record, [...(byRecord.get(o.record) ?? []), o]);
+  return listingsOf(feed, (record) => byRecord.get(record) ?? []);
+}
+
+// Co-hosts across every directory calendar the index polls, from their listings.
+export function cohostPlanOf(listings: Listing[]): CohostPlan {
   const plan: CohostPlan = { yields: new Map(), cohostsOf: new Map(), cohosted: new Map(), canonicalOf: new Map() };
-  const listings = feeds.flatMap((f) => {
-    const all = projectable(f, now);
-    return listingsOf(f, (record) => all.filter((o) => o.record === record));
-  });
   for (const resolution of resolveCohosts(listings)) {
     if (resolution.cohosts.length === 0) continue;
     const { canonical } = resolution;
@@ -74,6 +78,10 @@ export function cohostPlan(feeds: NormalizedFeed[], now: number): CohostPlan {
     }
   }
   return plan;
+}
+
+export function cohostPlan(feeds: NormalizedFeed[], now: number): CohostPlan {
+  return cohostPlanOf(feeds.flatMap((f) => listingsFor(f, now)));
 }
 
 export interface ProjectorInput {
