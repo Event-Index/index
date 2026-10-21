@@ -66,7 +66,7 @@ Tags in this order; a tag with no value is left out. `content` is empty.
 | `index-id` | the public id again, for the Event Index link |
 | `url` | for any other source, the event's own page |
 | `image` | the event's image, only where its source's content policy allows images |
-| `t` | the calendar's city's slug, then the source |
+| `t` | the calendar's city's slug, or `global` for a calendar of no one city (its area `Worldwide` or `Online`), then the source |
 | `i`, `k` | the event's page as a NIP-73 identifier, kind `web` |
 | `expiration` | NIP-40: the event's end (all-day: its exclusive end date at 00:00 UTC; with no end, its start) plus 30 days |
 | `alt` | `<calendar name>: <title>` |

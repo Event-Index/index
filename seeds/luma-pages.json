@@ -1,0 +1,18 @@
+{
+  "note": "Luma listing pages discovery reads besides the city pages: each category page and /discover. Read only to find calendars; their lists, order and featuring are not kept or published.",
+  "pages": [
+    { "slug": "discover", "url": "https://luma.com/discover" },
+    { "slug": "ai", "url": "https://luma.com/ai" },
+    { "slug": "arts", "url": "https://luma.com/arts" },
+    { "slug": "books", "url": "https://luma.com/books" },
+    { "slug": "climate", "url": "https://luma.com/climate" },
+    { "slug": "crypto", "url": "https://luma.com/crypto" },
+    { "slug": "family", "url": "https://luma.com/family" },
+    { "slug": "fitness", "url": "https://luma.com/fitness" },
+    { "slug": "food", "url": "https://luma.com/food" },
+    { "slug": "games", "url": "https://luma.com/games" },
+    { "slug": "running", "url": "https://luma.com/running" },
+    { "slug": "tech", "url": "https://luma.com/tech" },
+    { "slug": "wellness", "url": "https://luma.com/wellness" }
+  ]
+}

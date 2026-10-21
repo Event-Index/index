@@ -102,6 +102,19 @@ files the named public calendars of its events, found via the page's `d`
 (`../spec/indexer-rules.md` § 2); `eventindex-admin discoveries [--hours <n>]`
 lists what it filed, skipped and refused.
 
+## Luma listing pages
+
+`luma-pages.json` lists the Luma pages discovery reads besides the city
+pages: each category page and `/discover`. They are discovery inputs only,
+with no directory entry: the poll service reads each every six hours and
+files the named public calendars they show, each under the area the
+calendar states, or `Worldwide` (`../spec/indexer-rules.md` § 2). Their
+lists, order and featuring are never kept or published.
+
+```json
+{ "pages": [{ "slug": "tech", "url": "https://luma.com/tech" }] }
+```
+
 ## nostr aggregators
 
 `nostr-aggregators.json` lists nostr keys that publish other organizers'

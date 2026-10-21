@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeFeed } from '../src/normalize/normalize.ts';
-import { directoryEntry, eventsHeader } from '../src/directory/entry.ts';
+import { directoryEntry, eventsHeader, citySlug } from '../src/directory/entry.ts';
 import { identify } from '../src/directory/id.ts';
 import { readFixture, feedUrlFor } from './helpers.ts';
 
@@ -138,4 +138,11 @@ test('a calendar published for its organizer, as them, keeps its feed and names 
   assert.equal(entry.tags.find((t) => t[0] === 'source')![1], 'meetup');
   assert.equal(entry.tags.find((t) => t[0] === 'feed')![1], 'https://www.meetup.com/pythonsd/events/ical/');
   assert.deepEqual(entry.tags.find((t) => t[0] === 'calendar'), ['calendar', `31924:${OWNER}:meetup:pythonsd`]);
+});
+
+test('a calendar of no one city is tagged global: Worldwide or Online, and no city otherwise', () => {
+  assert.equal(citySlug('Worldwide'), 'global');
+  assert.equal(citySlug('Online'), 'global');
+  assert.equal(citySlug('Oslo, NO'), 'oslo');
+  assert.equal(citySlug(null), null);
 });

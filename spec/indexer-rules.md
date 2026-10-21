@@ -49,6 +49,23 @@ Status: draft.
   - Caps: one run of one page takes at most 25 new calendars (the rest wait
     for its next run); discovery files at most 1,000 calendars a day. A tick
     checks at most 5 feeds.
+- **Listing pages.** Luma's category pages (`https://luma.com/<category>`) and
+  `https://luma.com/discover`, as `seeds/luma-pages.json` lists them, are read
+  the same way: every 6 hours each, one page a tick, city pages and listing
+  pages taking turns (the one due longest first), under the same skips and
+  caps. A listing page is a discovery input only: it gets no directory entry,
+  and the index keeps and publishes none of its lists, order or featuring.
+  The page's `__NEXT_DATA__` names each calendar it shows (`api_id`, `name`,
+  `slug`, `is_personal`, `access_level`) and the place the calendar states
+  (`location.city`, `location.country`, `coordinate`). A calendar filed from
+  one takes `found_via` `luma-page:<slug>` and the area it states:
+  - with a city: `<city>, <country code>` (the ISO 3166 code of the country
+    it names, or the name itself when it has none), and the geohash of its
+    point to 4 characters when it gives one;
+  - with none: `Worldwide`, and no `g`. Its entry and its items carry the
+    city tag `global` ([`directory.md`](directory.md),
+    [`event-items.md`](event-items.md)). A calendar that states it is online
+    (no Luma calendar does today) would be `Online`, tagged `global` too.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
 - Filing many entries at once spreads their `created_at` so that no second
   holds more than 1,000 events.

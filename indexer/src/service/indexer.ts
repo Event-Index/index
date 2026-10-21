@@ -28,7 +28,7 @@ import type { QueueStore } from '../store/queues.ts';
 import type { EventRow, EventStore } from '../store/events.ts';
 import type { Filter } from 'nostr-tools/filter';
 import { setsFor, type RelaySet } from './routing.ts';
-import { createDiscovery } from './discovery.ts';
+import { createDiscovery, type ListedPage } from './discovery.ts';
 import { discoveredStore } from '../store/discovered.ts';
 import { eventItem, expiryDeletions, type ItemCopy } from '../project/items.ts';
 import { relayPauses } from './publisher.ts';
@@ -112,6 +112,9 @@ export interface IndexerDeps {
   // The most events signed through a remote signer in one poll.
   signBatch?: number;
   maxPollsPerTick?: number;
+  // Luma listing pages discovery reads besides the city pages
+  // (seeds/luma-pages.json; none unless given).
+  listedPages?: ListedPage[];
   // The seeded cities (seeds/cities.json), for the zone of an event item.
   cities?: City[];
   // Event items signed in one tick, and created_at seconds they are spread over.
@@ -272,6 +275,7 @@ export function createIndexer(deps: IndexerDeps) {
     fetch: deps.fetch,
     log: deps.log,
     settings: { perRun: settings.discoveryPerRun, perDay: settings.discoveryPerDay, checksPerStep: DISCOVERY_CHECKS_PER_TICK },
+    ...(deps.listedPages ? { listedPages: deps.listedPages } : {}),
   });
 
   // Organizers the relay hosts: those of calendars the index publishes as,

@@ -29,6 +29,8 @@ export interface FoundDetail {
   event?: string;
   url?: string;
   hosts?: string[];
+  // For a calendar found on a listing page: the area it states.
+  area?: { location: string; g: string | null };
 }
 
 export interface Found {

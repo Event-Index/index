@@ -123,3 +123,56 @@ export function seedable(calendars: DiscoveredCalendar[]): { seed: DiscoveredCal
   }
   return { seed, skipped };
 }
+
+// The place a Luma calendar states for itself, if any.
+export interface CalendarPlace {
+  city: string;
+  country: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface ListedCalendar extends PageCalendar {
+  place: CalendarPlace | null;
+}
+
+// The calendars a Luma listing page shows (a category page, or /discover),
+// each with the place it states, read from the page's own data. Only what
+// leads to calendars is taken; the page's lists, order and featuring are not.
+export function lumaListedCalendars(html: string): ListedCalendar[] {
+  const match = /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/.exec(html);
+  if (!match) return [];
+  let data: unknown;
+  try {
+    data = JSON.parse(match[1]!);
+  } catch {
+    return [];
+  }
+  const found = new Map<string, ListedCalendar>();
+  const walk = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    const o = value as Record<string, unknown>;
+    const id = o['api_id'];
+    if (typeof id === 'string' && /^cal-[A-Za-z0-9]+$/.test(id) && typeof o['name'] === 'string' && !found.has(id)) {
+      const location = o['location'] as Record<string, unknown> | null | undefined;
+      const coordinate = o['coordinate'] as Record<string, unknown> | null | undefined;
+      const city = text(location?.['city']);
+      const number = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+      found.set(id, {
+        id,
+        name: o['name'],
+        slug: text(o['slug']),
+        personal: o['is_personal'] === true,
+        access: text(o['access_level']) ?? 'public',
+        place: city ? { city, country: text(location?.['country']), latitude: number(coordinate?.['latitude']), longitude: number(coordinate?.['longitude']) } : null,
+      });
+    }
+    Object.values(o).forEach(walk);
+  };
+  walk(data);
+  return [...found.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
+}

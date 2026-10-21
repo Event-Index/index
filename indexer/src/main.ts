@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     pause: () => new Promise((resolve) => setTimeout(resolve, 300)),
     log,
     signal: controller.signal,
+    listedPages: (JSON.parse(readFileSync(new URL('../../seeds/luma-pages.json', import.meta.url), 'utf8')) as { pages: Array<{ slug: string; url: string }> }).pages,
   });
   log(`indexer started as ${npubEncode(getPublicKey(indexKey))}; general relays ${settings.publishToGeneralRelays ? 'on' : 'off'}; claimants ${settings.hostClaimants ? 'hosted' : 'not hosted'} on the relay; NIP-52 ingestion ${settings.ingestNip52 ? 'on' : 'off'}; Meetup pages ${settings.meetupPages ? 'read' : 'not read'}`);
 

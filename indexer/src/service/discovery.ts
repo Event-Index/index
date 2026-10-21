@@ -1,6 +1,8 @@
 // Discovery (indexer rules § 2): every six hours the index reads each Luma
 // city page it lists as an aggregator, once, and takes the calendar of each
-// event the page shows. A named public calendar is checked like a submission
+// event the page shows; and each listing page it is given (Luma's category
+// pages and /discover, seeds/luma-pages.json), taking the calendars shown,
+// each under the area it states, or Worldwide. A named public calendar is checked like a submission
 // and filed under the page's area, to be polled at the next tick; a
 // platform default or a calendar that is not public is skipped, and each skip
 // is recorded once. Caps keep a bad page from flooding the directory: new
@@ -9,7 +11,8 @@
 
 import { identify } from '../directory/id.ts';
 import { seedFeedUrl } from '../directory/seed.ts';
-import { lumaCityPage, type PageEvent } from '../directory/discover.ts';
+import { lumaCityPage, lumaListedCalendars, type CalendarPlace, type PageCalendar, type PageEvent } from '../directory/discover.ts';
+import { encodeGeohash } from '../project/geohash.ts';
 import { autoApprovable, validateFeed } from '../directory/validate.ts';
 import { normalizeFeed, FeedParseError } from '../normalize/normalize.ts';
 import type { FetchResult, Validators } from '../poller/fetch.ts';
@@ -22,6 +25,49 @@ const RETRY = 3600;
 const DAY = 86400;
 const NEXT = 'discovery_next ';
 const LUMA_PAGE = /^https:\/\/luma\.com\/[A-Za-z0-9_-]+$/;
+// A listing page's key, for its schedule and for what it found.
+export const LISTED = 'luma-page:';
+// The area of a calendar that states no place.
+export const WORLDWIDE = 'Worldwide';
+// A calendar's usual area: precision 4 (about 39 km by 20 km), as a city's.
+const AREA_PRECISION = 4;
+
+// A Luma listing page discovery reads.
+export interface ListedPage {
+  slug: string;
+  url: string;
+}
+
+// ISO 3166 codes by English country name, with the names Luma may use besides.
+const COUNTRY = (() => {
+  const names = new Intl.DisplayNames(['en'], { type: 'region' });
+  const codes = new Map<string, string>();
+  for (let a = 65; a <= 90; a += 1) {
+    for (let b = 65; b <= 90; b += 1) {
+      const code = String.fromCharCode(a, b);
+      try {
+        // The first code of a name wins: FR before FX ("France", reserved).
+        const name = names.of(code);
+        if (name && name !== code && !codes.has(name.toLowerCase())) codes.set(name.toLowerCase(), code);
+      } catch { /* not a region */ }
+    }
+  }
+  for (const [name, code] of [['turkey', 'TR'], ['czech republic', 'CZ'], ['usa', 'US'], ['united states of america', 'US'], ['uk', 'GB'], ['korea', 'KR'], ['russia', 'RU'], ['vietnam', 'VN'],
+    ['hong kong', 'HK'], ['macau', 'MO'], ['macao', 'MO']] as const) codes.set(name, code);
+  return codes;
+})();
+
+// The area a calendar found on a listing page states: its city, with its
+// country's code where known, and a geohash where it gives a point; with no
+// city, Worldwide and no geohash.
+export function areaOf(place: CalendarPlace | null): { location: string; g: string | null } {
+  if (!place) return { location: WORLDWIDE, g: null };
+  const country = place.country ? COUNTRY.get(place.country.toLowerCase()) ?? place.country : null;
+  return {
+    location: country ? `${place.city}, ${country}` : place.city,
+    g: place.latitude !== null && place.longitude !== null ? encodeGeohash(place.latitude, place.longitude, AREA_PRECISION) : null,
+  };
+}
 
 export interface DiscoverySettings {
   // New calendars one run of one page may take.
@@ -38,6 +84,8 @@ export interface DiscoveryDeps {
   fetch: (url: string, validators: Validators) => Promise<FetchResult>;
   log: (line: string) => void;
   settings: DiscoverySettings;
+  // The listing pages read besides the city pages.
+  listedPages?: ListedPage[];
 }
 
 export interface StepReport {
@@ -66,6 +114,64 @@ export function createDiscovery(deps: DiscoveryDeps) {
     return dir.list().filter((e) => e.role === 'aggregator' && e.source === 'luma' && !!e.pageUrl && LUMA_PAGE.test(e.pageUrl) && !dir.doNotIndex(e.d));
   }
 
+  // What a page shows: each calendar not yet known is skipped (a platform
+  // default, or not public) or waits to be checked, at most the cap a run.
+  function take(label: string, place: string, shown: Array<{ calendar: PageCalendar; detail: FoundDetail }>, now: number) {
+    const n = { queued: 0, known: 0, skipped: 0, waiting: 0, overCap: 0 };
+    for (const { calendar, detail } of shown) {
+      const d = `luma:${calendar.id}`;
+      if (dir.get(d) || dir.doNotIndex(d)) {
+        n.known += 1;
+        continue;
+      }
+      const seen = found.get(d);
+      if (seen && (seen.status !== 'refused' || (seen.decidedAt ?? 0) > now - DAY)) {
+        found.seen(d, now);
+        if (seen.status === 'skipped') n.skipped += 1;
+        else n.waiting += 1;
+        continue;
+      }
+      const name = calendar.name || null;
+      const skip = calendar.access !== 'public' ? 'not-public' : calendar.personal || calendar.name === 'Personal' ? 'platform-default-calendar' : null;
+      if (skip) {
+        found.record({ d, place, name, status: 'skipped', reason: skip, detail, at: now });
+        deps.log(`${label}: skipped ${d} (${skip})`);
+        n.skipped += 1;
+        continue;
+      }
+      if (n.queued >= settings.perRun) {
+        n.overCap += 1;
+        continue;
+      }
+      found.record({ d, place, name, status: 'candidate', detail, at: now });
+      n.queued += 1;
+    }
+    return n;
+  }
+  const summary = (n: ReturnType<typeof take>) => `${n.queued} new to check, ${n.known} already listed or kept out, ${n.skipped} skipped${n.waiting ? `, ${n.waiting} waiting` : ''}`
+    + `${n.overCap ? `, ${n.overCap} over the cap of ${settings.perRun} a run` : ''}`;
+
+  async function readListed(page: ListedPage, now: number): Promise<NonNullable<StepReport['page']>> {
+    const key = LISTED + page.slug;
+    const label = `discovery ${page.url}`;
+    if (!LUMA_PAGE.test(page.url)) {
+      dir.setFact(NEXT + key, String(now + DISCOVERY_INTERVAL));
+      return { place: key, error: 'not-a-luma-page', events: 0, calendars: 0, queued: 0 };
+    }
+    const fetched = await deps.fetch(page.url, {});
+    if (fetched.status !== 'ok') {
+      const code = fetched.status === 'error' ? fetched.code : 'not-modified';
+      dir.setFact(NEXT + key, String(now + RETRY));
+      deps.log(`${label}: ${code}; tried again in an hour`);
+      return { place: key, error: code, events: 0, calendars: 0, queued: 0 };
+    }
+    dir.setFact(NEXT + key, String(now + DISCOVERY_INTERVAL));
+    const calendars = lumaListedCalendars(fetched.text);
+    const n = take(label, key, calendars.map((calendar) => ({ calendar, detail: { area: areaOf(calendar.place) } })), now);
+    deps.log(`${label}: ${plural(calendars.length, 'calendar')}: ${summary(n)}`);
+    return { place: key, events: 0, calendars: calendars.length, queued: n.queued };
+  }
+
   async function readPage(entry: StoredEntry, now: number): Promise<NonNullable<StepReport['page']>> {
     const placeId = entry.d.slice('luma:'.length);
     const label = `discovery ${cityOf(entry)} (${entry.d})`;
@@ -85,38 +191,8 @@ export function createDiscovery(deps: DiscoveryDeps) {
     // The first event shown stands for its calendar.
     const calendars = new Map<string, PageEvent>();
     for (const e of page.events) if (!calendars.has(e.calendar.id)) calendars.set(e.calendar.id, e);
-    const n = { queued: 0, known: 0, skipped: 0, waiting: 0, overCap: 0 };
-    for (const [id, e] of calendars) {
-      const d = `luma:${id}`;
-      if (dir.get(d) || dir.doNotIndex(d)) {
-        n.known += 1;
-        continue;
-      }
-      const seen = found.get(d);
-      if (seen && (seen.status !== 'refused' || (seen.decidedAt ?? 0) > now - DAY)) {
-        found.seen(d, now);
-        if (seen.status === 'skipped') n.skipped += 1;
-        else n.waiting += 1;
-        continue;
-      }
-      const name = e.calendar.name || null;
-      const skip = e.calendar.access !== 'public' ? 'not-public' : e.calendar.personal || e.calendar.name === 'Personal' ? 'platform-default-calendar' : null;
-      if (skip) {
-        found.record({ d, place: entry.d, name, status: 'skipped', reason: skip, detail: detailOf(e), at: now });
-        deps.log(`${label}: skipped ${d} (${skip})`);
-        n.skipped += 1;
-        continue;
-      }
-      if (n.queued >= settings.perRun) {
-        n.overCap += 1;
-        continue;
-      }
-      found.record({ d, place: entry.d, name, status: 'candidate', at: now });
-      n.queued += 1;
-    }
-    deps.log(`${label}: ${plural(page.events.length, 'event')}, ${plural(calendars.size, 'calendar')}: ${n.queued} new to check, `
-      + `${n.known} already listed or kept out, ${n.skipped} skipped${n.waiting ? `, ${n.waiting} waiting` : ''}`
-      + `${n.overCap ? `, ${n.overCap} over the cap of ${settings.perRun} a run` : ''}`);
+    const n = take(label, entry.d, [...calendars.values()].map((e) => ({ calendar: e.calendar, detail: detailOf(e) })), now);
+    deps.log(`${label}: ${plural(page.events.length, 'event')}, ${plural(calendars.size, 'calendar')}: ${summary(n)}`);
     return { place: entry.d, events: page.events.length, calendars: calendars.size, queued: n.queued };
   }
 
@@ -143,11 +219,13 @@ export function createDiscovery(deps: DiscoveryDeps) {
     }
     if (feed.calendar.platformDefault) return decide('skipped', 'platform-default-calendar');
     if (!autoApprovable(identity, feed)) return decide('refused', 'no-events');
+    // Under its city page's area, or the area a listing page showed it with.
+    const area = place ? { location: place.location, g: place.g } : c.detail?.area ?? { location: WORLDWIDE, g: null };
     dir.add({
       d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
-      name: feed.calendar.name, description: null, image: null, location: place?.location ?? null, g: place?.g ?? null, foundVia: c.place, addedAt: now,
+      name: feed.calendar.name, description: null, image: null, location: area.location, g: area.g, foundVia: c.place, addedAt: now,
     });
-    deps.log(`discovery: filed ${identity.d} "${feed.calendar.name ?? ''}" from ${cityOf(place)}`);
+    deps.log(`discovery: filed ${identity.d} "${feed.calendar.name ?? ''}" from ${place ? cityOf(place) : c.place} (${area.location})`);
     found.decide(c.d, 'filed', null, now, feed.calendar.name);
     return { d: c.d, status: 'filed', reason: null };
   }
@@ -166,11 +244,15 @@ export function createDiscovery(deps: DiscoveryDeps) {
 
   return {
     async step(now: number): Promise<StepReport> {
-      const due = aggregators()
-        .map((e) => ({ e, at: Number(dir.fact(NEXT + e.d) ?? 0) }))
+      // City pages and listing pages alike: the one due longest is read.
+      const due = [
+        ...aggregators().map((e) => ({ key: e.d, read: () => readPage(e, now) })),
+        ...(deps.listedPages ?? []).map((p) => ({ key: LISTED + p.slug, read: () => readListed(p, now) })),
+      ]
+        .map((input) => ({ ...input, at: Number(dir.fact(NEXT + input.key) ?? 0) }))
         .filter(({ at }) => at <= now)
-        .sort((a, b) => a.at - b.at || (a.e.d < b.e.d ? -1 : 1))[0];
-      const page = due ? await readPage(due.e, now) : null;
+        .sort((a, b) => a.at - b.at || (a.key < b.key ? -1 : 1))[0];
+      const page = due ? await due.read() : null;
       return { page, checked: await check(now) };
     },
   };

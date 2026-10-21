@@ -30,8 +30,10 @@ export interface EntryInput {
   removed?: string;
 }
 
-// The slug of the city an area names ("San Diego, US" -> san-diego).
+// The slug of the city an area names ("San Diego, US" -> san-diego);
+// `global` for a calendar of no one city (its area Worldwide or Online).
 export function citySlug(location: string | null | undefined): string | null {
+  if (location && /^(?:worldwide|online)$/i.test(location.trim())) return 'global';
   const city = location?.split(',')[0]?.trim();
   return city ? city.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null : null;
 }

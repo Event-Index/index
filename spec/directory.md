@@ -25,12 +25,12 @@ The tags come in this order, and a tag with no value is left out:
 | `index-name` | the calendar's local name: its page is `eventindex.space/calendar/<name>` |
 | `feed` | the feed URL the calendar is read from; none when its events are read from nostr |
 | `source` | `luma`, `meetup`, `mobilizon`, `gancio`, `google`, `ics`, or `nostr` when its events are read from its organizer's own key |
-| `location` | the calendar's area, `<city>, <country code>` |
+| `location` | the calendar's area, `<city>, <country code>`; `Worldwide` (or `Online`) for a calendar of no one city ([`indexer-rules.md`](indexer-rules.md) § 2) |
 | `g` | the area's geohash |
 | `luma-id` | for a Luma calendar: its id, `cal-…` |
 | `meetup-group` | for a Meetup group: the group's name in its address |
 | `calendar` | a kind 31924 of the organizer's that the calendar stands for (below) |
-| `t` | the city's slug (`san-diego`), then the source; repeats |
+| `t` | the city's slug (`san-diego`), or `global` for a calendar of no one city, then the source; repeats |
 | `description` | the calendar's description, where the source's content policy serves descriptions ([`platform-adapters.md`](platform-adapters.md)) |
 | `image` | the calendar's image, where the source's content policy serves images |
 | `removed` | for a calendar removed at its organizer's request: `organizer request` ([`indexer-rules.md`](indexer-rules.md) § 10) |

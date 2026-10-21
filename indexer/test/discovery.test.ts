@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { openIndexDb } from '../src/store/index-db.ts';
 import { directoryStore, type Entry } from '../src/store/directory.ts';
 import { discoveredStore } from '../src/store/discovered.ts';
-import { lumaCityPage } from '../src/directory/discover.ts';
+import { lumaCityPage, lumaListedCalendars } from '../src/directory/discover.ts';
 import { directoryEntry } from '../src/directory/entry.ts';
-import { createDiscovery, DISCOVERY_INTERVAL, type DiscoverySettings } from '../src/service/discovery.ts';
+import { createDiscovery, areaOf, DISCOVERY_INTERVAL, type DiscoverySettings } from '../src/service/discovery.ts';
 import type { FetchResult } from '../src/poller/fetch.ts';
 import { NOW } from './helpers.ts';
 
@@ -67,7 +67,7 @@ function aggregator(extra: Partial<Entry> = {}): Entry {
   };
 }
 
-function setup(options: { pages?: Record<string, string>; feeds?: Record<string, string>; settings?: Partial<DiscoverySettings> } = {}) {
+function setup(options: { pages?: Record<string, string>; feeds?: Record<string, string>; settings?: Partial<DiscoverySettings>; listed?: Array<{ slug: string; url: string }>; noAggregator?: boolean } = {}) {
   const db = openIndexDb(':memory:');
   const dir = directoryStore(db);
   const found = discoveredStore(db);
@@ -84,8 +84,9 @@ function setup(options: { pages?: Record<string, string>; feeds?: Record<string,
       return text === undefined ? { status: 'error', code: 'http-404' } : { status: 'ok', text, etag: null, lastModified: null, finalUrl: url };
     },
     settings: { perRun: 25, perDay: 300, checksPerStep: 5, ...options.settings },
+    ...(options.listed ? { listedPages: options.listed } : {}),
   });
-  dir.add(aggregator());
+  if (!options.noAggregator) dir.add(aggregator());
   return { db, dir, found, log, fetched, discovery, answers };
 }
 
@@ -286,4 +287,89 @@ test('an aggregator\'s directory entry names its page\'s place but no calendar t
   // Luma's calendar link (luma.com/calendar/<id>) leads nowhere for a place.
   assert.ok(!names.includes('luma-id'));
   assert.deepEqual(entry.tags.find((t) => t[0] === 'location'), ['location', 'Testville, US']);
+});
+
+// A Luma listing page (a category, or /discover) as it carries its data:
+// calendars, each with the place it states, if any.
+interface ListedCal { cal: string; name?: string; personal?: boolean; access?: string; city?: string; country?: string; lat?: number; lon?: number }
+const calendarObject = (c: ListedCal) => ({
+  api_id: c.cal, name: c.name ?? `Calendar ${c.cal}`, slug: null, access_level: c.access ?? 'public', is_personal: c.personal ?? false,
+  location: c.city ? { city: c.city, region: null, country: c.country ?? 'United States', timezone: 'UTC' } : null,
+  coordinate: c.lat === undefined ? null : { latitude: c.lat, longitude: c.lon },
+});
+function listingPage(timeline: ListedCal[], featured: ListedCal[] = [], kind: 'category' | 'discover' = 'category'): string {
+  const initialData = kind === 'category'
+    ? { kind: 'category', data: { category: { api_id: 'cat-tech', slug: 'tech', name: 'Tech' }, timeline_calendars: timeline.map((c) => ({ calendar: calendarObject(c) })), featured_calendars: featured.map((c) => ({ calendar: calendarObject(c) })) } }
+    : { places: [], calendars: [...timeline, ...featured].map((c) => ({ calendar: calendarObject(c) })), categories: [] };
+  return `<html><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: { initialData } } })}</script></body></html>`;
+}
+const TECH = { slug: 'tech', url: 'https://luma.com/tech' };
+const DISCOVER = { slug: 'discover', url: 'https://luma.com/discover' };
+
+test('a Luma listing page names its calendars, each with the place it states', () => {
+  const page = listingPage([{ cal: 'cal-Oslo0000000001', name: 'Oslo Week', city: 'Oslo', country: 'Norway', lat: 59.9121746, lon: 10.7312704 }], [{ cal: 'cal-Global00000001', name: 'Global Meetups' }]);
+  assert.deepEqual(lumaListedCalendars(page), [
+    { id: 'cal-Global00000001', name: 'Global Meetups', slug: null, personal: false, access: 'public', place: null },
+    { id: 'cal-Oslo0000000001', name: 'Oslo Week', slug: null, personal: false, access: 'public', place: { city: 'Oslo', country: 'Norway', latitude: 59.9121746, longitude: 10.7312704 } },
+  ]);
+  assert.equal(lumaListedCalendars(listingPage([{ cal: 'cal-Disc000000001' }], [], 'discover')).length, 1);
+  assert.deepEqual(lumaListedCalendars('<html>no data</html>'), []);
+});
+
+test('discovery reads each listed page every six hours and files its calendars under the place each states; one with none is Worldwide, with no g', async () => {
+  const s = setup({
+    pages: {
+      [TECH.url]: listingPage(
+        [{ cal: 'cal-Oslo0000000001', name: 'Oslo Week', city: 'Oslo', country: 'Norway', lat: 59.9121746, lon: 10.7312704 }, { cal: 'cal-Pers000000001', name: 'Personal', personal: true }],
+        [{ cal: 'cal-Global00000001', name: 'Global Meetups' }, { cal: 'cal-Austin0000001', city: 'Austin', country: 'United States', lat: 30.267153, lon: -97.743061 }],
+      ),
+    },
+    feeds: {
+      [calendarUrl('cal-Oslo0000000001')]: calendarFeed('Oslo Week'),
+      [calendarUrl('cal-Global00000001')]: calendarFeed('Global Meetups'),
+      [calendarUrl('cal-Austin0000001')]: calendarFeed('Austin Builders'),
+    },
+    listed: [TECH],
+    noAggregator: true,
+  });
+  await drain(s.discovery, NOW);
+  const oslo = s.dir.get('luma:cal-Oslo0000000001')!;
+  assert.deepEqual([oslo.location, oslo.g, oslo.foundVia], ['Oslo, NO', 'u4xs', 'luma-page:tech']);
+  const global = s.dir.get('luma:cal-Global00000001')!;
+  assert.deepEqual([global.location, global.g], ['Worldwide', null]);
+  assert.equal(s.dir.get('luma:cal-Austin0000001')!.location, 'Austin, US');
+  assert.equal(s.dir.get('luma:cal-Pers000000001'), null);
+  assert.equal(s.found.get('luma:cal-Pers000000001')!.reason, 'platform-default-calendar');
+  assert.ok(!s.fetched.includes(calendarUrl('cal-Pers000000001')), 'a personal calendar\'s feed is never fetched');
+  const reads = () => s.fetched.filter((u) => u === TECH.url).length;
+  await drain(s.discovery, NOW + DISCOVERY_INTERVAL - 1);
+  assert.equal(reads(), 1);
+  await drain(s.discovery, NOW + DISCOVERY_INTERVAL);
+  assert.equal(reads(), 2, 'read again six hours on');
+});
+
+test('listed pages and city pages take turns, one page a step, under the same caps', async () => {
+  const s = setup({
+    pages: { [PAGE_URL]: cityPage([{ cal: 'cal-City000000001' }]), [DISCOVER.url]: listingPage([{ cal: 'cal-Disc000000001' }, { cal: 'cal-Disc000000002' }], [], 'discover') },
+    feeds: Object.fromEntries(['cal-City000000001', 'cal-Disc000000001', 'cal-Disc000000002'].map((id) => [calendarUrl(id), calendarFeed(id)])),
+    listed: [DISCOVER],
+    settings: { perRun: 1 },
+  });
+  const first = await s.discovery.step(NOW);
+  const second = await s.discovery.step(NOW);
+  assert.deepEqual([first.page?.place, second.page?.place].sort(), ['luma-page:discover', `luma:${PLACE.api_id}`].sort());
+  await drain(s.discovery, NOW);
+  assert.ok(s.dir.get('luma:cal-City000000001'));
+  assert.equal(['cal-Disc000000001', 'cal-Disc000000002'].filter((id) => s.dir.get(`luma:${id}`)).length, 1, 'the cap of one a run holds for a listed page');
+});
+
+test('a stated place is its city and its country\'s code; a country Luma names otherwise keeps its name', () => {
+  const at = (city: string, country: string | null) => areaOf({ city, country, latitude: null, longitude: null }).location;
+  assert.equal(at('Paris', 'France'), 'Paris, FR');
+  assert.equal(at('Hong Kong', 'Hong Kong'), 'Hong Kong, HK');
+  assert.equal(at('Istanbul', 'Turkey'), 'Istanbul, TR');
+  assert.equal(at('New York', 'United States'), 'New York, US');
+  assert.equal(at('Atlantis', 'Atlantica'), 'Atlantis, Atlantica');
+  assert.equal(at('Somewhere', null), 'Somewhere');
+  assert.deepEqual(areaOf(null), { location: 'Worldwide', g: null });
 });
