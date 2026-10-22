@@ -214,8 +214,10 @@ address as text. Public projections carry the summary and the link back. Instanc
 the feed, less those held out with their reason. An instance states no
 place, so its area is given by hand from its own description, domain or
 events: its city, with the city's geohash to 4 characters (a regional agenda
-is placed at the main city of its events); `Worldwide` for one of no one
-place; or none where it could not be placed.
+is placed at the main city of its events); its country, `<country>, <code>`
+with no geohash (a cell does not follow a border), for a country-wide agenda,
+which its city tag then names; `Worldwide` for one of no one place; or none
+where it could not be placed.
 No adapter rules beyond the profile otherwise.
 
 ## Generic iCalendar (`ics`)
