@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { finalizeEvent, generateSecretKey, type VerifiedEvent } from 'nostr-tools/pure';
-import { relayPublisher, memoryPauses, PAUSE_SECONDS, type RelayPool, type PublisherOptions } from '../src/service/publisher.ts';
+import { relayPublisher, memoryPauses, PAUSE_SECONDS, RETRY_WAIT, RETRY_TRIES, type RelayPool, type PublisherOptions } from '../src/service/publisher.ts';
 import { loadSettings } from '../src/config.ts';
 
 const sk = generateSecretKey();
@@ -134,6 +134,98 @@ test('other refusals are logged once per relay and message', async () => {
   await settled(publisher);
   assert.equal(lines.filter((l) => l.includes('blocked: kind not accepted')).length, 1);
   assert.ok(lines.includes('general wss://b.example: 0 taken, 3 refused'));
+});
+
+test('a send the relay never answers is tried again after the others, and after a wait that doubles', async () => {
+  const [first, second, third] = events(3);
+  const { publisher, got, c, lines } = setup((relay, event, seen) => (relay === 'wss://lists.example' && event.id === first!.id && seen <= 3 ? 'publish timed out' : null));
+  await publisher.publish([first!, second!, third!], 'lists');
+  await settled(publisher);
+  assert.deepEqual(got.get('wss://lists.example')!.map((e) => e.id), [second!.id, third!.id, first!.id]);
+  // The others' answers end the first wait; alone, it doubles.
+  const waits = c.waits.filter((w) => w >= RETRY_WAIT.firstMs);
+  assert.deepEqual(waits, [RETRY_WAIT.firstMs, RETRY_WAIT.firstMs, RETRY_WAIT.firstMs * 2]);
+  assert.ok(lines.includes('lists wss://lists.example: 3 taken, 0 refused, 3 retried'), lines.join('\n'));
+  assert.equal(lines.filter((l) => l.includes('publish timed out')).length, 1, 'logged once');
+});
+
+test('a failed or closed connection is tried again like a timeout', async () => {
+  const { publisher, got } = setup((relay, _event, seen) => {
+    if (relay !== 'wss://search.example' || seen > 1) return null;
+    return seen === 1 ? 'connection failure: connection timed out' : null;
+  });
+  const closed = setup((relay, _event, seen) => (relay === 'wss://search.example' && seen === 1 ? 'relay connection closed' : null));
+  await publisher.publish(events(2), 'search');
+  await closed.publisher.publish(events(2), 'search');
+  await settled(publisher);
+  await settled(closed.publisher);
+  assert.equal(got.get('wss://search.example')!.length, 2);
+  assert.equal(closed.got.get('wss://search.example')!.length, 2);
+});
+
+test('a send the relay answers resets the wait', async () => {
+  const [first, second] = events(2);
+  const { publisher, c } = setup((relay, event, seen) => (relay === 'wss://lists.example' && seen <= 2 ? 'publish timed out' : null));
+  await publisher.publish([first!], 'lists');
+  await settled(publisher);
+  await publisher.publish([second!], 'lists');
+  await settled(publisher);
+  assert.deepEqual(c.waits.filter((w) => w >= RETRY_WAIT.firstMs), [RETRY_WAIT.firstMs, RETRY_WAIT.firstMs * 2, RETRY_WAIT.firstMs, RETRY_WAIT.firstMs * 2]);
+});
+
+test('an event never answered is given up after its last try and counted refused', async () => {
+  const { publisher, got, c, lines } = setup((relay) => (relay === 'wss://lists.example' ? 'publish timed out' : null));
+  await publisher.publish(events(1), 'lists');
+  await settled(publisher);
+  assert.equal(got.get('wss://lists.example'), undefined);
+  const waits = c.waits.filter((w) => w >= RETRY_WAIT.firstMs);
+  assert.equal(waits.length, RETRY_TRIES - 1);
+  assert.ok(waits.every((w) => w <= RETRY_WAIT.maxMs));
+  assert.equal(Math.max(...waits), RETRY_WAIT.maxMs);
+  assert.ok(lines.includes(`lists wss://lists.example: gave up on kind 31923 after ${RETRY_TRIES} tries: publish timed out`), lines.join('\n'));
+  assert.ok(lines.includes(`lists wss://lists.example: 0 taken, 1 refused, ${RETRY_TRIES - 1} retried`), lines.join('\n'));
+});
+
+test('a refusal the relay answers is not sent again', async () => {
+  const seen: number[] = [];
+  const { publisher, c } = setup((relay, _event, n) => {
+    if (relay !== 'wss://lists.example') return null;
+    seen.push(n);
+    return 'replaced: have newer event';
+  });
+  await publisher.publish(events(2), 'lists');
+  await settled(publisher);
+  assert.deepEqual(seen, [1, 1]);
+  assert.equal(c.waits.filter((w) => w >= RETRY_WAIT.firstMs).length, 0);
+});
+
+test('an event waiting to be tried again still counts as pending for its relay', async () => {
+  let pendingAtRetry = -1;
+  const holder: { publisher?: ReturnType<typeof relayPublisher> } = {};
+  const { publisher } = setup((relay, _event, seen) => {
+    if (relay !== 'wss://lists.example') return null;
+    if (seen === 2) pendingAtRetry = holder.publisher!.pendingFor!('wss://lists.example');
+    return seen === 1 ? 'publish timed out' : null;
+  });
+  holder.publisher = publisher;
+  await publisher.publish(events(1), 'lists');
+  await settled(publisher);
+  assert.equal(pendingAtRetry, 1);
+});
+
+test('a retry is dropped once a newer version of the same address waits to be sent', async () => {
+  const older = finalizeEvent({ kind: 39999, tags: [['d', 'item']], content: '', created_at: 1792108800 }, sk);
+  const newer = finalizeEvent({ kind: 39999, tags: [['d', 'item']], content: 'changed', created_at: 1792108900 }, sk);
+  const tried: string[] = [];
+  const { publisher, got } = setup((relay, event) => {
+    if (relay !== 'wss://lists.example') return null;
+    tried.push(event.id);
+    return event.id === older.id ? 'publish timed out' : null;
+  });
+  await publisher.publish([older, newer], 'lists');
+  await settled(publisher);
+  assert.deepEqual(tried, [older.id, newer.id]);
+  assert.deepEqual(got.get('wss://lists.example')!.map((e) => e.id), [newer.id]);
 });
 
 test('an empty set sends nothing and queues nothing', async () => {

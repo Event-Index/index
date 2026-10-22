@@ -8,6 +8,13 @@
 // not resume early. After the pause it is tried again at half its pace; a
 // second such answer leaves it off until the operator resumes it. Other
 // refusals are logged once per relay and message, with what each relay took.
+//
+// A send the relay never answers (it timed out, or the connection failed or
+// closed) is not a refusal: the event goes to the back of the queue and the
+// relay is waited for before its next send, 15 seconds, doubled for each
+// unanswered send in a row up to 15 minutes; an answer ends the wait. An
+// event unanswered on its eighth try is given up and counted refused, and a
+// retry is dropped once a newer version of its address waits to be sent.
 
 import { SimplePool } from 'nostr-tools/pool';
 import type { Filter } from 'nostr-tools/filter';
@@ -25,6 +32,8 @@ export const PACE: Record<RelaySet, { perSecond: number; burst: number }> = {
   general: { perSecond: 1 / 3, burst: 3 },
 };
 export const PAUSE_SECONDS = 24 * 3600;
+export const RETRY_WAIT = { firstMs: 15_000, maxMs: 15 * 60_000 };
+export const RETRY_TRIES = 8;
 const QUEUE_MAX = 50_000;
 const REPORT_EVERY = 250;
 // The longest a timer can wait.
@@ -84,6 +93,17 @@ export interface PublisherOptions {
 }
 
 const LIMITED = /^(rate-limited|banned)\b|too many/i;
+// nostr-tools' own reasons, when the relay gave no answer.
+const UNANSWERED = /^(publish timed out|connection (failure|failed|timed out)|relay connection|websocket closed)/i;
+
+// What a newer version replaces: the address of a replaceable or addressable
+// event, else the event itself.
+function addressOf(event: VerifiedEvent): string {
+  const { kind } = event;
+  if (kind >= 30000 && kind < 40000) return `${kind}:${event.pubkey}:${event.tags.find((t) => t[0] === 'd')?.[1] ?? ''}`;
+  if (kind === 0 || kind === 3 || (kind >= 10000 && kind < 20000)) return `${kind}:${event.pubkey}`;
+  return event.id;
+}
 
 interface Lane {
   set: RelaySet;
@@ -93,6 +113,10 @@ interface Lane {
   refilledAt: number;
   sent: number;
   refused: number;
+  retried: number;
+  // Tries of the events not yet answered, and unanswered sends in a row.
+  tries: Map<string, number>;
+  unanswered: number;
   messages: Set<string>;
   timer: ReturnType<typeof setTimeout> | null;
 }
@@ -121,14 +145,14 @@ export function relayPublisher(settings: Settings, log: (line: string) => void, 
   function lane(relay: string, set: RelaySet): Lane {
     let l = lanes.get(relay);
     if (!l) {
-      l = { set, queue: [], draining: false, tokens: pace[set].burst, refilledAt: now(), sent: 0, refused: 0, messages: new Set(), timer: null };
+      l = { set, queue: [], draining: false, tokens: pace[set].burst, refilledAt: now(), sent: 0, refused: 0, retried: 0, tries: new Map(), unanswered: 0, messages: new Set(), timer: null };
       lanes.set(relay, l);
     }
     return l;
   }
 
   function report(relay: string, l: Lane): void {
-    log(`${l.set} ${relay}: ${l.sent} taken, ${l.refused} refused`);
+    log(`${l.set} ${relay}: ${l.sent} taken, ${l.refused} refused${l.retried ? `, ${l.retried} retried` : ''}`);
   }
 
   // Try again when a pause ends.
@@ -165,10 +189,36 @@ export function relayPublisher(settings: Settings, log: (line: string) => void, 
       l.tokens -= 1;
       const event = l.queue.shift()!;
       const [result] = await Promise.allSettled(pool.publish([relay], event));
-      if (result!.status === 'fulfilled') {
+      const message = result!.status === 'rejected' ? String((result!.reason as Error)?.message ?? result!.reason) : '';
+      if (result!.status === 'rejected' && UNANSWERED.test(message)) {
+        const tries = (l.tries.get(event.id) ?? 0) + 1;
+        if (tries < RETRY_TRIES) {
+          l.tries.set(event.id, tries);
+          const address = addressOf(event);
+          if (!l.queue.some((e) => addressOf(e) === address && e.created_at >= event.created_at)) {
+            l.queue.push(event);
+            l.retried += 1;
+          } else {
+            l.tries.delete(event.id);
+          }
+          if (!l.messages.has(message)) {
+            l.messages.add(message);
+            log(`${l.set} ${relay}: no answer to kind ${event.kind} (${message}); it is sent again later`);
+          }
+          await sleep(Math.min(RETRY_WAIT.firstMs * 2 ** l.unanswered, RETRY_WAIT.maxMs));
+          l.unanswered += 1;
+          continue;
+        }
+        l.tries.delete(event.id);
+        l.refused += 1;
+        log(`${l.set} ${relay}: gave up on kind ${event.kind} after ${RETRY_TRIES} tries: ${message}`);
+      } else if (result!.status === 'fulfilled') {
+        l.tries.delete(event.id);
+        l.unanswered = 0;
         l.sent += 1;
       } else {
-        const message = String((result!.reason as Error)?.message ?? result!.reason);
+        l.tries.delete(event.id);
+        l.unanswered = 0;
         if (LIMITED.test(message)) {
           l.queue.unshift(event);
           const strike = strikes + 1;

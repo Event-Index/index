@@ -279,7 +279,13 @@ is any `d` on the do-not-index list. The first poll validates the feed.
   `rate-limited` or `banned` is paused for 24 hours and keeps its queue; after
   the pause it is tried again at half its pace, and a second such answer
   leaves it off until the operator resumes it. Pauses are kept in
-  `index.db`. Other refusals are logged. The index key's kind 0 and 10002 go
+  `index.db`. A send the relay never answers (it timed out, or the
+  connection failed or closed) is not a refusal: the event is sent again
+  after the rest of the queue, and the relay is waited for first, 15 seconds,
+  doubled for each unanswered send in a row up to 15 minutes, until an answer
+  ends the wait. An event unanswered on its eighth try is given up, and a
+  retry is dropped once a newer version of its address waits to be sent.
+  Other refusals are logged. The index key's kind 0 and 10002 go
   to the profile and general relays even while outside publishing is off.
 - The index key's kind 3 follows no one.
 - On SIGTERM the service stops after the poll in progress.
