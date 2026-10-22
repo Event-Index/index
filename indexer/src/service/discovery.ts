@@ -38,18 +38,25 @@ export interface ListedPage {
   url: string;
 }
 
-// ISO 3166 codes by English country name, with the names Luma may use besides.
+// ISO 3166 codes by country name, in English first and then in the
+// languages a calendar or a group may name its own country in, with the
+// names Luma may use besides. Withdrawn and reserved codes are left out
+// (DD would be "Deutschland", FX "France"); the first code of a name wins.
+const LANGUAGES = ['en', 'de', 'fr', 'nl', 'it', 'es', 'pt', 'ca', 'eu', 'gl', 'ga', 'sv', 'da', 'nb', 'nn', 'fi', 'pl', 'cs', 'sk', 'sl', 'hr', 'hu', 'ro', 'el', 'tr', 'ru', 'uk'];
+const NOT_COUNTRIES = new Set(['AN', 'BU', 'CS', 'DD', 'EU', 'EZ', 'FX', 'NT', 'QO', 'QU', 'SU', 'TP', 'UN', 'YU', 'ZR']);
 const COUNTRY = (() => {
-  const names = new Intl.DisplayNames(['en'], { type: 'region' });
   const codes = new Map<string, string>();
-  for (let a = 65; a <= 90; a += 1) {
-    for (let b = 65; b <= 90; b += 1) {
-      const code = String.fromCharCode(a, b);
-      try {
-        // The first code of a name wins: FR before FX ("France", reserved).
-        const name = names.of(code);
-        if (name && name !== code && !codes.has(name.toLowerCase())) codes.set(name.toLowerCase(), code);
-      } catch { /* not a region */ }
+  for (const language of LANGUAGES) {
+    const names = new Intl.DisplayNames([language], { type: 'region' });
+    for (let a = 65; a <= 90; a += 1) {
+      for (let b = 65; b <= 90; b += 1) {
+        const code = String.fromCharCode(a, b);
+        if (NOT_COUNTRIES.has(code)) continue;
+        try {
+          const name = names.of(code)?.toLowerCase();
+          if (name && name !== code.toLowerCase() && !codes.has(name)) codes.set(name, code);
+        } catch { /* not a region */ }
+      }
     }
   }
   for (const [name, code] of [['turkey', 'TR'], ['czech republic', 'CZ'], ['usa', 'US'], ['united states of america', 'US'], ['uk', 'GB'], ['korea', 'KR'], ['russia', 'RU'], ['vietnam', 'VN'],

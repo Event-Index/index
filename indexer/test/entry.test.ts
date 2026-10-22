@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { normalizeFeed } from '../src/normalize/normalize.ts';
 import { directoryEntry, eventsHeader, citySlug } from '../src/directory/entry.ts';
 import { identify } from '../src/directory/id.ts';
@@ -145,4 +146,13 @@ test('a calendar of no one city is tagged global: Worldwide or Online, and no ci
   assert.equal(citySlug('Online'), 'global');
   assert.equal(citySlug('Oslo, NO'), 'oslo');
   assert.equal(citySlug(null), null);
+});
+
+test('a city\'s slug drops its accents, and each seeded city\'s slug is the one its name gives', () => {
+  assert.equal(citySlug('Sète, FR'), 'sete');
+  assert.equal(citySlug('São Paulo, BR'), 'sao-paulo');
+  assert.equal(citySlug('Zürich, CH'), 'zurich');
+  assert.equal(citySlug("'s-Hertogenbosch, NL"), 's-hertogenbosch');
+  const cities = (JSON.parse(readFileSync(new URL('../../seeds/cities.json', import.meta.url), 'utf8')) as { cities: Array<{ name: string; slug: string }> }).cities;
+  for (const c of cities) assert.equal(c.slug, citySlug(c.name), c.name);
 });

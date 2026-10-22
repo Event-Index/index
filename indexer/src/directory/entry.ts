@@ -35,7 +35,7 @@ export interface EntryInput {
 export function citySlug(location: string | null | undefined): string | null {
   if (location && /^(?:worldwide|online)$/i.test(location.trim())) return 'global';
   const city = location?.split(',')[0]?.trim();
-  return city ? city.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null : null;
+  return city ? city.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null : null;
 }
 
 // The tags in the header's order, without empty values.

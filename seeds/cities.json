@@ -512,7 +512,7 @@
     },
     {
       "name": "Medellín",
-      "slug": "medelli-n",
+      "slug": "medellin",
       "country": "CO",
       "geonames_id": 3674962,
       "latitude": 6.245,
@@ -876,7 +876,7 @@
     },
     {
       "name": "São Paulo",
-      "slug": "sa-o-paulo",
+      "slug": "sao-paulo",
       "country": "BR",
       "geonames_id": 3448439,
       "latitude": -23.5475,

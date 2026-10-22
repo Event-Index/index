@@ -369,6 +369,11 @@ test('a stated place is its city and its country\'s code; a country Luma names o
   assert.equal(at('Hong Kong', 'Hong Kong'), 'Hong Kong, HK');
   assert.equal(at('Istanbul', 'Turkey'), 'Istanbul, TR');
   assert.equal(at('New York', 'United States'), 'New York, US');
+  assert.equal(at('Cottbus', 'Deutschland'), 'Cottbus, DE', 'a country named in its own language');
+  assert.equal(at('Utrecht', 'Nederland'), 'Utrecht, NL');
+  assert.equal(at('Bilbao', 'España'), 'Bilbao, ES');
+  assert.equal(at('Graz', 'Österreich'), 'Graz, AT');
+  assert.equal(at('Bergen', 'Noreg'), 'Bergen, NO');
   assert.equal(at('Atlantis', 'Atlantica'), 'Atlantis, Atlantica');
   assert.equal(at('Somewhere', null), 'Somewhere');
   assert.deepEqual(areaOf(null), { location: 'Worldwide', g: null });
