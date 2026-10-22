@@ -139,6 +139,35 @@ export function importGancio(s: AdminStores, list: GancioList, now: number) {
   return report;
 }
 
+// The Mobilizon groups to file (seeds/mobilizon.json): public groups with
+// upcoming events, each on its own instance, from the directory at
+// instances.mobilizon.org, with the area each group states, if any.
+export interface MobilizonList {
+  groups: Array<{ instance: string; group: string; name: string; feed: string; location: string | null; g: string | null }>;
+}
+
+// Files each Mobilizon group as a calendar, from the instance it lives on
+// (a federated copy on another instance is not a group of that instance),
+// under the area it states, or none.
+export function importMobilizon(s: AdminStores, list: MobilizonList, now: number) {
+  const report = { filed: [] as string[], existing: [] as string[], blocked: [] as string[] };
+  for (const group of list.groups) {
+    const identity = identify(group.feed);
+    if (identity.source !== 'mobilizon') throw new Error(`${group.feed} is not a Mobilizon group feed (${group.instance})`);
+    if (new URL(identity.feedUrl).hostname !== group.instance.toLowerCase()) throw new Error(`${group.feed} is not its own instance's (${group.instance})`);
+    if (s.dir.doNotIndex(identity.d)) {
+      report.blocked.push(identity.d);
+      continue;
+    }
+    const added = s.dir.add({
+      d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
+      name: group.name.trim() || group.group, description: null, image: null, location: group.location, g: group.g, foundVia: 'instances.mobilizon.org', addedAt: now,
+    });
+    (added ? report.filed : report.existing).push(identity.d);
+  }
+  return report;
+}
+
 // Files each city's Luma Discover page as an aggregator, with the page that
 // discovery reads (service/discovery.ts) and the city's area. `only` names
 // cities by slug or by the page's slug.

@@ -36,7 +36,7 @@ import { openIndexDb } from './store/index-db.ts';
 import { directoryStore } from './store/directory.ts';
 import { queueStore } from './store/queues.ts';
 import { eventStore } from './store/events.ts';
-import { importSeeds, importCommunities, importAggregators, importGancio, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type AdminStores, type Cities, type Communities, type GancioList } from './service/admin.ts';
+import { importSeeds, importCommunities, importAggregators, importGancio, importMobilizon, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type AdminStores, type Cities, type Communities, type GancioList, type MobilizonList } from './service/admin.ts';
 import type { Seed } from './directory/seed.ts';
 import { relayPauses, PAUSE_SECONDS } from './service/publisher.ts';
 import { discoveredStore, type Found } from './store/discovered.ts';
@@ -51,6 +51,7 @@ const USAGE = `usage: admin.ts <command>
   import-seeds <seed.json>... [--cities <cities.json>]
   import-aggregators [--cities <cities.json>] [--only <slug>,...]
   import-gancio <gancio.json>
+  import-mobilizon <mobilizon.json>
   discoveries [--hours <n>]
   coverage [--pubkey <hex or npub>] [--relay <wss://…>] [--save]
   submissions
@@ -131,6 +132,13 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       const r = importGancio(s, JSON.parse(readFileSync(args[0], 'utf8')) as GancioList, now);
       for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
       out(`filed ${r.filed.length} Gancio instances, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
+      return;
+    }
+    case 'import-mobilizon': {
+      if (!args[0]) throw new UsageError('import-mobilizon needs the Mobilizon list (seeds/mobilizon.json)');
+      const r = importMobilizon(s, JSON.parse(readFileSync(args[0], 'utf8')) as MobilizonList, now);
+      for (const d of r.blocked) out(`not filed (do-not-index): ${d}`);
+      out(`filed ${r.filed.length} Mobilizon groups, already listed ${r.existing.length}, on the do-not-index list ${r.blocked.length}`);
       return;
     }
     case 'import-aggregators': {

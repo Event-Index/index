@@ -16,7 +16,8 @@ JSON-LD, NIP-52):
 |---|---|---|
 | `luma` | no: the summary only | no |
 | `meetup` | no: the summary only | no |
-| `mobilizon`, `gancio`, `google`, `ics` | yes | yes |
+| `mobilizon` | no: the summary only | no |
+| `gancio`, `google`, `ics` | yes | yes |
 | `nostr` (events an organizer publishes on nostr themselves) | yes | yes |
 
 Where the full description is not served, public projections carry the summary
@@ -146,6 +147,27 @@ Feed: `https://<host>/@<group>/feed/ics`.
 - A group that relays other communities' events may list one event twice
   under different `UID`s.
 - `/events/going/<token>/…` addresses are a member's own feed and are refused.
+- **Content.** Public projections carry the summary and the link back, no
+  image, as for Luma and Meetup: a group's descriptions and images stay the
+  group's. The title and the summary keep the names of performers and artists
+  as the group wrote them.
+- **A group's feed holds at most its 500 soonest events.** A group with more
+  is listed by those 500; its later events appear as the soonest ones pass.
+  The instance's API counts them all.
+- **Which groups.** Groups come from the instances in the directory at
+  `instances.mobilizon.org` (`seeds/mobilizon.json`, filed by
+  `eventindex-admin import-mobilizon`): each public group with upcoming
+  events, from the instance it lives on (a remote group an instance shows is
+  that other instance's), not from instances whose robots.txt disallows
+  `/api`, and not from instances or groups held out of it (a single operator's
+  ticketed listings, an aggregator of other organizers' events). A group's
+  area is the place it states (its locality, its country's code, the geohash of
+  its point to 4 characters), or none.
+- **Federated copies.** An instance's group may list an event that lives on
+  another instance; its `URL` is that event's own address (its ActivityPub
+  id), as in its origin group's feed. Two listings with one `URL` and one start
+  are one event ([`nip52-mapping.md`](nip52-mapping.md) § 5), so a federated
+  copy is a copy of its origin's record and never a second item.
 
 ## Google Calendar (`google`)
 

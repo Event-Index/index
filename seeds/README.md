@@ -114,6 +114,20 @@ each as one community calendar, named for the instance, with no area
 { "instances": [{ "host": "bcn.convoca.la", "name": "Convoca-la BCN", "feed": "https://bcn.convoca.la/feed/ics" }] }
 ```
 
+## Mobilizon groups
+
+`mobilizon.json` lists Mobilizon public groups with upcoming events, each
+from its own instance in the directory at `instances.mobilizon.org`, with the
+area the group states (or none). `eventindex-admin import-mobilizon
+seeds/mobilizon.json` files them (`../spec/platform-adapters.md`, Mobilizon).
+Held out of it: `ticketzon.it` (one operator's ticketed listings),
+`rollenspiel.events` (its terms not yet read) and
+`mobilisons.ch/@concert_cloud_switzerland` (an aggregator).
+
+```json
+{ "groups": [{ "instance": "mobilizon.fr", "group": "lyontechhub", "name": "Lyon Tech Hub", "feed": "https://mobilizon.fr/@lyontechhub/feed/ics", "location": "Lyon, FR", "g": "u05k" }] }
+```
+
 ## Luma listing pages
 
 `luma-pages.json` lists the Luma pages discovery reads besides the city

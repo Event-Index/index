@@ -9,7 +9,7 @@ import { eventPagesStore } from '../src/store/event-pages.ts';
 import { directoryStore } from '../src/store/directory.ts';
 import { queueStore } from '../src/store/queues.ts';
 import { eventStore } from '../src/store/events.ts';
-import { importSeeds, importCommunities, importGancio, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type Cities, type Communities, type GancioList } from '../src/service/admin.ts';
+import { importSeeds, importCommunities, importGancio, importMobilizon, importAggregators, approveSubmission, rejectSubmission, approveRemoval, rejectRemoval, removeCalendar, approveClaim, rejectClaim, markAggregator, status, undoApproval, type Cities, type Communities, type GancioList, type MobilizonList } from '../src/service/admin.ts';
 import { relayPauses } from '../src/service/publisher.ts';
 import { discoveredStore } from '../src/store/discovered.ts';
 import { identify } from '../src/directory/id.ts';
@@ -284,6 +284,22 @@ test('importing the Gancio list files each instance as one community calendar, n
     ['Convoca-la BCN', 'gancio', 'calendar', 'https://bcn.convoca.la/feed/ics', 'https://bcn.convoca.la', null, null, 'gancio.org/instances']);
   assert.deepEqual(importGancio(s, list, NOW + 60).existing, ['gancio:bcn.convoca.la', 'gancio:gancio.example.org']);
   assert.throws(() => importGancio(s, { instances: [{ host: 'x.example.org', name: 'X', feed: 'https://x.example.org/feed/ics?tags=a' }] }, NOW), /not a Gancio instance feed/);
+});
+
+test('importing the Mobilizon list files each group from its own instance, under the area it states', () => {
+  const s = stores();
+  const list: MobilizonList = { groups: [
+    { instance: 'mobilizon.fr', group: 'lyontechhub', name: 'Lyon Tech Hub', feed: 'https://mobilizon.fr/@lyontechhub/feed/ics', location: 'Lyon, FR', g: 'u05k' },
+    { instance: 'events.example.org', group: 'nowhere', name: 'No Address Group', feed: 'https://events.example.org/@nowhere/feed/ics', location: null, g: null },
+  ] };
+  const report = importMobilizon(s, list, NOW);
+  assert.deepEqual(report, { filed: ['mobilizon:mobilizon.fr/@lyontechhub', 'mobilizon:events.example.org/@nowhere'], existing: [], blocked: [] });
+  const lyon = s.dir.get('mobilizon:mobilizon.fr/@lyontechhub')!;
+  assert.deepEqual([lyon.name, lyon.source, lyon.location, lyon.g, lyon.foundVia, lyon.pageUrl], ['Lyon Tech Hub', 'mobilizon', 'Lyon, FR', 'u05k', 'instances.mobilizon.org', 'https://mobilizon.fr/@lyontechhub']);
+  assert.deepEqual([s.dir.get('mobilizon:events.example.org/@nowhere')!.location, s.dir.get('mobilizon:events.example.org/@nowhere')!.g], [null, null]);
+  assert.equal(importMobilizon(s, list, NOW + 60).existing.length, 2);
+  assert.throws(() => importMobilizon(s, { groups: [{ instance: 'other.example', group: 'lyontechhub', name: 'X', feed: 'https://mobilizon.fr/@lyontechhub/feed/ics', location: null, g: null }] }, NOW), /not its own instance/);
+  assert.throws(() => importMobilizon(s, { groups: [{ instance: 'x.example', group: 'x', name: 'X', feed: 'https://x.example/feed/ics', location: null, g: null }] }, NOW), /not a Mobilizon group feed/);
 });
 
 test('the admin command imports a communities list like a seed list', () => {

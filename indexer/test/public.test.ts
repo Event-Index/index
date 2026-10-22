@@ -44,11 +44,18 @@ test('the public .ics is valid iCalendar with DTSTAMP from the record\'s last ch
 });
 
 test('an open source keeps its full description and images', () => {
-  const { event } = ics('mobilizon-lyontechhub.ics', 'c93acabc-0885-40ca-b861-565079746ed2');
+  const { event } = ics('synthetic/rich.ics', 'rich@fixture.eventindex.space');
   assert.ok(event.hasProperty('styled-description'));
-  assert.equal(event.getFirstProperty('attach')!.getParameter('fmttype'), 'image/jpeg');
+  assert.ok(event.getAllProperties('image').length > 0);
   const long = ics('synthetic/malformed.ics', 'long@fixture.eventindex.space').event;
   assert.ok([...new Intl.Segmenter().segment(String(long.getFirstPropertyValue('description')))].length > 280);
+});
+
+test('Mobilizon is reserved: the summary in place of the description, and no image', () => {
+  const { event } = ics('mobilizon-lyontechhub.ics', 'c93acabc-0885-40ca-b861-565079746ed2');
+  assert.ok(!event.hasProperty('styled-description'));
+  assert.ok(!event.getAllProperties('attach').some((p) => String(p.getParameter('fmttype') ?? '').startsWith('image/')));
+  assert.ok([...new Intl.Segmenter().segment(String(event.getFirstPropertyValue('description') ?? ''))].length <= 280);
 });
 
 test('a reserved source serves the summary in place of the description, and no images', () => {

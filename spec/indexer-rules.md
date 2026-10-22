@@ -69,7 +69,9 @@ Status: draft.
 - Seed lists live in `seeds/` (format in [`../seeds/README.md`](../seeds/README.md)).
   `seeds/gancio.json` lists Gancio instances, each filed as one community
   calendar named for the instance (`eventindex-admin import-gancio`,
-  [`platform-adapters.md`](platform-adapters.md), Gancio).
+  [`platform-adapters.md`](platform-adapters.md), Gancio); `seeds/mobilizon.json`
+  lists Mobilizon groups, each filed from its own instance
+  (`eventindex-admin import-mobilizon`, there, Mobilizon).
 - Filing many entries at once spreads their `created_at` so that no second
   holds more than 1,000 events.
 

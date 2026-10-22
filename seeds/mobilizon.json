@@ -1,0 +1,2597 @@
+{
+  "note": "Mobilizon public groups with upcoming events, each from its own instance in the directory at instances.mobilizon.org, filed by eventindex-admin import-mobilizon under the area the group states (or none). Held out: ticketzon.it and rollenspiel.events, and mobilisons.ch/@concert_cloud_switzerland; instances whose robots.txt disallows /api are not read.",
+  "groups": [
+    {
+      "instance": "agenda.lagraine34.org",
+      "group": "22vlageorges",
+      "name": "22 V'La Georges",
+      "feed": "https://agenda.lagraine34.org/@22vlageorges/feed/ics",
+      "location": "Sète, FR",
+      "g": "spdw"
+    },
+    {
+      "instance": "agenda.lagraine34.org",
+      "group": "cinemed",
+      "name": "Cinemed",
+      "feed": "https://agenda.lagraine34.org/@cinemed/feed/ics",
+      "location": "Montpellier, FR",
+      "g": "spfb"
+    },
+    {
+      "instance": "agenda.lagraine34.org",
+      "group": "culture",
+      "name": "Culture",
+      "feed": "https://agenda.lagraine34.org/@culture/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "agenda.lagraine34.org",
+      "group": "grand_pic_saint_loup",
+      "name": "Grand Pic Saint Loup",
+      "feed": "https://agenda.lagraine34.org/@grand_pic_saint_loup/feed/ics",
+      "location": "Lodève, FR",
+      "g": "spf8"
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "animal_save_movement",
+      "name": "Animal Save Movement",
+      "feed": "https://animalliberationsummit.org/@animal_save_movement/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "av_amsterdam",
+      "name": "AV Amsterdam",
+      "feed": "https://animalliberationsummit.org/@av_amsterdam/feed/ics",
+      "location": "Amsterdam, NL",
+      "g": "u173"
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "av_den_bosch",
+      "name": "AV Den Bosch",
+      "feed": "https://animalliberationsummit.org/@av_den_bosch/feed/ics",
+      "location": "'s-Hertogenbosch, NL",
+      "g": "u15y"
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "av_groningen",
+      "name": "AV Groningen",
+      "feed": "https://animalliberationsummit.org/@av_groningen/feed/ics",
+      "location": "Groningen, NL",
+      "g": "u1kw"
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "av_nijmegen",
+      "name": "AV Nijmegen",
+      "feed": "https://animalliberationsummit.org/@av_nijmegen/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "av_rotterdam",
+      "name": "AV Rotterdam",
+      "feed": "https://animalliberationsummit.org/@av_rotterdam/feed/ics",
+      "location": "Rotterdam, NL",
+      "g": "u15p"
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "av_utrecht",
+      "name": "AV Utrecht",
+      "feed": "https://animalliberationsummit.org/@av_utrecht/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "animalliberationsummit.org",
+      "group": "bite_back",
+      "name": "Bite Back",
+      "feed": "https://animalliberationsummit.org/@bite_back/feed/ics",
+      "location": "Utrecht, NL",
+      "g": "u178"
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "botgruppe",
+      "name": "cvu-bot",
+      "feed": "https://cottbus.vonunten.org/@botgruppe/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "csd_cottbus_ev",
+      "name": "CSD Cottbus e.V.",
+      "feed": "https://cottbus.vonunten.org/@csd_cottbus_ev/feed/ics",
+      "location": "Cottbus, DE",
+      "g": "u34n"
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "fango",
+      "name": "Galerie Fango",
+      "feed": "https://cottbus.vonunten.org/@fango/feed/ics",
+      "location": "Cottbus, DE",
+      "g": "u34n"
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "fau_cb",
+      "name": "Freie Arbeiter*innen Union (FAU) Cottbus",
+      "feed": "https://cottbus.vonunten.org/@fau_cb/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "losmachenjetzt",
+      "name": "Losmachen.Jetzt",
+      "feed": "https://cottbus.vonunten.org/@losmachenjetzt/feed/ics",
+      "location": "Cottbus, DE",
+      "g": "u34n"
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "regenbogenkombinat_csd_cottbus",
+      "name": "Regenbogenkombinat Cottbus",
+      "feed": "https://cottbus.vonunten.org/@regenbogenkombinat_csd_cottbus/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "rosalux_lausitz",
+      "name": "rosalux_lausitz",
+      "feed": "https://cottbus.vonunten.org/@rosalux_lausitz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "cottbus.vonunten.org",
+      "group": "zdw",
+      "name": "Zentrum für Dialog und Wandel",
+      "feed": "https://cottbus.vonunten.org/@zdw/feed/ics",
+      "location": "Cottbus, DE",
+      "g": "u34n"
+    },
+    {
+      "instance": "dogodki.kompot.si",
+      "group": "emacssi",
+      "name": "Emacs.si",
+      "feed": "https://dogodki.kompot.si/@emacssi/feed/ics",
+      "location": "Ljubljana, SI",
+      "g": "u24m"
+    },
+    {
+      "instance": "dogodki.kompot.si",
+      "group": "leftclick",
+      "name": "LeftClick",
+      "feed": "https://dogodki.kompot.si/@leftclick/feed/ics",
+      "location": "Ljubljana, SI",
+      "g": "u24q"
+    },
+    {
+      "instance": "dogodki.kompot.si",
+      "group": "tehnoklistir",
+      "name": "tehnoklistir",
+      "feed": "https://dogodki.kompot.si/@tehnoklistir/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "evenement.facil.services",
+      "group": "strathcona_heights_community_garden",
+      "name": "Strathcona Heights Community Garden",
+      "feed": "https://evenement.facil.services/@strathcona_heights_community_garden/feed/ics",
+      "location": "Ottawa, CA",
+      "g": "f244"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "aro_ace_graz",
+      "name": "Aro Ace Graz",
+      "feed": "https://events.graz.social/@aro_ace_graz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "bar_monkeys",
+      "name": "Bar Monkeys",
+      "feed": "https://events.graz.social/@bar_monkeys/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "business_news",
+      "name": "Business news",
+      "feed": "https://events.graz.social/@business_news/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "cocktailbar_moridal",
+      "name": "Cocktailbar Moridal",
+      "feed": "https://events.graz.social/@cocktailbar_moridal/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "contra",
+      "name": "Graz Contra",
+      "feed": "https://events.graz.social/@contra/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "crossroads_festival",
+      "name": "Crossroads Festival",
+      "feed": "https://events.graz.social/@crossroads_festival/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "diekometin",
+      "name": "Die Kometin",
+      "feed": "https://events.graz.social/@diekometin/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "energiewende_graz",
+      "name": "Energiewende in Graz",
+      "feed": "https://events.graz.social/@energiewende_graz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "filmzentrum_im_rechbauerkino",
+      "name": "Filmzentrum im Rechbauerkino",
+      "feed": "https://events.graz.social/@filmzentrum_im_rechbauerkino/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "freiraumfest",
+      "name": "Freiraumfest",
+      "feed": "https://events.graz.social/@freiraumfest/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "fridaysforfuturegraz",
+      "name": "Fridays for Future Graz",
+      "feed": "https://events.graz.social/@fridaysforfuturegraz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "gender_garage",
+      "name": "Gender Garage",
+      "feed": "https://events.graz.social/@gender_garage/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "kottulinskyder_club_von_graz",
+      "name": "Kottulinsky | Der Club von Graz",
+      "feed": "https://events.graz.social/@kottulinskyder_club_von_graz/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "kulturkotter",
+      "name": "Kulturkotter",
+      "feed": "https://events.graz.social/@kulturkotter/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "linux_cafe",
+      "name": "Linux Café",
+      "feed": "https://events.graz.social/@linux_cafe/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "magicon_graz",
+      "name": "MagiCon Graz",
+      "feed": "https://events.graz.social/@magicon_graz/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "poly",
+      "name": "Poly*Graz Events",
+      "feed": "https://events.graz.social/@poly/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "queerref_graz",
+      "name": "Queerreferate Graz",
+      "feed": "https://events.graz.social/@queerref_graz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "qufo_graz",
+      "name": "QuFO Graz",
+      "feed": "https://events.graz.social/@qufo_graz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "radio_helsinki",
+      "name": "Radio Helsinki",
+      "feed": "https://events.graz.social/@radio_helsinki/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "spektral",
+      "name": "Spektral",
+      "feed": "https://events.graz.social/@spektral/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "thepennylessplayers",
+      "name": "The Pennyless Players",
+      "feed": "https://events.graz.social/@thepennylessplayers/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.graz.social",
+      "group": "traumwerk",
+      "name": "Traumwerk",
+      "feed": "https://events.graz.social/@traumwerk/feed/ics",
+      "location": "Graz, AT",
+      "g": "u26g"
+    },
+    {
+      "instance": "events.silex.me",
+      "group": "silex_nocode_website_builder",
+      "name": "Silex no-code website builder",
+      "feed": "https://events.silex.me/@silex_nocode_website_builder/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.silex.me",
+      "group": "webdesign_libre_avec_silex",
+      "name": "Webdesign Libre avec Silex",
+      "feed": "https://events.silex.me/@webdesign_libre_avec_silex/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "events.tulln.social",
+      "group": "eisenbahn",
+      "name": "Eisenbahn",
+      "feed": "https://events.tulln.social/@eisenbahn/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "floor.tips",
+      "group": "floortips",
+      "name": "Floor.tips",
+      "feed": "https://floor.tips/@floortips/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "floor.tips",
+      "group": "for_haus_sake",
+      "name": "For Haus' Sake",
+      "feed": "https://floor.tips/@for_haus_sake/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "floor.tips",
+      "group": "zeitgeist",
+      "name": "Zeitgeist",
+      "feed": "https://floor.tips/@zeitgeist/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "fomobremen.info",
+      "group": "computercafe_hb",
+      "name": "computercafe_hb",
+      "feed": "https://fomobremen.info/@computercafe_hb/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "fomobremen.info",
+      "group": "lagerhaus",
+      "name": "Lagerhaus",
+      "feed": "https://fomobremen.info/@lagerhaus/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "fomobremen.info",
+      "group": "lui",
+      "name": "Das Lui",
+      "feed": "https://fomobremen.info/@lui/feed/ics",
+      "location": "Bremen, DE",
+      "g": "u1qq"
+    },
+    {
+      "instance": "fomobremen.info",
+      "group": "qneipe_walle",
+      "name": "Qneipe Walle",
+      "feed": "https://fomobremen.info/@qneipe_walle/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "gjer.no",
+      "group": "attac",
+      "name": "Attac Norge",
+      "feed": "https://gjer.no/@attac/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "gjer.no",
+      "group": "bll",
+      "name": "Bærekraftige Liv Landås",
+      "feed": "https://gjer.no/@bll/feed/ics",
+      "location": "Bergen, NO",
+      "g": "u4ez"
+    },
+    {
+      "instance": "gjer.no",
+      "group": "critical_mass",
+      "name": "Critical Mass",
+      "feed": "https://gjer.no/@critical_mass/feed/ics",
+      "location": "Oslo, NO",
+      "g": "u4xs"
+    },
+    {
+      "instance": "gjer.no",
+      "group": "criticalmassbergen",
+      "name": "Critical Mass Bergen",
+      "feed": "https://gjer.no/@criticalmassbergen/feed/ics",
+      "location": "Bergen, NO",
+      "g": "u4ez"
+    },
+    {
+      "instance": "gjer.no",
+      "group": "folkekjokken",
+      "name": "Folkekjøkken",
+      "feed": "https://gjer.no/@folkekjokken/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "gjer.no",
+      "group": "lbf_avd_oslo",
+      "name": "Leieboerforeningen avdeling Oslo",
+      "feed": "https://gjer.no/@lbf_avd_oslo/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "gjer.no",
+      "group": "loioslo",
+      "name": "LO i Oslo",
+      "feed": "https://gjer.no/@loioslo/feed/ics",
+      "location": "Oslo, NO",
+      "g": "u4xs"
+    },
+    {
+      "instance": "gjer.no",
+      "group": "nettverket_smultringkonomi_norge",
+      "name": "Nettverket Smultringøkonomi Norge",
+      "feed": "https://gjer.no/@nettverket_smultringkonomi_norge/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "gjer.no",
+      "group": "rethinking_economics_blindern",
+      "name": "Rethinking Economics Blindern",
+      "feed": "https://gjer.no/@rethinking_economics_blindern/feed/ics",
+      "location": "Oslo, NO",
+      "g": "u4xs"
+    },
+    {
+      "instance": "gjer.no",
+      "group": "uso_bergen",
+      "name": "USO Bergen",
+      "feed": "https://gjer.no/@uso_bergen/feed/ics",
+      "location": "Bergen, NO",
+      "g": "u4ez"
+    },
+    {
+      "instance": "groups.animalrebellion.nl",
+      "group": "animal_rebellion_amsterdam",
+      "name": "Animal Rebellion Amsterdam",
+      "feed": "https://groups.animalrebellion.nl/@animal_rebellion_amsterdam/feed/ics",
+      "location": "Amsterdam, NL",
+      "g": "u173"
+    },
+    {
+      "instance": "groups.animalrebellion.nl",
+      "group": "crying_wolf",
+      "name": "Crying Wolf",
+      "feed": "https://groups.animalrebellion.nl/@crying_wolf/feed/ics",
+      "location": "Leusden, NL",
+      "g": "u17b"
+    },
+    {
+      "instance": "groups.animalrebellion.nl",
+      "group": "vegan_future",
+      "name": "Vegan Future",
+      "feed": "https://groups.animalrebellion.nl/@vegan_future/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "improvizon.fr",
+      "group": "association_improcite",
+      "name": "Improcité",
+      "feed": "https://improvizon.fr/@association_improcite/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "improvizon.fr",
+      "group": "onironautes",
+      "name": "Onironautes",
+      "feed": "https://improvizon.fr/@onironautes/feed/ics",
+      "location": "Paris, FR",
+      "g": "u09w"
+    },
+    {
+      "instance": "jarkkaa.fi",
+      "group": "helsinki_haskell",
+      "name": "Helsinki Haskell Users Group",
+      "feed": "https://jarkkaa.fi/@helsinki_haskell/feed/ics",
+      "location": "Helsinki sub-region, FI",
+      "g": "ud9w"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "30daymapchallenge",
+      "name": "30DayMapChallenge & OpenStreetMap",
+      "feed": "https://kids.keskonfai.com/@30daymapchallenge/feed/ics",
+      "location": "Brussels-Capital, BE",
+      "g": "u151"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "acte2theatre",
+      "name": "Acte 2 théâtre",
+      "feed": "https://kids.keskonfai.com/@acte2theatre/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "adas_fan_club",
+      "name": "Ada's Fan Club",
+      "feed": "https://kids.keskonfai.com/@adas_fan_club/feed/ics",
+      "location": "Brussels-Capital, BE",
+      "g": "u151"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "auditorium_lyon",
+      "name": "Orchestre national de Lyon",
+      "feed": "https://kids.keskonfai.com/@auditorium_lyon/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "etac01",
+      "name": "Ecole des techniques et des arts du cirque",
+      "feed": "https://kids.keskonfai.com/@etac01/feed/ics",
+      "location": "Bourg-en-Bresse, FR",
+      "g": "u05w"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "fondation_scratchprogrammation_pour_enfants",
+      "name": "Fondation Scratch - programmation pour enfants",
+      "feed": "https://kids.keskonfai.com/@fondation_scratchprogrammation_pour_enfants/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "maisondeladanse",
+      "name": "Maison de la danse - Lyon",
+      "feed": "https://kids.keskonfai.com/@maisondeladanse/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "kids.keskonfai.com",
+      "group": "pommesdelune",
+      "name": "Pommes de lune - sorties culturelles à Clermont-Ferrand et aux environs",
+      "feed": "https://kids.keskonfai.com/@pommesdelune/feed/ics",
+      "location": "Clermont-Ferrand, FR",
+      "g": "u04h"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "annedalshuset",
+      "name": "Annedalshuset",
+      "feed": "https://klimatkalendern.nu/@annedalshuset/feed/ics",
+      "location": "Göteborg, SE",
+      "g": "u628"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "climate_demonstration_street_walk",
+      "name": "Climate Demonstration Street Walk",
+      "feed": "https://klimatkalendern.nu/@climate_demonstration_street_walk/feed/ics",
+      "location": "Stockholm, SE",
+      "g": "u6sc"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "extinction_rebellion_sverige",
+      "name": "Extinction Rebellion Sverige",
+      "feed": "https://klimatkalendern.nu/@extinction_rebellion_sverige/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "fffmalmo",
+      "name": "Fridays For Future Malmö",
+      "feed": "https://klimatkalendern.nu/@fffmalmo/feed/ics",
+      "location": "Malmö, SE",
+      "g": "u3ch"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "fridays_for_future_kristianstad",
+      "name": "Fridays for Future Kristianstad",
+      "feed": "https://klimatkalendern.nu/@fridays_for_future_kristianstad/feed/ics",
+      "location": "Kristianstad, SE",
+      "g": "u3fn"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "grandparents_for_future",
+      "name": "Grandparents for Future",
+      "feed": "https://klimatkalendern.nu/@grandparents_for_future/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "gron_kyrka_goteborgsregionen",
+      "name": "Grön kyrka Göteborgsregionen",
+      "feed": "https://klimatkalendern.nu/@gron_kyrka_goteborgsregionen/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "hoppochmotstand",
+      "name": "Hopp & Motstånd",
+      "feed": "https://klimatkalendern.nu/@hoppochmotstand/feed/ics",
+      "location": "Lysekils kommun, SE",
+      "g": "u625"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "klimatgruppen_naturskyddsforeningen_lansforbundet_stockholm",
+      "name": "Klimatgruppen, Naturskyddsföreningen länsförbundet Stockholm",
+      "feed": "https://klimatkalendern.nu/@klimatgruppen_naturskyddsforeningen_lansforbundet_stockholm/feed/ics",
+      "location": "Stockholm, SE",
+      "g": "u6sc"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "paxwalk",
+      "name": "PaxWalk - pilgrimskalender",
+      "feed": "https://klimatkalendern.nu/@paxwalk/feed/ics",
+      "location": "Lund, SE",
+      "g": "u3ck"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "rebellmammorna_sverige",
+      "name": "Rebellmammorna",
+      "feed": "https://klimatkalendern.nu/@rebellmammorna_sverige/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "rebellpappor_skelleftea",
+      "name": "REBELLPAPPORNA Skellefteå",
+      "feed": "https://klimatkalendern.nu/@rebellpappor_skelleftea/feed/ics",
+      "location": "Skellefteå kommun, SE",
+      "g": "u7wb"
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "saturdays_for_future",
+      "name": "Saturdays for future",
+      "feed": "https://klimatkalendern.nu/@saturdays_for_future/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "klimatkalendern.nu",
+      "group": "xrkoren",
+      "name": "XR-kören",
+      "feed": "https://klimatkalendern.nu/@xrkoren/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "koa2neuf.net",
+      "group": "datatourismefr",
+      "name": "datatourisme.fr",
+      "feed": "https://koa2neuf.net/@datatourismefr/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "cafevillageois",
+      "name": "Sous le Chêne",
+      "feed": "https://lekalepin.fr/@cafevillageois/feed/ics",
+      "location": "Chabanière, FR",
+      "g": "u057"
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "cine_monts_du_lyonnais",
+      "name": "Ciné Monts du Lyonnais",
+      "feed": "https://lekalepin.fr/@cine_monts_du_lyonnais/feed/ics",
+      "location": "Pomeys, FR",
+      "g": "u055"
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "cinemaparadiso",
+      "name": "Cinéma Paradiso",
+      "feed": "https://lekalepin.fr/@cinemaparadiso/feed/ics",
+      "location": "Saint-Martin-en-Haut, FR",
+      "g": "u055"
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "ecival",
+      "name": "ECIVAL",
+      "feed": "https://lekalepin.fr/@ecival/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "foyer_cinema",
+      "name": "Foyer cinéma",
+      "feed": "https://lekalepin.fr/@foyer_cinema/feed/ics",
+      "location": "Saint-Symphorien-sur-Coise, FR",
+      "g": "u055"
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "la_ruche_de_lecologie",
+      "name": "La Ruche de l'écologie des Monts du Lyonnais",
+      "feed": "https://lekalepin.fr/@la_ruche_de_lecologie/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "lameuterurale",
+      "name": "La Meute Rurale",
+      "feed": "https://lekalepin.fr/@lameuterurale/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u055"
+    },
+    {
+      "instance": "lekalepin.fr",
+      "group": "maisondepaysdesmontsdulyonnais",
+      "name": "Maison de Pays des Monts du Lyonnais",
+      "feed": "https://lekalepin.fr/@maisondepaysdesmontsdulyonnais/feed/ics",
+      "location": "Saint-Martin-en-Haut, FR",
+      "g": "u055"
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "basisschulung_kompakt_ocplanner",
+      "name": "Basisschulung Kompakt OC:Planner",
+      "feed": "https://meet.sieda.com/@basisschulung_kompakt_ocplanner/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "netzwerk_rettungsdienst",
+      "name": "Netzwerk Rettungsdienst",
+      "feed": "https://meet.sieda.com/@netzwerk_rettungsdienst/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "ocmyplanihr_digitales_mitarbeiterportal",
+      "name": "OC:MyPlan - Ihr digitales Mitarbeiterportal",
+      "feed": "https://meet.sieda.com/@ocmyplanihr_digitales_mitarbeiterportal/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "ocreport_writer",
+      "name": "OC:Report Writer - Datenanalyse mit dem Berichtsdesigner",
+      "feed": "https://meet.sieda.com/@ocreport_writer/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "selbstplanung_mit_ocplanner",
+      "name": "Wunschplanung mit OC:Planner",
+      "feed": "https://meet.sieda.com/@selbstplanung_mit_ocplanner/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "tagesdienstplan_fur_das_gesundheitswesen",
+      "name": "Der Tagesdienstplan von der SIEDA",
+      "feed": "https://meet.sieda.com/@tagesdienstplan_fur_das_gesundheitswesen/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "vertiefungsschulung_kompakt",
+      "name": "Vertiefungsschulung Kompakt",
+      "feed": "https://meet.sieda.com/@vertiefungsschulung_kompakt/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "meet.sieda.com",
+      "group": "webseminar_tipps_und_tricks",
+      "name": "Praktische Tipps und Tricks",
+      "feed": "https://meet.sieda.com/@webseminar_tipps_und_tricks/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "bibliotheque_publique_et_scolaire_de_la_region_dorbe",
+      "name": "Bibliothèque Publique et Scolaire de la Région d'Orbe",
+      "feed": "https://mobilisons.ch/@bibliotheque_publique_et_scolaire_de_la_region_dorbe/feed/ics",
+      "location": "Orbe, CH",
+      "g": "u0k9"
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "fibonanschi",
+      "name": "Fibonanschi",
+      "feed": "https://mobilisons.ch/@fibonanschi/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "good_lighting_is_crucial_for_early_morning",
+      "name": "Good lighting is crucial for early morning",
+      "feed": "https://mobilisons.ch/@good_lighting_is_crucial_for_early_morning/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "httpsvd",
+      "name": "HTTPS-VD",
+      "feed": "https://mobilisons.ch/@httpsvd/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "intergen",
+      "name": "Intergen",
+      "feed": "https://mobilisons.ch/@intergen/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "la_datcha",
+      "name": "La Datcha",
+      "feed": "https://mobilisons.ch/@la_datcha/feed/ics",
+      "location": "Lausanne, CH",
+      "g": "u0k8"
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "lastfriday_yverdon",
+      "name": "Last Friday",
+      "feed": "https://mobilisons.ch/@lastfriday_yverdon/feed/ics",
+      "location": "Yverdon-les-Bains, CH",
+      "g": "u0kd"
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "les_lundis_des_mots",
+      "name": "Les Lundis des Mots",
+      "feed": "https://mobilisons.ch/@les_lundis_des_mots/feed/ics",
+      "location": "Neuchâtel, CH",
+      "g": "u0kg"
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "pole_sud",
+      "name": "Pôle Sud",
+      "feed": "https://mobilisons.ch/@pole_sud/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "scvnd",
+      "name": "SCVN-D",
+      "feed": "https://mobilisons.ch/@scvnd/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "theatre_du_passage",
+      "name": "Théâtre du Passage",
+      "feed": "https://mobilisons.ch/@theatre_du_passage/feed/ics",
+      "location": "Neuchâtel, CH",
+      "g": "u0kg"
+    },
+    {
+      "instance": "mobilisons.ch",
+      "group": "theatre_le_reflet",
+      "name": "Thêatre le Reflet",
+      "feed": "https://mobilisons.ch/@theatre_le_reflet/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilize.adminforge.de",
+      "group": "events_in_benrath",
+      "name": "Events in Benrath",
+      "feed": "https://mobilize.adminforge.de/@events_in_benrath/feed/ics",
+      "location": "Düsseldorf, DE",
+      "g": "u1hg"
+    },
+    {
+      "instance": "mobilize.adminforge.de",
+      "group": "ocg",
+      "name": "OpenCanoeGermany",
+      "feed": "https://mobilize.adminforge.de/@ocg/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilize.adminforge.de",
+      "group": "polytreff_kiel",
+      "name": "Polytreff Kiel",
+      "feed": "https://mobilize.adminforge.de/@polytreff_kiel/feed/ics",
+      "location": "Kiel, DE",
+      "g": "u1xj"
+    },
+    {
+      "instance": "mobilize.adminforge.de",
+      "group": "stormarn",
+      "name": "Veranstaltungen Stormarn",
+      "feed": "https://mobilize.adminforge.de/@stormarn/feed/ics",
+      "location": "Kreis Stormarn, DE",
+      "g": "u1x6"
+    },
+    {
+      "instance": "mobilizon.be",
+      "group": "clube_do_choro_bruxelas",
+      "name": "Clube do Choro de Bruxelas",
+      "feed": "https://mobilizon.be/@clube_do_choro_bruxelas/feed/ics",
+      "location": "Saint-Gilles - Sint-Gillis, BE",
+      "g": "u151"
+    },
+    {
+      "instance": "mobilizon.be",
+      "group": "les_colibristes",
+      "name": "Les Co-libristes",
+      "feed": "https://mobilizon.be/@les_colibristes/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.be",
+      "group": "renaud_jacqmotte_constellations",
+      "name": "renaud jacqmotte constellations",
+      "feed": "https://mobilizon.be/@renaud_jacqmotte_constellations/feed/ics",
+      "location": "Bruxelles-Capitale, BE",
+      "g": "u150"
+    },
+    {
+      "instance": "mobilizon.be",
+      "group": "vousrevoir",
+      "name": "Socialband / Vous Revoir",
+      "feed": "https://mobilizon.be/@vousrevoir/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.cemea.org",
+      "group": "communs_numeriques",
+      "name": "Communs Numériques",
+      "feed": "https://mobilizon.cemea.org/@communs_numeriques/feed/ics",
+      "location": "Paris, FR",
+      "g": "u09w"
+    },
+    {
+      "instance": "mobilizon.cemea.org",
+      "group": "zourit",
+      "name": "Zourit",
+      "feed": "https://mobilizon.cemea.org/@zourit/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.chapril.org",
+      "group": "liness",
+      "name": "LINESS - Linux en Essonne",
+      "feed": "https://mobilizon.chapril.org/@liness/feed/ics",
+      "location": "Juvisy-sur-Orge, FR",
+      "g": "u09s"
+    },
+    {
+      "instance": "mobilizon.ethibox.fr",
+      "group": "retour_daffection_rituel_retour_affectif_rapide_envoutement_damour22960663782",
+      "name": "RETOUR D'AFFECTION, RITUEL RETOUR AFFECTIF RAPIDE, ENVOUTEMENT D'AMOUR+22960663782",
+      "feed": "https://mobilizon.ethibox.fr/@retour_daffection_rituel_retour_affectif_rapide_envoutement_damour22960663782/feed/ics",
+      "location": "Bruxelles-Capitale, BE",
+      "g": "u151"
+    },
+    {
+      "instance": "mobilizon.ethibox.fr",
+      "group": "rituel_pour_gagner_au_jeux_hasard_22960663782_whatsapp",
+      "name": "Rituel pour gagner au jeux hasard +22960663782 WhatsApp",
+      "feed": "https://mobilizon.ethibox.fr/@rituel_pour_gagner_au_jeux_hasard_22960663782_whatsapp/feed/ics",
+      "location": "Paris, FR",
+      "g": "u09t"
+    },
+    {
+      "instance": "mobilizon.ethibox.fr",
+      "group": "sos_desenvoutement_retour_affectif_medium_pur_voyant_energeticien_magnetiseur",
+      "name": "SOS Désenvoûtement Retour affectif Medium pur voyant Energéticien magnétiseur",
+      "feed": "https://mobilizon.ethibox.fr/@sos_desenvoutement_retour_affectif_medium_pur_voyant_energeticien_magnetiseur/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.extinctionrebellion.fr",
+      "group": "xr_bordeaux",
+      "name": "Extinction Rebellion Bordeaux",
+      "feed": "https://mobilizon.extinctionrebellion.fr/@xr_bordeaux/feed/ics",
+      "location": "Bordeaux, FR",
+      "g": "ezzx"
+    },
+    {
+      "instance": "mobilizon.extinctionrebellion.fr",
+      "group": "xr_culture_rege",
+      "name": "XR Culture régénératrice",
+      "feed": "https://mobilizon.extinctionrebellion.fr/@xr_culture_rege/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.extinctionrebellion.fr",
+      "group": "xr_parisnord",
+      "name": "XR Paris-Nord",
+      "feed": "https://mobilizon.extinctionrebellion.fr/@xr_parisnord/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.extinctionrebellion.fr",
+      "group": "xr_sensib_et_formation",
+      "name": "XR Sensibilisation et formation",
+      "feed": "https://mobilizon.extinctionrebellion.fr/@xr_sensib_et_formation/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fabriquedelatransition.fr",
+      "group": "forgeslab42",
+      "name": "Forges Lab 42",
+      "feed": "https://mobilizon.fabriquedelatransition.fr/@forgeslab42/feed/ics",
+      "location": "Saint-Étienne, FR",
+      "g": "u054"
+    },
+    {
+      "instance": "mobilizon.fabriquedelatransition.fr",
+      "group": "repaircafe_stetienne",
+      "name": "Repair Café Saint-Étienne",
+      "feed": "https://mobilizon.fabriquedelatransition.fr/@repaircafe_stetienne/feed/ics",
+      "location": "Saint-Étienne, FR",
+      "g": "u054"
+    },
+    {
+      "instance": "mobilizon.fabriquedelatransition.fr",
+      "group": "zoomacom",
+      "name": "Zoomacom",
+      "feed": "https://mobilizon.fabriquedelatransition.fr/@zoomacom/feed/ics",
+      "location": "Saint-Étienne, FR",
+      "g": "u054"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "a_axenda_do_paeiro",
+      "name": "A axenda do Paeiro",
+      "feed": "https://mobilizon.fr/@a_axenda_do_paeiro/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "addpk",
+      "name": "ADDPK : Art Du Déplacement - ParKour",
+      "feed": "https://mobilizon.fr/@addpk/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "agenda_culturel_et_citoyens_saintnazairerencontres_mobilisations_activites_",
+      "name": "Agenda des communs - collectif, culturel et citoyen - Saint-Nazaire",
+      "feed": "https://mobilizon.fr/@agenda_culturel_et_citoyens_saintnazairerencontres_mobilisations_activites_/feed/ics",
+      "location": "Saint-Nazaire, FR",
+      "g": "gbqk"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "agendhavre",
+      "name": "Agend'Havre",
+      "feed": "https://mobilizon.fr/@agendhavre/feed/ics",
+      "location": "Le Havre, FR",
+      "g": "u0b1"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "agendhavre_plus_loin",
+      "name": "Agend'Havre plus loin",
+      "feed": "https://mobilizon.fr/@agendhavre_plus_loin/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "association_les_copains_de_la_tinee",
+      "name": "Association les Copains de la Tinée",
+      "feed": "https://mobilizon.fr/@association_les_copains_de_la_tinee/feed/ics",
+      "location": "Saint-Étienne-de-Tinée, FR",
+      "g": "spug"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "association_thiercelieux",
+      "name": "Association Thiercelieux",
+      "feed": "https://mobilizon.fr/@association_thiercelieux/feed/ics",
+      "location": "Aups, FR",
+      "g": "spu2"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "atelier_art_chemin",
+      "name": "Atelier l'Art-Chemin",
+      "feed": "https://mobilizon.fr/@atelier_art_chemin/feed/ics",
+      "location": "Moissac-Bellevue, FR",
+      "g": "spu2"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "atelier_regard",
+      "name": "Atelier Regard",
+      "feed": "https://mobilizon.fr/@atelier_regard/feed/ics",
+      "location": "Angoulême, FR",
+      "g": "u005"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "ateliers_uvqr",
+      "name": "Un Vélo Qui Roule",
+      "feed": "https://mobilizon.fr/@ateliers_uvqr/feed/ics",
+      "location": "Maurecourt, FR",
+      "g": "u09q"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "biblioteca_intercentros_de_lugo",
+      "name": "Biblioteca Intercentros de Lugo",
+      "feed": "https://mobilizon.fr/@biblioteca_intercentros_de_lugo/feed/ics",
+      "location": "Lugo, ES",
+      "g": "ezds"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "bnb26valence",
+      "name": "bnb26valence",
+      "feed": "https://mobilizon.fr/@bnb26valence/feed/ics",
+      "location": "Beaumont-lès-Valence, FR",
+      "g": "spgx"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "cafe_cooperatif",
+      "name": "Au café des connexions",
+      "feed": "https://mobilizon.fr/@cafe_cooperatif/feed/ics",
+      "location": "gougenheim",
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "castor_environnement_vo",
+      "name": "CASTOR",
+      "feed": "https://mobilizon.fr/@castor_environnement_vo/feed/ics",
+      "location": "Brussey, FR",
+      "g": "u0kj"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "causerie_des_clameurs",
+      "name": "Causerie des clameurs",
+      "feed": "https://mobilizon.fr/@causerie_des_clameurs/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "chatons",
+      "name": "Collectif CHATONS",
+      "feed": "https://mobilizon.fr/@chatons/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "chtitedev",
+      "name": "Chtitedev: Femmes et minorités de genre de la tech dans le Nord, Hauts-de-France, Lille",
+      "feed": "https://mobilizon.fr/@chtitedev/feed/ics",
+      "location": "Lille, FR",
+      "g": "u140"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "clx",
+      "name": "Club Linux Nord-Pas de Calais",
+      "feed": "https://mobilizon.fr/@clx/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "colo_du_cagire",
+      "name": "La Colo du Cagire",
+      "feed": "https://mobilizon.fr/@colo_du_cagire/feed/ics",
+      "location": "Juzet d'Izaut, FR",
+      "g": "sp8t"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "contribateliers_nantes",
+      "name": "Contribateliers Nantes",
+      "feed": "https://mobilizon.fr/@contribateliers_nantes/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "copainexs_qrew_",
+      "name": "Copainexs Qrew",
+      "feed": "https://mobilizon.fr/@copainexs_qrew_/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "dansesurnantes",
+      "name": "Danse sur Nantes !",
+      "feed": "https://mobilizon.fr/@dansesurnantes/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "deshautsetdesarts",
+      "name": "Des Hauts et des Arts ~ Valdeblore",
+      "feed": "https://mobilizon.fr/@deshautsetdesarts/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "dojo_de_programmation_paris",
+      "name": "Dojo de programmation Paris",
+      "feed": "https://mobilizon.fr/@dojo_de_programmation_paris/feed/ics",
+      "location": "Paris, FR",
+      "g": "u09t"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "ethicettech",
+      "name": "ethic & tech!",
+      "feed": "https://mobilizon.fr/@ethicettech/feed/ics",
+      "location": "Thiviers, FR",
+      "g": "u00d"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "evenement_sou_miplaine",
+      "name": "Sou des écoles Mi-Plaine",
+      "feed": "https://mobilizon.fr/@evenement_sou_miplaine/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "fne_occitanie_pyrenees",
+      "name": "France Nature Environnement Occitanie Pyrénées",
+      "feed": "https://mobilizon.fr/@fne_occitanie_pyrenees/feed/ics",
+      "location": "Toulouse, FR",
+      "g": "spc0"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "gnulinuxvalencia_events",
+      "name": "GNU/Linux València's events",
+      "feed": "https://mobilizon.fr/@gnulinuxvalencia_events/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "gonades",
+      "name": "Collectif GONADES Nantes",
+      "feed": "https://mobilizon.fr/@gonades/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "gribouille_academie",
+      "name": "gribouille academie",
+      "feed": "https://mobilizon.fr/@gribouille_academie/feed/ics",
+      "location": "Les Ulis, FR",
+      "g": "u09s"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "group",
+      "name": "assOciatiOn grOup",
+      "feed": "https://mobilizon.fr/@group/feed/ics",
+      "location": "Besançon, FR",
+      "g": "u0kk"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "guidelyon",
+      "name": "Guide Lyon",
+      "feed": "https://mobilizon.fr/@guidelyon/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "ille_paris",
+      "name": "Les passionnés de langues et littératures indiennes à Paris | Indian Languages and Literature Enthusiasts in Paris",
+      "feed": "https://mobilizon.fr/@ille_paris/feed/ics",
+      "location": "Paris, FR",
+      "g": "u09t"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "jardins_tournants",
+      "name": "Jardins tournants",
+      "feed": "https://mobilizon.fr/@jardins_tournants/feed/ics",
+      "location": "Saint-Georges-D'Aurac, FR",
+      "g": "u048"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "labratcave",
+      "name": "La Brat Cave (Mobilizon)",
+      "feed": "https://mobilizon.fr/@labratcave/feed/ics",
+      "location": "Lille, FR",
+      "g": "u0fp"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "lafediversenantaise",
+      "name": "La Fediverse Nantaise (Nantes & environs)",
+      "feed": "https://mobilizon.fr/@lafediversenantaise/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "lebureaucoop",
+      "name": "LeBureau.coop",
+      "feed": "https://mobilizon.fr/@lebureaucoop/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "les_amis_des_sheds",
+      "name": "Les Ami.e.s des Sheds",
+      "feed": "https://mobilizon.fr/@les_amis_des_sheds/feed/ics",
+      "location": "Kingersheim, FR",
+      "g": "u0mp"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "les_des_ranges_des_mines",
+      "name": "Les Dés Rangés des Mines",
+      "feed": "https://mobilizon.fr/@les_des_ranges_des_mines/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "les_petits_pois_sont_verts_92",
+      "name": "🫛 Les Petits Pois Sont Verts",
+      "feed": "https://mobilizon.fr/@les_petits_pois_sont_verts_92/feed/ics",
+      "location": "Clamart, FR",
+      "g": "u09t"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "liberons_nos_ordis",
+      "name": "Libérons nos ordis",
+      "feed": "https://mobilizon.fr/@liberons_nos_ordis/feed/ics",
+      "location": "Rouen, FR",
+      "g": "u0bc"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "lyontechhub",
+      "name": "Lyon Tech Hub",
+      "feed": "https://mobilizon.fr/@lyontechhub/feed/ics",
+      "location": "Lyon, FR",
+      "g": "u05k"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "partageons_nos_experiences_sur_les_offres_de_pret_dargent_entre_particulier",
+      "name": "Partageons nos expériences sur les offres de prêt d'argent entre particulier",
+      "feed": "https://mobilizon.fr/@partageons_nos_experiences_sur_les_offres_de_pret_dargent_entre_particulier/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "permanences_ul_cnt_35",
+      "name": "Permanences UL CNT 35",
+      "feed": "https://mobilizon.fr/@permanences_ul_cnt_35/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "projets_libres_podcast",
+      "name": "Podcast Projets Libres - LinuxFr.org",
+      "feed": "https://mobilizon.fr/@projets_libres_podcast/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "qgis_bzh",
+      "name": "QGIS_bzh",
+      "feed": "https://mobilizon.fr/@qgis_bzh/feed/ics",
+      "location": "Rennes, FR",
+      "g": "gbwc"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "regards_de_jeunesse",
+      "name": "Regards de jeunesse",
+      "feed": "https://mobilizon.fr/@regards_de_jeunesse/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "rituel_magique",
+      "name": "rituel magique",
+      "feed": "https://mobilizon.fr/@rituel_magique/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "rouenremue",
+      "name": "RouenRemue",
+      "feed": "https://mobilizon.fr/@rouenremue/feed/ics",
+      "location": "Rouen, FR",
+      "g": "u0bc"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "sensibilizon",
+      "name": "SENSIBILIZON en Loire-Atlantique",
+      "feed": "https://mobilizon.fr/@sensibilizon/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "solipalfr",
+      "name": "[SOLiPAL.fr] agenda Solidarité Palestine",
+      "feed": "https://mobilizon.fr/@solipalfr/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "solution_democratique",
+      "name": "Solution démocratique",
+      "feed": "https://mobilizon.fr/@solution_democratique/feed/ics",
+      "location": "Saint-Alban-Leysse, FR",
+      "g": "u0h5"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "sportoustes",
+      "name": "SPORTOUSTES ⚽️🏀 ➡️ migre sur Mastodon (Nantes)",
+      "feed": "https://mobilizon.fr/@sportoustes/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.fr",
+      "group": "tec_chatenay",
+      "name": "Transition Ecologique Châtenay-Malabry",
+      "feed": "https://mobilizon.fr/@tec_chatenay/feed/ics",
+      "location": "Châtenay-Malabry, FR",
+      "g": "u09t"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "5rhythms_movement",
+      "name": "5Rhythms Movement",
+      "feed": "https://mobilizon.ie/@5rhythms_movement/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "aikido_cloughjordan",
+      "name": "Aikido Cloughjordan",
+      "feed": "https://mobilizon.ie/@aikido_cloughjordan/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "ciorcal_comhra_cloch_shiurdain",
+      "name": "Ciorcal comhrá Cloch Shiurdáin",
+      "feed": "https://mobilizon.ie/@ciorcal_comhra_cloch_shiurdain/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "cloughjordan_cineclub",
+      "name": "Cloughjordan Cineclub",
+      "feed": "https://mobilizon.ie/@cloughjordan_cineclub/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "cloughjordan_circus_club",
+      "name": "Cloughjordan Circus Club",
+      "feed": "https://mobilizon.ie/@cloughjordan_circus_club/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "cloughjordan_li_ching_wukung_fu",
+      "name": "Cloughjordan Li Ching Wu - Kung Fu",
+      "feed": "https://mobilizon.ie/@cloughjordan_li_ching_wukung_fu/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "cloughjordan_market",
+      "name": "Cloughjordan Market",
+      "feed": "https://mobilizon.ie/@cloughjordan_market/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "cloughjordan_parish_heritage_group",
+      "name": "Cloughjordan Parish Heritage Group",
+      "feed": "https://mobilizon.ie/@cloughjordan_parish_heritage_group/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "cloughjordan_scouts",
+      "name": "Cloughjordan Scouts  - 11th Tipperary",
+      "feed": "https://mobilizon.ie/@cloughjordan_scouts/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "community_soup_cafe",
+      "name": "Community Soup Café",
+      "feed": "https://mobilizon.ie/@community_soup_cafe/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "crafts_group",
+      "name": "Crafts Group Cloughjordan",
+      "feed": "https://mobilizon.ie/@crafts_group/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "first_friday_music_and_open_mic_sessions",
+      "name": "Music and open mic sessions Cloughjordan",
+      "feed": "https://mobilizon.ie/@first_friday_music_and_open_mic_sessions/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "intraconnecting",
+      "name": "Intraconnecting",
+      "feed": "https://mobilizon.ie/@intraconnecting/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "knockanacree_woods_parkrun",
+      "name": "Knockanacree Woods Parkrun Cloughjordan",
+      "feed": "https://mobilizon.ie/@knockanacree_woods_parkrun/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "north_tipperary_online_farmers_market",
+      "name": "North Tipperary Online Farmers' Market",
+      "feed": "https://mobilizon.ie/@north_tipperary_online_farmers_market/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "pilates_cloughjordan",
+      "name": "Pilates Cloughjordan",
+      "feed": "https://mobilizon.ie/@pilates_cloughjordan/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "riot_rye_bread_school_cloughjordan",
+      "name": "Riot Rye Bread School Cloughjordan",
+      "feed": "https://mobilizon.ie/@riot_rye_bread_school_cloughjordan/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "sheelagh_na_gig_bookshop",
+      "name": "Sheelagh na Gig Bookshop",
+      "feed": "https://mobilizon.ie/@sheelagh_na_gig_bookshop/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "sound_bath_with_denise",
+      "name": "Sound Bath with Denise",
+      "feed": "https://mobilizon.ie/@sound_bath_with_denise/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "thomas_macdonagh_museum_cloughjordan",
+      "name": "Thomas MacDonagh Museum Cloughjordan",
+      "feed": "https://mobilizon.ie/@thomas_macdonagh_museum_cloughjordan/feed/ics",
+      "location": "Cloughjordan, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.ie",
+      "group": "tradnite_cloughjordan",
+      "name": "TradNite Cloughjordan",
+      "feed": "https://mobilizon.ie/@tradnite_cloughjordan/feed/ics",
+      "location": "The Municipal District of Nenagh, IE",
+      "g": "gc6m"
+    },
+    {
+      "instance": "mobilizon.infini.fr",
+      "group": "business",
+      "name": "Business",
+      "feed": "https://mobilizon.infini.fr/@business/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.infini.fr",
+      "group": "decarmonique_evenements",
+      "name": "DécarMonique",
+      "feed": "https://mobilizon.infini.fr/@decarmonique_evenements/feed/ics",
+      "location": "Brest, FR",
+      "g": "gbsg"
+    },
+    {
+      "instance": "mobilizon.infini.fr",
+      "group": "infini",
+      "name": "Infini",
+      "feed": "https://mobilizon.infini.fr/@infini/feed/ics",
+      "location": "Brest, FR",
+      "g": "gbsg"
+    },
+    {
+      "instance": "mobilizon.infini.fr",
+      "group": "termaji_cinedebat",
+      "name": "Termaji : Cinédébats, Cinérencontres, Cinéconcert...",
+      "feed": "https://mobilizon.infini.fr/@termaji_cinedebat/feed/ics",
+      "location": "Brest, FR",
+      "g": "gbsg"
+    },
+    {
+      "instance": "mobilizon.it",
+      "group": "badmintonmotus",
+      "name": "Associazione Badminton Motus",
+      "feed": "https://mobilizon.it/@badmintonmotus/feed/ics",
+      "location": "Massagno, CH",
+      "g": "u0nm"
+    },
+    {
+      "instance": "mobilizon.it",
+      "group": "italian_linux_society",
+      "name": "Italian Linux Society Community",
+      "feed": "https://mobilizon.it/@italian_linux_society/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.it",
+      "group": "locandine",
+      "name": "Locandine",
+      "feed": "https://mobilizon.it/@locandine/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.it",
+      "group": "restarters_torino",
+      "name": "Restarters Torino",
+      "feed": "https://mobilizon.it/@restarters_torino/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.kaz.bzh",
+      "group": "josselin_en_transition",
+      "name": "Josselin en Transition",
+      "feed": "https://mobilizon.kaz.bzh/@josselin_en_transition/feed/ics",
+      "location": "Pontivy, FR",
+      "g": "gbw0"
+    },
+    {
+      "instance": "mobilizon.kaz.bzh",
+      "group": "kaz",
+      "name": "Kaz",
+      "feed": "https://mobilizon.kaz.bzh/@kaz/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.kaz.bzh",
+      "group": "la_fabrique_du_loch",
+      "name": "La FABrique du Loch",
+      "feed": "https://mobilizon.kaz.bzh/@la_fabrique_du_loch/feed/ics",
+      "location": "Auray, FR",
+      "g": "gbmz"
+    },
+    {
+      "instance": "mobilizon.kaz.bzh",
+      "group": "ludouest56",
+      "name": "LudOuest",
+      "feed": "https://mobilizon.kaz.bzh/@ludouest56/feed/ics",
+      "location": "Vannes, FR",
+      "g": "gbqn"
+    },
+    {
+      "instance": "mobilizon.kaz.bzh",
+      "group": "rikm",
+      "name": "rikm",
+      "feed": "https://mobilizon.kaz.bzh/@rikm/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.linux07.fr",
+      "group": "bar_la_source",
+      "name": "Bar La Source",
+      "feed": "https://mobilizon.linux07.fr/@bar_la_source/feed/ics",
+      "location": "Désaignes, FR",
+      "g": "u050"
+    },
+    {
+      "instance": "mobilizon.linux07.fr",
+      "group": "linux07",
+      "name": "Linux07",
+      "feed": "https://mobilizon.linux07.fr/@linux07/feed/ics",
+      "location": "Tournon-sur-Rhône, FR",
+      "g": "spgr"
+    },
+    {
+      "instance": "mobilizon.linux07.fr",
+      "group": "tango_0726",
+      "name": "Tango Drôme-Ardèche",
+      "feed": "https://mobilizon.linux07.fr/@tango_0726/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.nl",
+      "group": "developers_beer_chat",
+      "name": "Developers beer chat",
+      "feed": "https://mobilizon.nl/@developers_beer_chat/feed/ics",
+      "location": "'s-Hertogenbosch, NL",
+      "g": "u15y"
+    },
+    {
+      "instance": "mobilizon.ouvre-boites.coop",
+      "group": "evenements_entrepreneureuses_ouvreboites",
+      "name": "Événements entrepreneur·euses Ouvre-Boites",
+      "feed": "https://mobilizon.ouvre-boites.coop/@evenements_entrepreneureuses_ouvreboites/feed/ics",
+      "location": "Nantes, FR",
+      "g": "gbqu"
+    },
+    {
+      "instance": "mobilizon.ouvre-boites.coop",
+      "group": "evenements_equipe_ouvreboites",
+      "name": "Événements équipe Ouvre-Boites",
+      "feed": "https://mobilizon.ouvre-boites.coop/@evenements_equipe_ouvreboites/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.us",
+      "group": "marabout_retour_affectif_urgent_retour_affectif_rapide_gratuit",
+      "name": "marabout retour affectif urgent, Retour affectif rapide Gratuit",
+      "feed": "https://mobilizon.us/@marabout_retour_affectif_urgent_retour_affectif_rapide_gratuit/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.us",
+      "group": "mixed_media_collage_artists_guild",
+      "name": "Mixed Media Collage Artists Guild",
+      "feed": "https://mobilizon.us/@mixed_media_collage_artists_guild/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.us",
+      "group": "mutual_morris_events",
+      "name": "Mutual Morris",
+      "feed": "https://mobilizon.us/@mutual_morris_events/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.us",
+      "group": "new_jersey_free_software_enthusiasts",
+      "name": "New Jersey Free Software Enthusiasts.",
+      "feed": "https://mobilizon.us/@new_jersey_free_software_enthusiasts/feed/ics",
+      "location": "Morris County, US",
+      "g": "dr70"
+    },
+    {
+      "instance": "mobilizon.us",
+      "group": "novalug",
+      "name": "NoVaLUG",
+      "feed": "https://mobilizon.us/@novalug/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "mobilizon.yvangodard.me",
+      "group": "hypnose_bienetre_et_approche_neurocognitive_34",
+      "name": "Hypnose, bien-être et approche neuro-cognitive 34",
+      "feed": "https://mobilizon.yvangodard.me/@hypnose_bienetre_et_approche_neurocognitive_34/feed/ics",
+      "location": "Frontignan, FR",
+      "g": "spdx"
+    },
+    {
+      "instance": "niederlausitz.vonunten.org",
+      "group": "regenbogenkombinat",
+      "name": "Regenbogenkombinat",
+      "feed": "https://niederlausitz.vonunten.org/@regenbogenkombinat/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "oberlausitz.vonunten.org",
+      "group": "hotti_schnkwrtschft",
+      "name": "Hotti",
+      "feed": "https://oberlausitz.vonunten.org/@hotti_schnkwrtschft/feed/ics",
+      "location": "Görlitz, DE",
+      "g": "u34e"
+    },
+    {
+      "instance": "oberlausitz.vonunten.org",
+      "group": "werkraum_zittau",
+      "name": "Polytechnischer Werkraum Zittau (Termine)",
+      "feed": "https://oberlausitz.vonunten.org/@werkraum_zittau/feed/ics",
+      "location": "Zittau, DE",
+      "g": "u349"
+    },
+    {
+      "instance": "organisera.org",
+      "group": "annedalshuset",
+      "name": "Annedalshuset",
+      "feed": "https://organisera.org/@annedalshuset/feed/ics",
+      "location": "Göteborg, SE",
+      "g": "u628"
+    },
+    {
+      "instance": "organisera.org",
+      "group": "cykelaktion_stockholm_group",
+      "name": "Cykelaktion Stockholm",
+      "feed": "https://organisera.org/@cykelaktion_stockholm_group/feed/ics",
+      "location": "Stockholm, SE",
+      "g": "u6sc"
+    },
+    {
+      "instance": "organisera.org",
+      "group": "folkkok_goteborg",
+      "name": "Folkkök Göteborg",
+      "feed": "https://organisera.org/@folkkok_goteborg/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "organisera.org",
+      "group": "hbtqiarvika",
+      "name": "HBTQIArvika",
+      "feed": "https://organisera.org/@hbtqiarvika/feed/ics",
+      "location": "Arvika kommun, SE",
+      "g": "u68g"
+    },
+    {
+      "instance": "organisera.org",
+      "group": "konstellationen",
+      "name": "Kamratdataföreningen Konstellationen",
+      "feed": "https://organisera.org/@konstellationen/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "organisera.org",
+      "group": "underifran_gbg",
+      "name": "underifrån Göteborg",
+      "feed": "https://organisera.org/@underifran_gbg/feed/ics",
+      "location": "Göteborg, SE",
+      "g": "u628"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "anglican_book_club_heidelberg",
+      "name": "Anglican Book Club Heidelberg",
+      "feed": "https://rheinneckar.events/@anglican_book_club_heidelberg/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "dut_wiesloch",
+      "name": "Digitaler Unabhängigkeitstag Wiesloch",
+      "feed": "https://rheinneckar.events/@dut_wiesloch/feed/ics",
+      "location": "Wiesloch, DE",
+      "g": "u0y0"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "heidelberg",
+      "name": "Heidelberg",
+      "feed": "https://rheinneckar.events/@heidelberg/feed/ics",
+      "location": "Heidelberg, DE",
+      "g": "u0y1"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "hendsemer_krischer",
+      "name": "Hendsemer Krischer",
+      "feed": "https://rheinneckar.events/@hendsemer_krischer/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "kneipenchor_walldorf",
+      "name": "Kneipenchor Walldorf",
+      "feed": "https://rheinneckar.events/@kneipenchor_walldorf/feed/ics",
+      "location": "Walldorf, DE",
+      "g": "u0y0"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "lesbischschwule_geschichte_rheinneckar",
+      "name": "Lesbisch-Schwule Geschichtswerkstatt Rhein-Neckar",
+      "feed": "https://rheinneckar.events/@lesbischschwule_geschichte_rheinneckar/feed/ics",
+      "location": "Heidelberg, DE",
+      "g": "u0y1"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "linux_initiative_reparatur_cafe_reilingen",
+      "name": "Linux Initiative des Reparatur-Café’s Reilingen",
+      "feed": "https://rheinneckar.events/@linux_initiative_reparatur_cafe_reilingen/feed/ics",
+      "location": "Reilingen, DE",
+      "g": "u0y0"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "noname_ev",
+      "name": "NoName e.V.",
+      "feed": "https://rheinneckar.events/@noname_ev/feed/ics",
+      "location": "Heidelberg, DE",
+      "g": "u0y1"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "osm_rheinneckar",
+      "name": "OpenStreetMap Rhein-Neckar",
+      "feed": "https://rheinneckar.events/@osm_rheinneckar/feed/ics",
+      "location": "Heidelberg, DE",
+      "g": "u0y1"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "repaircafe_heidelberg",
+      "name": "Repaircafé und Linux-Hilfe",
+      "feed": "https://rheinneckar.events/@repaircafe_heidelberg/feed/ics",
+      "location": "Heidelberg, DE",
+      "g": "u0y1"
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "the_boisterous_bookclub",
+      "name": "Heidelberg English Speaking Bookclub",
+      "feed": "https://rheinneckar.events/@the_boisterous_bookclub/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rheinneckar.events",
+      "group": "werkstattcafe_walldorf",
+      "name": "Werkstatt-Café Walldorf",
+      "feed": "https://rheinneckar.events/@werkstattcafe_walldorf/feed/ics",
+      "location": "Walldorf, DE",
+      "g": "u0y0"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "a_v_p",
+      "name": "AVP - Antifaschistische Vernetzung Potsdam",
+      "feed": "https://rotes.potsda.mn/@a_v_p/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "archiv_potsdam",
+      "name": "Archiv Potsdam",
+      "feed": "https://rotes.potsda.mn/@archiv_potsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "black_cat_tapes_diy_tape_label",
+      "name": "Black Cat Tapes",
+      "feed": "https://rotes.potsda.mn/@black_cat_tapes_diy_tape_label/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "blegh",
+      "name": "Blegh!",
+      "feed": "https://rotes.potsda.mn/@blegh/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "cafe_madia",
+      "name": "Café Madia",
+      "feed": "https://rotes.potsda.mn/@cafe_madia/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "casino_fhp",
+      "name": "Casino FHP",
+      "feed": "https://rotes.potsda.mn/@casino_fhp/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "d_faq_kollektiv",
+      "name": "d_faq_kollektiv",
+      "feed": "https://rotes.potsda.mn/@d_faq_kollektiv/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "direkt_potsdam",
+      "name": "Direkt_Potsdam",
+      "feed": "https://rotes.potsda.mn/@direkt_potsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "fat_cats_roller_derby_potsdam",
+      "name": "Fät Cäts Roller Derby Potsdam",
+      "feed": "https://rotes.potsda.mn/@fat_cats_roller_derby_potsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "freiland_potsdam",
+      "name": "freiLand Potsdam",
+      "feed": "https://rotes.potsda.mn/@freiland_potsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "haus2wei",
+      "name": "hausZwei",
+      "feed": "https://rotes.potsda.mn/@haus2wei/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "hochpunkterre_",
+      "name": "HOCHPUNKTERRE",
+      "feed": "https://rotes.potsda.mn/@hochpunkterre_/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "info",
+      "name": "Info",
+      "feed": "https://rotes.potsda.mn/@info/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "inwole_ev",
+      "name": "INWOLE e.V.",
+      "feed": "https://rotes.potsda.mn/@inwole_ev/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "kneipe_olga",
+      "name": "Kneipe OLGA",
+      "feed": "https://rotes.potsda.mn/@kneipe_olga/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "kuze",
+      "name": "KuZe",
+      "feed": "https://rotes.potsda.mn/@kuze/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "ladatscha",
+      "name": "LaDatscha",
+      "feed": "https://rotes.potsda.mn/@ladatscha/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "lyrikkollektiv_potsdam",
+      "name": "Lyrikkollektiv Potsdam",
+      "feed": "https://rotes.potsda.mn/@lyrikkollektiv_potsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "machbar",
+      "name": "machBar",
+      "feed": "https://rotes.potsda.mn/@machbar/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "mbf",
+      "name": "Michendorf bekennt Farbe",
+      "feed": "https://rotes.potsda.mn/@mbf/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "non_grata",
+      "name": "Non Grata",
+      "feed": "https://rotes.potsda.mn/@non_grata/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "okev_group",
+      "name": "Offener Kunstverein e.V.",
+      "feed": "https://rotes.potsda.mn/@okev_group/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "paste",
+      "name": "Paste",
+      "feed": "https://rotes.potsda.mn/@paste/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "projekthauspotsdam",
+      "name": "ProjekthausPotsdam",
+      "feed": "https://rotes.potsda.mn/@projekthauspotsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "rechenzentrum",
+      "name": "Rechenzentrum",
+      "feed": "https://rotes.potsda.mn/@rechenzentrum/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "rkb_potsdam",
+      "name": "RKB Potsdam",
+      "feed": "https://rotes.potsda.mn/@rkb_potsdam/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "rosaluxpotsdam",
+      "name": "RosaLuxPotsdam",
+      "feed": "https://rotes.potsda.mn/@rosaluxpotsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "skinhead_babelsberg",
+      "name": "Skinheads Babelsberg",
+      "feed": "https://rotes.potsda.mn/@skinhead_babelsberg/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "solidaritatsvernetzung_potsdam_for_palestine",
+      "name": "Potsdam4Palestine",
+      "feed": "https://rotes.potsda.mn/@solidaritatsvernetzung_potsdam_for_palestine/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "stadtteilkneipe_nowawes_group",
+      "name": "Stadtteilkneipe Nowawes",
+      "feed": "https://rotes.potsda.mn/@stadtteilkneipe_nowawes_group/feed/ics",
+      "location": "Potsdam, DE",
+      "g": "u336"
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "uhland24",
+      "name": "u-24",
+      "feed": "https://rotes.potsda.mn/@uhland24/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "universalistische_linke_potsdam",
+      "name": "Universalistische Linke Potsdam",
+      "feed": "https://rotes.potsda.mn/@universalistische_linke_potsdam/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "rotes.potsda.mn",
+      "group": "z29",
+      "name": "Z29",
+      "feed": "https://rotes.potsda.mn/@z29/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "termine.luebeck.jetzt",
+      "group": "chaotikum_ev",
+      "name": "Chaotikum e.V.",
+      "feed": "https://termine.luebeck.jetzt/@chaotikum_ev/feed/ics",
+      "location": "Lübeck, DE",
+      "g": "u1xd"
+    },
+    {
+      "instance": "termine.luebeck.jetzt",
+      "group": "critical_mass_luebeck",
+      "name": "Critical Mass Lübeck (Unofficial)",
+      "feed": "https://termine.luebeck.jetzt/@critical_mass_luebeck/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "termine.luebeck.jetzt",
+      "group": "gemeinsambuddeln",
+      "name": "GemeinsamBuddeln",
+      "feed": "https://termine.luebeck.jetzt/@gemeinsambuddeln/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "termine.social",
+      "group": "ipaulomo",
+      "name": "IP-AuLoMo",
+      "feed": "https://termine.social/@ipaulomo/feed/ics",
+      "location": "Magdeburg, DE",
+      "g": "u322"
+    },
+    {
+      "instance": "termine.social",
+      "group": "leipzigspielt",
+      "name": "Spielekalender Leipzig",
+      "feed": "https://termine.social/@leipzigspielt/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "termine.social",
+      "group": "verlag_dreiviertelhaus",
+      "name": "Verlag Dreiviertelhaus",
+      "feed": "https://termine.social/@verlag_dreiviertelhaus/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "c3pb",
+      "name": "C3PB e.V.",
+      "feed": "https://treff.tech/@c3pb/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "community_konferenzen",
+      "name": "Community Konferenzen",
+      "feed": "https://treff.tech/@community_konferenzen/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "contextgroup",
+      "name": "ConTeXt group",
+      "feed": "https://treff.tech/@contextgroup/feed/ics",
+      "location": "Breskens, NL",
+      "g": "u14s"
+    },
+    {
+      "instance": "treff.tech",
+      "group": "cpp_ug_dresden",
+      "name": "C++ usergroup Dresden",
+      "feed": "https://treff.tech/@cpp_ug_dresden/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "dpunktverlag",
+      "name": "dpunkt.verlag",
+      "feed": "https://treff.tech/@dpunktverlag/feed/ics",
+      "location": "Heidelberg, DE",
+      "g": "u0y1"
+    },
+    {
+      "instance": "treff.tech",
+      "group": "samn",
+      "name": "Software Architecture Meetup Nürnberg",
+      "feed": "https://treff.tech/@samn/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "softwarearchitektur_im_stream",
+      "name": "Software-Architektur im Stream",
+      "feed": "https://treff.tech/@softwarearchitektur_im_stream/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "softwerkskammer_nuernberg",
+      "name": "Softwerkskammer Nürnberg - Software Craft Community",
+      "feed": "https://treff.tech/@softwerkskammer_nuernberg/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "softwerkskammer_rheinmain",
+      "name": "Softwerkskammer Rhein-Main",
+      "feed": "https://treff.tech/@softwerkskammer_rheinmain/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "swk_ka",
+      "name": "Softwerkskammer Karlsruhe",
+      "feed": "https://treff.tech/@swk_ka/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treff.tech",
+      "group": "tex_de",
+      "name": "DANTE e.V.",
+      "feed": "https://treff.tech/@tex_de/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "treffpunkt.ruhr",
+      "group": "do_dotnet",
+      "name": ".net User Group Dortmund",
+      "feed": "https://treffpunkt.ruhr/@do_dotnet/feed/ics",
+      "location": "Dortmund, DE",
+      "g": "u1jm"
+    },
+    {
+      "instance": "uppsala.social",
+      "group": "dfupdate",
+      "name": "Datorföreningen Update",
+      "feed": "https://uppsala.social/@dfupdate/feed/ics",
+      "location": "Uppsala, SE",
+      "g": "u6ss"
+    },
+    {
+      "instance": "uppsala.social",
+      "group": "linux_usergroup",
+      "name": "Uppsala Linux User Group",
+      "feed": "https://uppsala.social/@linux_usergroup/feed/ics",
+      "location": "Uppsala kommun, SE",
+      "g": "u6ss"
+    },
+    {
+      "instance": "uppsala.social",
+      "group": "uu_cyberrisklab",
+      "name": "CyberRiskLab",
+      "feed": "https://uppsala.social/@uu_cyberrisklab/feed/ics",
+      "location": "Uppsala, SE",
+      "g": "u6ss"
+    },
+    {
+      "instance": "wuelender.de",
+      "group": "wurzblogtipps",
+      "name": "Würzblog-Tipps",
+      "feed": "https://wuelender.de/@wurzblogtipps/feed/ics",
+      "location": null,
+      "g": null
+    },
+    {
+      "instance": "wydarzenia.phub.pl",
+      "group": "cafe_zapalka0",
+      "name": "Café Zapałka",
+      "feed": "https://wydarzenia.phub.pl/@cafe_zapalka0/feed/ics",
+      "location": "Gliwice, PL",
+      "g": "u2vq"
+    },
+    {
+      "instance": "wydarzenia.phub.pl",
+      "group": "gmina_brwinow",
+      "name": "Gmina Brwinów",
+      "feed": "https://wydarzenia.phub.pl/@gmina_brwinow/feed/ics",
+      "location": "powiat pruszkowski, PL",
+      "g": "u3q8"
+    },
+    {
+      "instance": "wydarzenia.phub.pl",
+      "group": "krkinfo",
+      "name": "KRK///info",
+      "feed": "https://wydarzenia.phub.pl/@krkinfo/feed/ics",
+      "location": null,
+      "g": null
+    }
+  ]
+}

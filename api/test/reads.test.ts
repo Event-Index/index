@@ -122,12 +122,13 @@ test('one event as .ics, jCal and JSON-LD; a reserved source gets the summary on
   assert.equal((await h.get(`${API}/events/byid/not-an-id`)).status, 404);
 });
 
-test('an open source keeps its full description and images', async () => {
+test('a Mobilizon event is served with its summary and link, and no image', async () => {
   const row = h.events.byCalendar('mobilizon:mobilizon.fr/@lyontechhub', 0, NOW * 2).find((e) => e.uid === 'c93acabc-0885-40ca-b861-565079746ed2')!;
   const event = await (await h.get(`${API}/events/byid/${row.id}.json`)).json() as any;
-  assert.match(event.image, /^https:\/\//);
+  assert.equal(event.image ?? null, null);
+  assert.match(event.url, /^https:\/\/mobilizon\.fr\//);
   const text = await (await h.get(`${API}/events/byid/${row.id}.ics`)).text();
-  assert.match(text, /^STYLED-DESCRIPTION/m);
+  assert.doesNotMatch(text, /^STYLED-DESCRIPTION/m);
 });
 
 test('a hidden venue has no place in any format, and is found near its calendar\'s area', async () => {
