@@ -73,8 +73,10 @@ export interface Publisher {
   // Addresses of the key's events that have RSVPs, read from the index's
   // relay and any relays named.
   rsvps(pubkey: string, relays?: string[]): Promise<Set<string>>;
-  // What the index's own relay holds, for re-sending to outside relays.
+  // What the index's own relay holds, for re-sending to outside relays, and
+  // what one outside relay holds, for the daily reconcile of the items.
   fetchOwn?(filter: Filter): Promise<VerifiedEvent[]>;
+  fetchFrom?(relay: string, filter: Filter): Promise<VerifiedEvent[]>;
   // Events still queued for outside relays that are not paused, and for one
   // outside relay.
   pending?(): number;
@@ -120,6 +122,8 @@ export interface IndexerDeps {
   // Event items signed in one tick, and created_at seconds they are spread over.
   itemsPerTick?: number;
   itemsPerSecond?: number;
+  // Live items checked against each relay in one tick of the daily reconcile.
+  itemsReconciledPerTick?: number;
   // Aborted on shutdown: the tick stops between polls.
   signal?: AbortSignal;
 }
@@ -157,6 +161,12 @@ const ITEMS_EVERY = 600;
 const ITEM_MISSING_GRACE = DAY;
 // Deletions of expired items signed in one tick (each holds up to 99 items).
 const EXPIRY_DELETIONS_PER_TICK = 50;
+// The daily reconcile: live items checked against each relay in one tick,
+// asked about so many a query, and so many a query when asked again.
+const RECONCILE_PER_TICK = 500;
+const RECONCILE_BATCH = 100;
+const RECONCILE_AGAIN = 20;
+const RECONCILE_FACT = 'items_reconcile';
 
 // No co-hosts: a native calendar's events are its organizer's own.
 const NO_PLAN: CohostPlan = { yields: new Map(), cohostsOf: new Map(), cohosted: new Map(), canonicalOf: new Map() };
@@ -584,6 +594,83 @@ export function createIndexer(deps: IndexerDeps) {
     if (owed.length === 0) return;
     await publisher.publish(owed, 'lists');
     for (const e of owed) deletionsInFlight.add(e.id);
+  }
+
+  // The daily reconcile: each relay the items go to outside is asked which
+  // of the live items it holds, a part of them each tick, once the items are
+  // caught up and the relays' queues are empty. What it lacks, or holds only
+  // in an older version, is sent to it again as our relay holds it. An item it
+  // seemed to lack is asked about again first, and a part it answered nothing
+  // for is left alone, so a relay that is down is not sent everything again.
+  // A paused relay sits the round out. The round is recorded in index.db.
+  interface Reconciled { live: number; held: number; missing: number; older: number; unanswered: number; resent: number }
+  let round: { at: number; ids: string[]; next: number; relays: Map<string, { set: RelaySet; counts: Reconciled | null }> } | null = null;
+  async function reconcileItems(now: number): Promise<void> {
+    if (!settings.eventItems || !publisher.fetchOwn || !publisher.fetchFrom) return;
+    // Where the items go beyond our relay (service/routing.ts).
+    const targets = settings.publishToGeneralRelays && settings.publishDirectoryOutside
+      ? [...settings.searchRelays.map((relay) => ({ relay, set: 'search' as const })), ...settings.listRelays.map((relay) => ({ relay, set: 'lists' as const }))]
+      : [];
+    if (targets.length === 0) return;
+    if (!round) {
+      const last = JSON.parse(dir.fact(RECONCILE_FACT) ?? 'null') as { at: number } | null;
+      if (now - (last?.at ?? 0) < DAY || itemsDueAt <= now) return;
+      if (targets.some(({ relay }) => (publisher.pendingFor?.(relay) ?? 0) > 0)) return;
+      const pauses = relayPauses(dir);
+      const paused = (relay: string) => {
+        const state = pauses.get(relay);
+        return !!state && (state.until === null || state.until > now);
+      };
+      round = {
+        at: now, ids: items.all().map((i) => i.d), next: 0,
+        relays: new Map(targets.map(({ relay, set }) => [relay, { set, counts: paused(relay) ? null : { live: 0, held: 0, missing: 0, older: 0, unanswered: 0, resent: 0 } }])),
+      };
+    }
+    const filter = (ids: string[]) => ({ kinds: [39999], authors: [indexPubkey], '#d': ids, limit: ids.length });
+    const dOf = (e: VerifiedEvent) => e.tags.find((t) => t[0] === 'd')?.[1] ?? '';
+    // The newest version a relay holds of each item asked about.
+    const ask = async (relay: string, ids: string[], into: Map<string, number>) => {
+      for (const e of await publisher.fetchFrom!(relay, filter(ids))) {
+        if (e.kind === 39999 && e.pubkey === indexPubkey) into.set(dOf(e), Math.max(into.get(dOf(e)) ?? 0, e.created_at));
+      }
+    };
+    const end = Math.min(round.ids.length, round.next + (deps.itemsReconciledPerTick ?? RECONCILE_PER_TICK));
+    while (round.next < end) {
+      const ids = round.ids.slice(round.next, Math.min(end, round.next + RECONCILE_BATCH));
+      const own = await publisher.fetchOwn(filter(ids));
+      round.next += ids.length;
+      if (own.length === 0) continue;
+      for (const [relay, { set, counts }] of round.relays) {
+        if (!counts) continue;
+        const held = new Map<string, number>();
+        await ask(relay, own.map(dOf), held);
+        const absent = own.filter((e) => (held.get(dOf(e)) ?? 0) < e.created_at);
+        for (let j = 0; j < absent.length; j += RECONCILE_AGAIN) await ask(relay, absent.slice(j, j + RECONCILE_AGAIN).map(dOf), held);
+        counts.live += own.length;
+        if (held.size === 0) {
+          counts.unanswered += own.length;
+          continue;
+        }
+        const missing = own.filter((e) => !held.has(dOf(e)));
+        const older = own.filter((e) => held.has(dOf(e)) && held.get(dOf(e))! < e.created_at);
+        counts.held += own.length - missing.length - older.length;
+        counts.missing += missing.length;
+        counts.older += older.length;
+        if (missing.length + older.length === 0) continue;
+        await publisher.publish([...missing, ...older], set, [relay]);
+        counts.resent += missing.length + older.length;
+      }
+    }
+    if (round.next < round.ids.length) return;
+    const record: Record<string, Reconciled | { paused: true }> = {};
+    for (const [relay, { counts: c }] of round.relays) {
+      record[relay] = c ?? { paused: true };
+      deps.log(c
+        ? `event items: reconciled with ${relay}: ${c.live} live, ${c.held} held, ${c.missing} missing, ${c.older} older, ${c.unanswered} unanswered; ${c.resent} sent again`
+        : `event items: ${relay} is paused; left out of the reconcile`);
+    }
+    dir.setFact(RECONCILE_FACT, JSON.stringify({ at: round.at, relays: record }));
+    round = null;
   }
 
   // Signs templates (hash-tracked unless `always`) with created_at moving
@@ -1336,6 +1423,7 @@ const NATIVE_BUILD_SHARE = 500;
       try {
         report.published += await publishItems(now);
         await deleteExpired(now);
+        await reconcileItems(now);
       } catch (error) {
         deps.log(`event items: ${(error as Error).stack ?? error}`);
       }

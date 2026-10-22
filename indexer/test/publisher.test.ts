@@ -252,3 +252,15 @@ test('RSVPs are read from the index\'s relay and the relays named', async () => 
   await publisher.rsvps('ab'.repeat(32), ['wss://home.example']);
   assert.deepEqual(asked, [[settings.relayUrl, 'wss://home.example']]);
 });
+
+test('what one outside relay holds is read from it alone, a search relay with its include:spam extension', async () => {
+  const asked: Array<{ relays: string[]; filter: unknown; maxWait?: number }> = [];
+  const pool: RelayPool = { publish: () => [], querySync: async (relays, filter, params) => { asked.push({ relays, filter, maxWait: params?.maxWait }); return []; }, close: () => {} };
+  const publisher = relayPublisher(settings, () => {}, { pool });
+  await publisher.fetchFrom!('wss://lists.example', { kinds: [39999], '#d': ['x'] });
+  await publisher.fetchFrom!('wss://search.example', { kinds: [39999], '#d': ['x'] });
+  assert.deepEqual(asked.map((a) => a.relays), [['wss://lists.example'], ['wss://search.example']]);
+  assert.deepEqual(asked[0]!.filter, { kinds: [39999], '#d': ['x'] });
+  assert.deepEqual(asked[1]!.filter, { kinds: [39999], '#d': ['x'], search: 'include:spam' });
+  assert.ok(asked.every((a) => (a.maxWait ?? 0) >= 10_000), 'a slow relay is waited for');
+});

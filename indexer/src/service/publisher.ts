@@ -38,11 +38,13 @@ const QUEUE_MAX = 50_000;
 const REPORT_EVERY = 250;
 // The longest a timer can wait.
 const MAX_TIMER_MS = 2 ** 31 - 1;
+// How long an outside relay is given to answer what it holds.
+const QUERY_WAIT_MS = 20_000;
 
 // What the publisher needs of a relay pool (nostr-tools' SimplePool).
 export interface RelayPool {
   publish(relays: string[], event: VerifiedEvent): Promise<string>[];
-  querySync(relays: string[], filter: Filter): Promise<unknown[]>;
+  querySync(relays: string[], filter: Filter, params?: { maxWait?: number }): Promise<unknown[]>;
   close(relays: string[]): void;
 }
 
@@ -289,6 +291,13 @@ export function relayPublisher(settings: Settings, log: (line: string) => void, 
     // What the index's own relay holds, for re-sending.
     async fetchOwn(filter: Filter): Promise<VerifiedEvent[]> {
       return (await pool.querySync([settings.relayUrl], filter)) as VerifiedEvent[];
+    },
+
+    // What one outside relay holds. A search relay leaves out what it counts
+    // as spam unless asked (NIP-50).
+    async fetchFrom(relay: string, filter: Filter): Promise<VerifiedEvent[]> {
+      const extra = settings.searchRelays.includes(relay) ? { search: 'include:spam' } : {};
+      return (await pool.querySync([relay], { ...filter, ...extra }, { maxWait: QUERY_WAIT_MS })) as VerifiedEvent[];
     },
 
     // Events waiting for relays that are not paused.

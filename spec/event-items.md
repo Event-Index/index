@@ -112,6 +112,17 @@ which is made available under the Open Database License (ODbL).
   ([`directory.md`](directory.md)), the search relays and the list relays,
   each at its pace. Never the general or profile relays. Withdrawals go the
   same way; deletions of expired items to the list relays only.
+- **Reconcile.** Once a day, once the items are caught up and the relays'
+  queues are empty, each of those search and list relays is asked which live
+  items it holds (500 a tick, 100 a query; a search relay with its
+  `include:spam` extension). An item it lacks, or holds only in an older
+  version, is asked about again on its own, then sent to that relay alone as
+  the index's relay holds it. A part of the list the relay answered nothing
+  for is left alone, so a relay that is down is not sent everything again,
+  and a paused relay sits the round out. Each round is recorded in
+  `index.db` (`items_reconcile`): for each relay, the live items checked and
+  how many it held, lacked, held in an older version or did not answer for,
+  and how many were sent again.
 
 ## 4. Records
 
