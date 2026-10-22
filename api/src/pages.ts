@@ -569,7 +569,7 @@ ${SIGN_IN}
 </form>
 </div>
 ${STATUS}
-<p class="muted" data-claim-note>You will get a short code to place in the calendar's description, or in one of its events, on ${where}. A maintainer reviews each claim once the code is found.</p>
+<p class="muted" data-claim-note>You will get a short code to place in the calendar's description, or in one of its events, on ${where}. A maintainer reviews each claim once the code is found. Once it is approved, Event Index serves your events in full, their whole descriptions and, where the platform allows, their images, instead of a summary and a link.</p>
 </section>`, `Claim ${name} on Event Index.`, true);
 }
 

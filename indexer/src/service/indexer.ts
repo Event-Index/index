@@ -9,7 +9,7 @@ import { finalizeEvent, getPublicKey, type VerifiedEvent } from 'nostr-tools/pur
 import type { Settings } from '../config.ts';
 import type { DirectoryIdentity } from '../directory/id.ts';
 import { directoryEntry, eventsHeader, citySlug } from '../directory/entry.ts';
-import { adapterFor } from '../adapters/index.ts';
+import { adapterFor, calendarPolicy } from '../adapters/index.ts';
 import { recordFromText, type CalendarMeta, type NormalizedFeed } from '../normalize/normalize.ts';
 import { pollCalendar } from '../poller/poll.ts';
 import type { FetchResult, Validators } from '../poller/fetch.ts';
@@ -496,9 +496,9 @@ export function createIndexer(deps: IndexerDeps) {
     const wanted = new Map<string, { template: EventTemplate; d: string; start: number; ends: number; expires: number; calendarD: string }>();
     for (const entry of listed) {
       const calendar = { d: entry.d, name: entry.name, source: entry.source, feedUrl: entry.feedUrl, location: entry.location, owner: entry.owner };
-      const images = adapterFor(entry.source).policy.images;
+      const policy = calendarPolicy(entry, dir.contentReserved(entry.d));
       for (const row of events.ongoing(entry.d, now)) {
-        const built = eventItem(row, { header, indexPubkey, calendar, cities, image: images ? recordImage(row.recordId, row.uid) : null, copies: copiesOf.get(row.id) ?? [] });
+        const built = eventItem(row, { header, indexPubkey, calendar, cities, policy, image: policy.images ? recordImage(row.recordId, row.uid) : null, copies: copiesOf.get(row.id) ?? [] });
         if ('skip' in built) continue;
         wanted.set(row.id, { template: built.template, d: row.id, start: row.start, ends: built.ends, expires: built.expires, calendarD: entry.d });
       }
@@ -1137,6 +1137,7 @@ const NATIVE_BUILD_SHARE = 500;
         location: entry.location,
         geohash: entry.g,
         city: citySlug(entry.location),
+        policy: calendarPolicy(entry, dir.contentReserved(entry.d)),
         removed: entry.removed ?? undefined,
       });
       (outside ? items : held).push({ template, d: entry.d, start: now });
@@ -1238,7 +1239,7 @@ const NATIVE_BUILD_SHARE = 500;
           ...(settings.eventItems ? { itemAddress: (id: string) => (items.has(id) ? naddrFor(indexPubkey, 39999, id, [settings.publicRelay]) : null) } : {}),
           originalOf: (id) => events.originalAddressOf(id),
           enrich: (feed) => enrichFeed(entry, feed),
-          ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH } } : {}),
+          ...(home ? { delegated: { relay: home.hint, claimedAt: entry.claimedAt, batch: deps.signBatch ?? SIGN_BATCH, keptReserved: dir.contentReserved(entry.d) } } : {}),
         },
       );
     } finally {

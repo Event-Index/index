@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { calendarPolicy, type ContentPolicy } from '../src/adapters/index.ts';
 import { normalizeFeed } from '../src/normalize/normalize.ts';
 import { directoryEntry, eventsHeader, citySlug } from '../src/directory/entry.ts';
 import { identify } from '../src/directory/id.ts';
@@ -10,13 +11,14 @@ const HEADER = `39998:${'ab'.repeat(32)}:event-calendars`;
 // An organizer's verified key, as a calendar's entry names it.
 const CAL = 'c1'.repeat(32);
 
-function entryFor(fixture: string, extra: { pubkey?: string | null; removed?: string; location?: string | null; geohash?: string | null; city?: string | null } = {}) {
+function entryFor(fixture: string, extra: { pubkey?: string | null; removed?: string; location?: string | null; geohash?: string | null; city?: string | null; policy?: ContentPolicy } = {}) {
   const id = identify(feedUrlFor(fixture));
   const feed = normalizeFeed(readFixture(fixture), id);
   return directoryEntry({
     identity: id, calendar: feed.calendar, header: HEADER, pubkey: extra.pubkey === undefined ? CAL : extra.pubkey,
     localName: id.d.toLowerCase().replace(/[^a-z0-9]+/g, '-'), location: extra.location === undefined ? 'San Diego, US' : extra.location,
     geohash: extra.geohash === undefined ? '9mud' : extra.geohash, city: extra.city === undefined ? 'san-diego' : extra.city, removed: extra.removed,
+    ...(extra.policy ? { policy: extra.policy } : {}),
   });
 }
 
@@ -55,8 +57,10 @@ test('a Luma calendar\'s entry names its Luma id, and never its description or i
   ]);
 });
 
-test('an open source\'s entry carries the calendar\'s description and image, last', () => {
-  const rich = entryFor('synthetic/rich.ics');
+test('a verified calendar\'s entry carries its description and image, last; an unverified one neither', () => {
+  const plain = entryFor('synthetic/rich.ics', { pubkey: null });
+  assert.ok(!plain.tags.some((t) => t[0] === 'description' || t[0] === 'image'));
+  const rich = entryFor('synthetic/rich.ics', { policy: calendarPolicy({ source: 'ics', owner: CAL }) });
   assert.deepEqual(rich.tags.slice(-4), [
     ['t', 'san-diego'],
     ['t', 'ics'],
@@ -155,4 +159,9 @@ test('a city\'s slug drops its accents, and each seeded city\'s slug is the one 
   assert.equal(citySlug("'s-Hertogenbosch, NL"), 's-hertogenbosch');
   const cities = (JSON.parse(readFileSync(new URL('../../seeds/cities.json', import.meta.url), 'utf8')) as { cities: Array<{ name: string; slug: string }> }).cities;
   for (const c of cities) assert.equal(c.slug, citySlug(c.name), c.name);
+});
+
+test('a country-wide calendar is tagged with its country', () => {
+  assert.equal(citySlug('Czechia, CZ'), 'czechia');
+  assert.equal(citySlug('Spain, ES'), 'spain');
 });

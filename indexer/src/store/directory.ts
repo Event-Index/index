@@ -217,6 +217,12 @@ export function directoryStore(index: IndexDb) {
       const row = db.prepare<[string], { calendar_meta: string | null }>('SELECT calendar_meta FROM directory WHERE d = ?').get(d);
       return row?.calendar_meta ? JSON.parse(row.calendar_meta) : null;
     },
+    // A calendar kept as summary and link even with a verified organizer
+    // (adapters/index.ts calendarPolicy), by the operator.
+    contentReserved: (d: string) => db.prepare<[string], { value: string }>('SELECT value FROM meta WHERE key = ?').get(`content_reserved ${d}`)?.value === '1',
+    setContentReserved: (d: string, on: boolean) => void (on
+      ? db.prepare("INSERT INTO meta (key, value) VALUES (?, '1') ON CONFLICT (key) DO UPDATE SET value = '1'").run(`content_reserved ${d}`)
+      : db.prepare('DELETE FROM meta WHERE key = ?').run(`content_reserved ${d}`)),
     setFact: (key: string, value: string) => void db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(key, value),
     fact: (key: string) => db.prepare<[string], { value: string }>('SELECT value FROM meta WHERE key = ?').get(key)?.value ?? null,
     deleteFact: (key: string) => void db.prepare('DELETE FROM meta WHERE key = ?').run(key),

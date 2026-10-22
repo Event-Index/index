@@ -7,6 +7,8 @@ import { RESERVED, type Adapter } from './types.ts';
 export const meetup: Adapter = {
   source: 'meetup',
   policy: RESERVED,
+  // Meetup hosts its events' images under its own terms.
+  imagesOnceVerified: false,
   descriptionFormat: 'markdown',
 
   event(vevent, calendar) {

@@ -63,6 +63,7 @@ const USAGE = `usage: admin.ts <command>
   approve-removal <id>
   reject-removal <id>
   remove <local name or d> [--message <text>]
+  content <local name or d> summary|default
   claims
   approve-claim <id>
   reject-claim <id>
@@ -224,6 +225,19 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       if (!args[0]) throw new UsageError('remove needs a local name or d');
       const r = removeCalendar(s, args[0], message, now);
       out(`remove request ${r.id} approved; the poll service removes the calendar on its next tick`);
+      return;
+    }
+    case 'content': {
+      // A calendar kept as summary and link even once its organizer has
+      // verified, or let back to its default (adapters/index.ts calendarPolicy).
+      const [name, how] = args;
+      if (!name || (how !== 'summary' && how !== 'default')) throw new UsageError('content needs a local name or d, then summary or default');
+      const entry = s.dir.byLocalName(name) ?? s.dir.get(name);
+      if (!entry || entry.removed) throw new Error(`no calendar ${name} in the directory`);
+      s.dir.setContentReserved(entry.d, how === 'summary');
+      out(how === 'summary'
+        ? `${entry.d} is kept as summary and link; its entry follows at the next tick, its items within ten minutes`
+        : `${entry.d} is back to its default: in full once its organizer has verified, else summary and link`);
       return;
     }
     case 'claims':

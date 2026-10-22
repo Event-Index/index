@@ -46,6 +46,8 @@ export interface PollDeps {
   delegated?: {
     relay: string;
     claimedAt?: number | null;
+    // The operator keeps the calendar as summary and link.
+    keptReserved?: boolean;
     // A remote signer answers slowly: at most this many events are signed in
     // one poll, within the time budget; the rest wait for the next poll.
     batch?: number;
@@ -178,6 +180,7 @@ export async function pollCalendar(entry: Entry, plan: PlanSource, deps: PollDep
     hasRsvps: (address) => rsvps.has(address),
     plan: effectivePlan,
     delegated: { relay, calendarD: entry.d },
+    keptReserved: deps.delegated.keptReserved ?? false,
     ...(deps.originalOf ? { originalOf: deps.originalOf } : {}),
   });
 

@@ -3,8 +3,8 @@
 
 import ICAL from 'ical.js';
 import { decode } from 'nostr-tools/nip19';
-import type { Adapter } from '../adapters/index.ts';
-import { adapterFor } from '../adapters/index.ts';
+import type { Adapter, ContentPolicy } from '../adapters/index.ts';
+import { adapterFor, calendarPolicy } from '../adapters/index.ts';
 import type { NormalizedFeed } from '../normalize/normalize.ts';
 import { summarize } from '../ical/text.ts';
 import { encodeGeohash } from './geohash.ts';
@@ -32,6 +32,9 @@ export interface ProjectionContext {
   // Keys of the other directory calendars that list the same event.
   cohosts: string[];
   adapter: Adapter;
+  // The calendar's content policy: a calendar the index publishes as its
+  // organizer is verified, so loosened unless kept reserved.
+  policy: ContentPolicy;
   relay: string;
   apiBase: string;
   // The address of an organizer's own event an occurrence copies, by the
@@ -41,7 +44,7 @@ export interface ProjectionContext {
 
 export function projectionContext(
   feed: NormalizedFeed,
-  keys: { calendarPubkey: string; indexPubkey: string; cohosts?: string[] },
+  keys: { calendarPubkey: string; indexPubkey: string; cohosts?: string[]; keptReserved?: boolean },
 ): ProjectionContext {
   return {
     calendarName: feed.calendar.name ?? feed.context.d,
@@ -50,6 +53,7 @@ export function projectionContext(
     indexPubkey: keys.indexPubkey,
     cohosts: keys.cohosts ?? [],
     adapter: adapterFor(feed.context.source),
+    policy: calendarPolicy({ source: feed.context.source, owner: keys.calendarPubkey }, keys.keptReserved ?? false),
     relay: INDEX_RELAY,
     apiBase: API_BASE,
   };
@@ -177,7 +181,7 @@ export function projectOccurrence(o: Occurrence, ctx: ProjectionContext): Projec
   const summary = summaryOf(vevent, ctx.adapter);
   const tags: Tag[] = [['d', o.d], ['title', title]];
   if (summary) tags.push(['summary', summary]);
-  const image = ctx.adapter.policy.images ? imageOf(vevent) : null;
+  const image = ctx.policy.images ? imageOf(vevent) : null;
   if (image) tags.push(['image', image]);
 
   if (o.allDay) {

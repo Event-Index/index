@@ -3,7 +3,7 @@
 // 39998) a maintainer signs; the entry's `z` names that header. The events
 // header below is still the index key's own.
 
-import { adapterFor } from '../adapters/index.ts';
+import { adapterFor, type ContentPolicy } from '../adapters/index.ts';
 import type { CalendarMeta } from '../normalize/normalize.ts';
 import type { EventTemplate, Tag } from '../project/nip52.ts';
 import type { DirectoryIdentity } from './id.ts';
@@ -11,6 +11,9 @@ import type { DirectoryIdentity } from './id.ts';
 export interface EntryInput {
   identity: DirectoryIdentity;
   calendar: CalendarMeta;
+  // The calendar's content policy (adapters/index.ts calendarPolicy); its
+  // source's unless given.
+  policy?: ContentPolicy;
   // The list header's coordinate, 39998:<pubkey>:<d>.
   header: string;
   // The organizer's own key: a publisher's, or one its organizer verified;
@@ -41,7 +44,7 @@ export function citySlug(location: string | null | undefined): string | null {
 // The tags in the header's order, without empty values.
 export function directoryEntry(input: EntryInput): EventTemplate {
   const { identity, calendar } = input;
-  const policy = adapterFor(identity.source).policy;
+  const policy = input.policy ?? adapterFor(identity.source).policy;
   const platformId = identity.d.slice(identity.d.indexOf(':') + 1);
   const source = input.readFrom === 'nostr' ? 'nostr' : identity.source;
   const tags: Array<[string, string | null | undefined]> = [

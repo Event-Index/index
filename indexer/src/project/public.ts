@@ -5,7 +5,7 @@
 
 import ICAL from 'ical.js';
 import '../ical/design.ts';
-import type { Adapter } from '../adapters/index.ts';
+import type { Adapter, ContentPolicy } from '../adapters/index.ts';
 import { adapterFor } from '../adapters/index.ts';
 import type { EventRecord, NormalizedFeed } from '../normalize/normalize.ts';
 import { API_BASE, geoOf, imageOf, locationsOf, summaryOf, venueHidden } from './nip52.ts';
@@ -15,16 +15,19 @@ export interface PublicContext {
   calendarName: string;
   calendarUrl: string | null;
   adapter: Adapter;
+  // The calendar's content policy (adapters/index.ts calendarPolicy).
+  policy: ContentPolicy;
   apiBase: string;
   // When the record last changed; every VEVENT's DTSTAMP.
   changedAt: number;
 }
 
-export function publicContext(feed: NormalizedFeed, changedAt: number): PublicContext {
+export function publicContext(feed: NormalizedFeed, changedAt: number, policy: ContentPolicy = adapterFor(feed.context.source).policy): PublicContext {
   return {
     calendarName: feed.calendar.name ?? feed.context.d,
     calendarUrl: feed.calendar.url,
     adapter: adapterFor(feed.context.source),
+    policy,
     apiBase: API_BASE,
     changedAt,
   };
@@ -58,7 +61,7 @@ function scrubSub(c: JCal): JCal {
 
 function scrub(vevent: ICAL.Component, ctx: PublicContext): ICAL.Component {
   const jcal = structuredClone(vevent.toJSON()) as JCal;
-  const policy = ctx.adapter.policy;
+  const policy = ctx.policy;
   const hidden = venueHidden(vevent);
   const properties = (jcal[1] as JProp[]).filter((p) => {
     const name = p[0];
@@ -184,7 +187,7 @@ export function toJsonLd(o: Occurrence, ctx: PublicContext): Record<string, unkn
     ld['eventAttendanceMode'] = 'https://schema.org/OfflineEventAttendanceMode';
   }
 
-  const image = ctx.adapter.policy.images ? imageOf(vevent) : null;
+  const image = ctx.policy.images ? imageOf(vevent) : null;
   if (image) ld['image'] = image;
   const page = (vevent.getFirstPropertyValue('url') as string | null) ?? ctx.calendarUrl;
   if (page) ld['url'] = page;

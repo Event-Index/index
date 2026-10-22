@@ -23,7 +23,7 @@ path. Read endpoints need no key and send `Access-Control-Allow-Origin: *`.
 | `.ics` | `text/calendar` | iCalendar (RFC 5545) |
 | `.json` | `application/ld+json` | schema.org `Event` |
 
-Projections follow the source's content policy
+Projections follow the calendar's content policy
 ([`platform-adapters.md`](platform-adapters.md)) and never carry an `ORGANIZER`
 or `ATTENDEE`. An event whose venue is hidden carries no place in any format.
 An occurrence of a recurring event is served as that one instance (its
@@ -82,7 +82,7 @@ A calendar response:
 }
 ```
 
-`image` is null where the source's policy serves no images. `publishing`
+`image` is null where the calendar's policy serves no images. `publishing`
 says who signs the calendar's events on nostr ([`directory.md`](directory.md)):
 `mirrored` (the index key, as event items, [`event-items.md`](event-items.md)),
 `organizer` (the organizer, from their own key; the index reads their
@@ -268,7 +268,10 @@ found at the next poll and verifies the claim; so does NIP-05 at one of
 `nip05_domains`, the calendar's own domains (none for a calendar on a
 platform's domain). A signer's address is sealed for the poll service as soon
 as it arrives; the HTTP service keeps it only sealed. A maintainer approves a
-verified claim, and the poll service carries it out at its next tick.
+verified claim, and the poll service carries it out at its next tick. From
+then on the calendar is served in full: its events' full descriptions, and
+images where its source allows them, instead of a summary and a link
+([`platform-adapters.md`](platform-adapters.md), Content policy).
 
 `/nip05` answers `200` with `{"status": "verified", "claim": n, "by": "nip05"}`.
 `/signer` answers `202` with `{"status": "received", "request": n, "message"}`.

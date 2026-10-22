@@ -131,6 +131,27 @@ test('a Mobilizon event is served with its summary and link, and no image', asyn
   assert.doesNotMatch(text, /^STYLED-DESCRIPTION/m);
 });
 
+test('once its organizer verifies, a calendar is served in full; kept reserved, or unverified, it is summary and link again', async () => {
+  const d = 'mobilizon:mobilizon.fr/@lyontechhub';
+  const row = h.events.byCalendar(d, 0, NOW * 2).find((e) => e.uid === 'c93acabc-0885-40ca-b861-565079746ed2')!;
+  const served = async () => ({
+    json: await (await h.get(`${API}/events/byid/${row.id}.json`)).json() as any,
+    ics: await (await h.get(`${API}/events/byid/${row.id}.ics`)).text(),
+  });
+  const owner = 'ab'.repeat(32);
+  h.dir.setOwnership(d, { mode: 'mirrored', owner, claimedAt: NOW, nativeCalendar: null });
+  const full = await served();
+  assert.match(full.ics, /^STYLED-DESCRIPTION/m);
+  assert.match(full.json.image, /^https:\/\//);
+  h.dir.setContentReserved(d, true);
+  const held = await served();
+  assert.doesNotMatch(held.ics, /^STYLED-DESCRIPTION/m);
+  assert.equal(held.json.image ?? null, null);
+  h.dir.setContentReserved(d, false);
+  h.dir.setOwnership(d, { mode: 'mirrored', owner: null, claimedAt: null, nativeCalendar: null });
+  assert.doesNotMatch((await served()).ics, /^STYLED-DESCRIPTION/m);
+});
+
 test('a hidden venue has no place in any format, and is found near its calendar\'s area', async () => {
   const id = 'qrippy6usrk5uthpkimlg63ybc7alyzo';
   const text = await (await h.get(`${API}/events/byid/${id}.ics`)).text();

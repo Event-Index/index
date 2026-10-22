@@ -102,6 +102,8 @@ export interface ProjectorInput {
   delegated: { relay: string; calendarD: string };
   // The address of an organizer's own event an occurrence copies.
   originalOf?: (id: string) => string | null;
+  // The operator keeps the calendar as summary and link.
+  keptReserved?: boolean;
 }
 
 export interface Planned {
@@ -142,7 +144,7 @@ export function projectFeed(input: ProjectorInput): ProjectorResult {
   const kept = projectable(feed, now, log);
 
   const context = {
-    ...projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey }),
+    ...projectionContext(feed, { calendarPubkey: pubkey, indexPubkey: input.indexPubkey, keptReserved: input.keptReserved ?? false }),
     relay: input.delegated.relay,
     ...(input.originalOf ? { originalOf: input.originalOf } : {}),
   };

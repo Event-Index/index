@@ -75,12 +75,11 @@ test('Luma: the summary leaves out the address block and the hosts line', () => 
   );
 });
 
-test('Luma, Meetup, Mobilizon and Gancio: the content policy keeps full descriptions and images out of public projections', () => {
-  assert.deepEqual(adapterFor('luma').policy, { fullDescription: false, images: false });
-  assert.deepEqual(adapterFor('meetup').policy, { fullDescription: false, images: false });
-  assert.deepEqual(adapterFor('mobilizon').policy, { fullDescription: false, images: false });
-  assert.deepEqual(adapterFor('gancio').policy, { fullDescription: false, images: false });
-  assert.deepEqual(adapterFor('ics').policy, { fullDescription: true, images: true });
+test('every source but an organizer\'s own nostr events keeps full descriptions and images out of public projections by default', () => {
+  for (const source of ['luma', 'meetup', 'mobilizon', 'gancio', 'google', 'ics'] as const) {
+    assert.deepEqual(adapterFor(source).policy, { fullDescription: false, images: false }, source);
+  }
+  assert.deepEqual(adapterFor('nostr').policy, { fullDescription: true, images: true });
 });
 
 // Meetup

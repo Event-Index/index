@@ -151,8 +151,9 @@ test('IMAGE, else an image ATTACH → image, where the source policy allows imag
   assert.deepEqual(one(project('synthetic/rich.ics', 'rich@fixture.eventindex.space').t, 'image'), ['image', 'https://example.org/events/open-data-night.jpg']);
   const attached = readFixture('synthetic/rich.ics').replace('IMAGE;VALUE=URI;DISPLAY=FULLSIZE:https://example.org/events/open-data-night.jpg', 'ATTACH;FMTTYPE=image/jpeg:https://example.org/events/open-data-night.jpg');
   assert.deepEqual(one(project('synthetic/rich.ics', 'rich@fixture.eventindex.space', { text: attached }).t, 'image'), ['image', 'https://example.org/events/open-data-night.jpg']);
+  // A calendar the index publishes as its organizer is verified: Mobilizon's image is served.
   const mobilizon = project('mobilizon-lyontechhub.ics', 'ef6c676c-2ade-4e5a-85c9-9af55b530295').t;
-  assert.equal(one(mobilizon, 'image'), undefined, 'Mobilizon serves no images');
+  assert.match(one(mobilizon, 'image')![1]!, /^https:\/\/mobilizon\.fr\/media\/a1689adf.*\.jpg/);
   const k8s = project('google-kubernetes-sig-cli.ics', '0l893qetg1o0pmufr6bgki87jd_R20260930T160000@google.com').t;
   assert.equal(one(k8s, 'image'), undefined, 'a document ATTACH is not an image');
   const withImage = readFixture(CRAFTNOOK).replace('UID:evt-PDzqdd9OU1nQXYz@events.lu.ma', 'UID:evt-PDzqdd9OU1nQXYz@events.lu.ma\nIMAGE;VALUE=URI:https://images.lumacdn.com/x.png');

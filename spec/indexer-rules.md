@@ -350,6 +350,12 @@ mirrors, so that its events are published from their own key.
   removed calendar does not count. This is checked when a calendar is filed
   or claimed, when a maintainer approves it, and when the poll service
   carries it out.
+- **Content.** Once a claim is carried out, in any mode, the calendar is served
+  in full: its events' full descriptions and, where its source allows, their
+  images, in its entry, its items and the API, instead of a summary and a
+  link ([`platform-adapters.md`](platform-adapters.md), Content policy). It is
+  summary and link again if the claim is undone or the calendar removed, or
+  while the operator keeps it so.
 - **Review.** A maintainer approves a claim only once it is verified, and may
   reject any. The poll service carries out an approved claim at its next
   tick; one it cannot carry out yet (no relay answers for the organizer) is

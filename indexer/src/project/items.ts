@@ -11,7 +11,7 @@ import { decodeGeohash } from './geohash.ts';
 import { zoneAt } from './venue-zone.ts';
 import { citySlug } from '../directory/entry.ts';
 import { PLATFORMS } from './profile.ts';
-import { adapterFor } from '../adapters/index.ts';
+import { adapterFor, type ContentPolicy } from '../adapters/index.ts';
 
 // An event that runs longer is a listing, not an event: it gets no item.
 export const LONGEST_DAYS = 92;
@@ -36,8 +36,10 @@ export interface ItemContext {
   indexPubkey: string;
   calendar: ItemCalendar;
   cities: City[];
-  // The event's image, from its record; carried only where its source allows.
+  // The event's image, from its record; carried only where the calendar's
+  // policy allows (adapters/index.ts calendarPolicy).
   image: string | null;
+  policy?: ContentPolicy;
   // The aggregators' NIP-52 copies matched to the event (rules/copies.ts):
   // their addresses, the relay each was read from, and their created_at.
   copies?: ItemCopy[];
@@ -139,7 +141,7 @@ export function eventItem(row: EventRow, ctx: ItemContext): ItemResult {
     ['meetup-event', meetup?.[2]],
     ['index-id', row.id],
     ['url', calendar.source === 'luma' || calendar.source === 'meetup' ? null : url],
-    ['image', adapterFor(calendar.source).policy.images ? ctx.image : null],
+    ['image', (ctx.policy ?? adapterFor(calendar.source).policy).images ? ctx.image : null],
     ['t', citySlug(calendar.location)],
     ['t', source],
     ['i', url],

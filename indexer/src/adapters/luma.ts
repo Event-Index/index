@@ -24,6 +24,8 @@ function setText(vevent: ICAL.Component, name: string, value: string): void {
 export const luma: Adapter = {
   source: 'luma',
   policy: RESERVED,
+  // Luma hosts its events' images under its own terms.
+  imagesOnceVerified: false,
   descriptionFormat: 'text',
   isDefaultCalendarName: (name) => name.trim() === 'Personal',
   isDefaultCalendarDescription: (text) => text.trim() === 'Luma Calendar',

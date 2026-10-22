@@ -168,6 +168,32 @@ test('relay pauses are kept in index.db, listed, set and cleared by the admin co
   }
 });
 
+test('the admin command keeps a calendar as summary and link, and lets it go back to its default', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const env = { ...process.env, EVENTINDEX_DATA_DIR: dataDir };
+    const run = (...args: string[]) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', ...args], { cwd: repo, env, encoding: 'utf8' });
+    const db = openIndexDb(join(dataDir, 'index.db'));
+    const dir = directoryStore(db);
+    dir.add({ d: 'meetup:pythonsd', role: 'calendar', source: 'meetup', feedUrl: 'https://www.meetup.com/pythonsd/events/ical/', pageUrl: null, name: 'SDPy', description: null, image: null, location: null, g: null, foundVia: 'maintainer', addedAt: NOW });
+    db.close();
+    const kept = run('content', 'meetup-pythonsd', 'summary');
+    assert.equal(kept.status, 0, kept.stderr);
+    assert.match(kept.stdout, /summary and link/);
+    const reopened = openIndexDb(join(dataDir, 'index.db'));
+    assert.equal(directoryStore(reopened).contentReserved('meetup:pythonsd'), true);
+    reopened.close();
+    assert.equal(run('content', 'meetup:pythonsd', 'default').status, 0);
+    const again = openIndexDb(join(dataDir, 'index.db'));
+    assert.equal(directoryStore(again).contentReserved('meetup:pythonsd'), false);
+    again.close();
+    assert.equal(run('content', 'meetup-pythonsd', 'everything').status, 2);
+    assert.equal(run('content', 'no-such-calendar', 'summary').status, 1);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test('the Meetup page reader\'s state is shown, and a stop is cleared, by the admin command', () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
   try {

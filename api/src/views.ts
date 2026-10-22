@@ -6,7 +6,7 @@
 import ICAL from 'ical.js';
 import { npubEncode } from 'nostr-tools/nip19';
 import type { Settings } from '../../indexer/src/config.ts';
-import { adapterFor } from '../../indexer/src/adapters/index.ts';
+import { adapterFor, calendarPolicy } from '../../indexer/src/adapters/index.ts';
 import { recordFromText, type EventRecord } from '../../indexer/src/normalize/normalize.ts';
 import { naddrFor } from '../../indexer/src/project/annotate.ts';
 import { publicCalendar, toJcal, toJsonLd, type PublicContext } from '../../indexer/src/project/public.ts';
@@ -59,7 +59,7 @@ export function calendarView(deps: ViewDeps, entry: StoredEntry) {
       feed: fromNostr || !entry.feedUrl ? null : entry.feedUrl,
       url: entry.pageUrl,
       description: entry.description,
-      image: adapterFor(entry.source).policy.images ? entry.image : null,
+      image: calendarPolicy(entry, deps.dir.contentReserved(entry.d)).images ? entry.image : null,
       location: entry.location,
       g: entry.g,
       t: [] as string[],
@@ -108,6 +108,7 @@ export function loadRecord(deps: ViewDeps, recordId: string, now: number, cache:
         calendarName: entry.name ?? entry.d,
         calendarUrl: entry.pageUrl,
         adapter: adapterFor(entry.source),
+        policy: calendarPolicy(entry, deps.dir.contentReserved(entry.d)),
         apiBase: deps.settings.apiBase,
         changedAt: stored.changedAt,
       },

@@ -9,36 +9,44 @@ adapter does and what each source's feeds are known to carry.
 
 ## Content policy
 
-Each source has a content policy for the public projections (`.ics`, jCal,
-JSON-LD, NIP-52):
+A calendar has a content policy for the public projections (`.ics`, jCal,
+JSON-LD, NIP-52, event items) and for its directory entry. Every calendar is
+served as summary and link until its organizer verifies with Event Index;
+then it is served in full:
 
-| Source | Full description | Images |
+| Source | Until its organizer verifies | Once they have |
 |---|---|---|
-| `luma` | no: the summary only | no |
-| `meetup` | no: the summary only | no |
-| `mobilizon` | no: the summary only | no |
-| `gancio` | no: the summary only | no |
-| `google`, `ics` | yes | yes |
-| `nostr` (events an organizer publishes on nostr themselves) | yes | yes |
+| `luma` | the summary, no images | the full description, no images |
+| `meetup` | the summary, no images | the full description, no images |
+| `mobilizon` | the summary, no images | the full description and images |
+| `gancio` | the summary, no images | the full description and images |
+| `google`, `ics` | the summary, no images | the full description and images |
+| `nostr` (events an organizer publishes on nostr themselves) | as published | as published |
 
-Every platform the index files calendars from in bulk (Luma, Meetup,
-Mobilizon, Gancio) is served as summary and link: their events' texts and
-images stay their organizers', and none of them licenses them to third
-parties. The full description and images are served only for a public
-Google calendar or another feed filed on its own, and for what organizers
-publish on nostr themselves.
+An event's text and images are its organizer's, and no platform the index
+reads licenses them to third parties, so the index serves a summary and a
+link back until the organizer has shown it is theirs. An organizer verifies
+by naming their key for the calendar ([`indexer-rules.md`](indexer-rules.md)
+§ 13): a link (the calendar stays mirrored, with its owner named), B1
+(published from their own key) or B2 (published as them, through their
+signer). Luma and Meetup host their events' images under their own terms, so
+a verified calendar of theirs still carries none. What an organizer
+publishes on nostr themselves is served as they published it.
+
+The loosening is per calendar and undone as it was made: a calendar whose
+organizer is no longer verified (its claim undone, or the calendar removed)
+is summary and link again, and the operator may keep any calendar so
+(`eventindex-admin content <calendar> summary`, undone with `default`). Its
+entry is published again at the next tick and its items within ten minutes.
 
 Where the full description is not served, public projections carry the summary
 ([`nip52-mapping.md`](nip52-mapping.md) § 3) in its place and drop
 `STYLED-DESCRIPTION`, `STRUCTURED-DATA`, `X-ALT-DESC` and any property with
-`FMTTYPE=text/html`. Where images are not served, `IMAGE` and every image
-`ATTACH` (an `image/*` `FMTTYPE`, or with none, an image file name) are
-dropped, and the calendar's directory entry carries no image. The record keeps
-everything.
-
-A calendar's policy is its source's. A calendar claimed by its organizer keeps
-its platform's policy for what comes from its feed; what it publishes from
-its own key is `nostr`.
+`FMTTYPE=text/html`; the directory entry carries no description. Where images
+are not served, `IMAGE` and every image `ATTACH` (an `image/*` `FMTTYPE`, or
+with none, an image file name) are dropped, and the calendar's directory
+entry and items carry no image. Event items carry the summary either way. The
+record keeps everything.
 
 ## Luma (`luma`)
 

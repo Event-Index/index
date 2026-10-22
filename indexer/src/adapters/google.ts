@@ -3,11 +3,11 @@
 // that is one link to the event's page and no URL property.
 
 import { links, looksLikeHtml } from '../ical/text.ts';
-import { OPEN, type Adapter } from './types.ts';
+import { RESERVED, type Adapter } from './types.ts';
 
 export const google: Adapter = {
   source: 'google',
-  policy: OPEN,
+  policy: RESERVED,
   descriptionFormat: 'text',
 
   event(vevent) {

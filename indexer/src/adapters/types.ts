@@ -16,7 +16,11 @@ export interface CalendarSide {
 
 export interface Adapter {
   source: Source;
+  // The policy until the calendar's organizer verifies with Event Index.
   policy: ContentPolicy;
+  // Once they have: the full description always; images only where the
+  // platform's own terms allow them (true unless set).
+  imagesOnceVerified?: boolean;
   // How DESCRIPTION is written when it is not HTML.
   descriptionFormat: 'text' | 'markdown';
   isDefaultCalendarName?(name: string): boolean;

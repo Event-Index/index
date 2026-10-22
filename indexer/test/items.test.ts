@@ -1,3 +1,4 @@
+import { calendarPolicy } from '../src/adapters/index.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ function row(extra: Partial<EventRow> = {}): EventRow {
 const pubkey: ItemCalendar = { d: 'luma:cal-dlSUfDiWBlONmiQ', name: 'PubKey Bitcoin Events', source: 'luma', feedUrl: 'https://api.luma.com/ics/get?entity=calendar&id=cal-dlSUfDiWBlONmiQ', location: 'New York, US', owner: null };
 
 function item(r: EventRow, calendar: ItemCalendar = pubkey, image: string | null = null): string[][] {
-  const built = eventItem(r, { header: HEADER, indexPubkey: INDEX, calendar, cities, image });
+  const built = eventItem(r, { header: HEADER, indexPubkey: INDEX, calendar, cities, image, policy: calendarPolicy(calendar) });
   assert.ok('template' in built, JSON.stringify(built));
   assert.equal(built.template.kind, 39999);
   assert.equal(built.template.content, '');
@@ -123,12 +124,14 @@ test('an organizer who verified their key is named on each item as its host', ()
   assert.deepEqual(item(row()).filter((t) => t[0] === 'p'), []);
 });
 
-test('a feed elsewhere is named by its host, links its page, and carries its image', () => {
+test('a feed elsewhere is named by its host and links its page; its image comes only once its organizer has verified', () => {
   const calendar: ItemCalendar = { d: 'ics:abc', name: 'Lyon Tech Hub', source: 'ics', feedUrl: 'https://events.example.org/feed.ics', location: 'Lyon, FR', owner: null };
-  const tags = item(row({ url: 'https://events.example.org/e/1', g: null, location: 'La Cordée', tzid: 'Europe/Paris' }), calendar, 'https://events.example.org/e/1.png');
+  const event = row({ url: 'https://events.example.org/e/1', g: null, location: 'La Cordée', tzid: 'Europe/Paris' });
+  const tags = item(event, calendar, 'https://events.example.org/e/1.png');
   assert.equal(tag(tags, 'source'), 'events.example.org');
   assert.equal(tag(tags, 'url'), 'https://events.example.org/e/1');
-  assert.equal(tag(tags, 'image'), 'https://events.example.org/e/1.png');
+  assert.equal(tag(tags, 'image'), undefined, 'summary and link until verified');
+  assert.equal(tag(item(event, { ...calendar, owner: 'ab'.repeat(32) }, 'https://events.example.org/e/1.png'), 'image'), 'https://events.example.org/e/1.png');
   assert.equal(tag(tags, 'luma-slug'), undefined);
   // A Luma event never carries an image.
   assert.equal(tag(item(row(), pubkey, 'https://images.lumacdn.com/x.png'), 'image'), undefined);

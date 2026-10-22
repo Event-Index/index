@@ -5,6 +5,7 @@ import { normalizeFeed, type NormalizedFeed, type EventRecord } from '../src/nor
 import { occurrences, projectionWindow, type Occurrence } from '../src/project/window.ts';
 import { publicCalendar, toIcs, toJcal, toJsonLd, publicContext } from '../src/project/public.ts';
 import { identify } from '../src/directory/id.ts';
+import { calendarPolicy, type ContentPolicy } from '../src/adapters/index.ts';
 import { readFixture, feedUrlFor, NOW } from './helpers.ts';
 
 const CHANGED = Date.UTC(2026, 9, 15, 12) / 1000;
@@ -18,10 +19,10 @@ function record(f: NormalizedFeed, uid: string): EventRecord {
 function occurrence(f: NormalizedFeed, uid: string, index = 0): Occurrence {
   return occurrences(record(f, uid), projectionWindow(NOW), { calendarD: f.context.d, floatingZone: f.calendar.timezone }).items[index]!;
 }
-function ics(fixture: string, uid: string, index: number | null = null): { text: string; event: ICAL.Component } {
+function ics(fixture: string, uid: string, index: number | null = null, policy?: ContentPolicy): { text: string; event: ICAL.Component } {
   const f = feed(fixture);
   const o = index === null ? null : occurrence(f, uid, index);
-  const text = toIcs(publicCalendar(record(f, uid), o, publicContext(f, CHANGED)));
+  const text = toIcs(publicCalendar(record(f, uid), o, publicContext(f, CHANGED, policy)));
   const parsed = new ICAL.Component(ICAL.parse(text));
   return { text, event: parsed.getFirstSubcomponent('vevent')! };
 }
@@ -43,12 +44,18 @@ test('the public .ics is valid iCalendar with DTSTAMP from the record\'s last ch
   assert.ok(calendar.getAllSubcomponents('vtimezone').length === 1);
 });
 
-test('an open source keeps its full description and images', () => {
-  const { event } = ics('synthetic/rich.ics', 'rich@fixture.eventindex.space');
+test('a calendar its organizer verified keeps its full description and images; unverified, it is summary and link', () => {
+  const plain = ics('synthetic/rich.ics', 'rich@fixture.eventindex.space').event;
+  assert.ok(!plain.hasProperty('styled-description'));
+  assert.equal(plain.getAllProperties('image').length, 0);
+  const { event } = ics('synthetic/rich.ics', 'rich@fixture.eventindex.space', null, calendarPolicy({ source: 'ics', owner: 'ab'.repeat(32) }));
   assert.ok(event.hasProperty('styled-description'));
   assert.ok(event.getAllProperties('image').length > 0);
-  const long = ics('synthetic/malformed.ics', 'long@fixture.eventindex.space').event;
+  const verified = calendarPolicy({ source: 'ics', owner: 'ab'.repeat(32) });
+  const long = ics('synthetic/malformed.ics', 'long@fixture.eventindex.space', null, verified).event;
   assert.ok([...new Intl.Segmenter().segment(String(long.getFirstPropertyValue('description')))].length > 280);
+  const short = ics('synthetic/malformed.ics', 'long@fixture.eventindex.space').event;
+  assert.ok([...new Intl.Segmenter().segment(String(short.getFirstPropertyValue('description')))].length <= 280);
 });
 
 test('Mobilizon is reserved: the summary in place of the description, and no image', () => {
