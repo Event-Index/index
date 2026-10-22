@@ -18,6 +18,7 @@ import { loadAggregators, shortNpub } from '../../indexer/src/native/publishers.
 import { ownershipClash } from '../../indexer/src/store/directory.ts';
 import type { Settings } from '../../indexer/src/config.ts';
 import type { Limits } from './limits.ts';
+import { sameMessage } from './guard.ts';
 
 export interface WriteDeps {
   dir: DirectoryStore;
@@ -34,6 +35,8 @@ export interface WriteDeps {
 }
 
 const DAY = 86400;
+// Remove requests a message is compared with, for duplicates.
+const DUPLICATE_DAYS = 30;
 
 export interface Outcome {
   status: number;
@@ -183,7 +186,7 @@ export async function submitFeed(deps: WriteDeps, url: unknown, now: number): Pr
 export function removalInstructions(entry: StoredEntry, token: string): string {
   const where = PLATFORMS[entry.source]?.styled ?? 'the calendar\'s own site';
   return `A maintainer reviews every request. To show that you run this calendar, put ${token} in its description, or in the description of one of its events, on ${where}. `
-    + 'The index looks for it each time it reads the feed, usually within a few hours. You can take it out again once the calendar is removed.';
+    + 'The index looks for it each time it reads the feed, usually within a few hours; a request whose token is not seen in 14 days expires. You can take it out again once the calendar is removed.';
 }
 
 export function requestRemoval(deps: WriteDeps, entry: StoredEntry | null, message: unknown, now: number): Outcome {
@@ -194,6 +197,14 @@ export function requestRemoval(deps: WriteDeps, entry: StoredEntry | null, messa
   if (text && text.length > deps.limits.maxMessageLength) {
     return fail(400, 'too-long', `The message can be at most ${deps.limits.maxMessageLength} characters.`);
   }
+  // A long message sent before: for this calendar, still waiting, the same
+  // request again; otherwise refused.
+  const before = text ? deps.queues.removalsSince(now - DUPLICATE_DAYS * DAY).filter((r) => sameMessage(r.message, text)) : [];
+  const same = before.find((r) => r.d === entry.d && r.status === 'pending');
+  if (same) {
+    return { status: 202, body: { status: 'received', request: same.id, d: entry.d, token: same.token, instructions: removalInstructions(entry, same.token) } };
+  }
+  if (before.length) return fail(409, 'duplicate-message', 'This message was sent before.');
   if (deps.queues.openRemovalsFor(entry.d).length >= deps.limits.removeRequestsPerCalendar) {
     return fail(429, 'too-many-requests', 'This calendar already has requests waiting for review.');
   }

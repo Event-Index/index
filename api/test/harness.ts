@@ -23,6 +23,7 @@ import type { Cities } from '../../indexer/src/service/admin.ts';
 import type { FetchResult } from '../../indexer/src/poller/fetch.ts';
 import { createApi } from '../src/server.ts';
 import type { Limits } from '../src/limits.ts';
+import { FORM_MIN_SECONDS } from '../src/guard.ts';
 import { readFixture, feedUrlFor, NOW } from '../../indexer/test/helpers.ts';
 
 const repo = new URL('../../', import.meta.url).pathname;
@@ -82,6 +83,9 @@ export interface Harness {
   logs: string[];
   get(path: string, headers?: Record<string, string>): Promise<Response>;
   post(path: string, body: unknown, headers?: Record<string, string>): Promise<Response>;
+  // Sends a form as a person does: opens its page, takes as long as filling
+  // it in takes, and sends it with the page's token.
+  sendForm(page: string, action: string, fields: Record<string, string>, headers?: Record<string, string>): Promise<Response>;
   close(): Promise<void>;
 }
 
@@ -141,14 +145,22 @@ export async function harness(options: { queueCap?: number; limits?: Partial<Lim
   const server: Server = createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post: Harness['post'] = (path, body, headers = {}) => fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: typeof body === 'string' ? { 'content-type': 'application/x-www-form-urlencoded', ...headers } : { 'content-type': 'application/json', ...headers },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
   return {
     base, dataDir, indexPubkey: getPublicKey(indexKey), clock, db, dir, queues, events, indexer, feeds, logs, relay, native, settings,
     get: (path, headers = {}) => fetch(`${base}${path}`, { headers }),
-    post: (path, body, headers = {}) => fetch(`${base}${path}`, {
-      method: 'POST',
-      headers: typeof body === 'string' ? { 'content-type': 'application/x-www-form-urlencoded', ...headers } : { 'content-type': 'application/json', ...headers },
-      body: typeof body === 'string' ? body : JSON.stringify(body),
-    }),
+    post,
+    async sendForm(page, action, fields, headers = {}) {
+      const html = await (await fetch(`${base}${page}`)).text();
+      const form = new RegExp(`<form[^>]+action="${action}"[^>]*>[\\s\\S]*?</form>`).exec(html)?.[0] ?? '';
+      const token = /name="form" value="([^"]+)"/.exec(form)?.[1] ?? '';
+      clock.now += FORM_MIN_SECONDS;
+      return post(action, new URLSearchParams({ form: token, ...fields }).toString(), headers);
+    },
     async close() {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       vault.close();

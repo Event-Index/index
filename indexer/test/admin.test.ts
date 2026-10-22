@@ -123,8 +123,35 @@ test('status counts the directory, the queues and the stale feeds', () => {
   const report = status(s, NOW);
   assert.deepEqual(report, {
     indexPubkey: 'ab'.repeat(32), calendars: 2, aggregators: 0, removed: 0, unlisted: 1, stale: ['meetup:sdbitcoiners'], neverPolled: 2,
-    upcomingEvents: 0, pendingSubmissions: 1, pendingRemovals: 1, pendingClaims: 0, lastDump: null,
+    upcomingEvents: 0, pendingSubmissions: 1, pendingRemovals: 0, unprovenRemovals: 1, pendingClaims: 0, lastDump: null,
   });
+});
+
+test('the review list shows the remove requests whose token was seen; those without proof are listed apart', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'admin-'));
+  try {
+    const env = { ...process.env, EVENTINDEX_DATA_DIR: dataDir };
+    const run = (...args: string[]) => spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'indexer/src/admin.ts', ...args], { cwd: repo, env, encoding: 'utf8' });
+    assert.equal(run('import-seeds', 'seeds/meetup/san-diego.json').status, 0);
+    const db = openIndexDb(join(dataDir, 'index.db'));
+    const queues = queueStore(db);
+    const proven = queues.requestRemoval({ d: 'meetup:pythonsd', message: 'we run it', at: NOW });
+    queues.markVerified(proven.id, NOW + 60);
+    queues.requestRemoval({ d: 'meetup:sdbitcoiners', message: 'Submit your site to every search index', at: NOW });
+    db.close();
+    const list = run('removals');
+    assert.equal(list.status, 0, list.stderr);
+    assert.match(list.stdout, new RegExp(`^${proven.id}\t.*\ttoken in feed\t`, 'm'));
+    assert.doesNotMatch(list.stdout, /search index/);
+    assert.match(list.stdout, /1 more without proof \(token not seen\): removals --unproven/);
+    const apart = run('removals', '--unproven');
+    assert.match(apart.stdout, /token not seen/);
+    assert.match(apart.stdout, /message: Submit your site to every search index/);
+    assert.doesNotMatch(apart.stdout, /we run it/);
+    assert.match(run('status').stdout, /remove requests 1 pending, 1 without proof/);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
 });
 
 test('the admin command runs against the data directory without any key', () => {

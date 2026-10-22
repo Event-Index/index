@@ -11,8 +11,10 @@ export interface Limits {
   queueCap: number;
   // Submissions approved without review in a day, at most; past it they wait.
   autoApprovalsPerDay: number;
-  // Pending remove requests one calendar holds at most.
+  // Pending remove requests one calendar holds at most, and those it takes
+  // without a key in an hour, from any address.
   removeRequestsPerCalendar: number;
+  removeRequestsPerCalendarPerHour: number;
   maxBodyBytes: number;
   maxMessageLength: number;
 }
@@ -24,6 +26,7 @@ export const LIMITS: Limits = {
   queueCap: 1000,
   autoApprovalsPerDay: 50,
   removeRequestsPerCalendar: 10,
+  removeRequestsPerCalendarPerHour: 3,
   maxBodyBytes: 16 * 1024,
   maxMessageLength: 1000,
 };

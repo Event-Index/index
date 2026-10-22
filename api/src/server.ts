@@ -16,13 +16,14 @@ import type { QueueStore } from '../../indexer/src/store/queues.ts';
 import type { EventStore } from '../../indexer/src/store/events.ts';
 import { npubEncode } from 'nostr-tools/nip19';
 import { LIMITS, rateLimiter, type Limits } from './limits.ts';
+import { formGuard } from './guard.ts';
 import type { RelayReader } from '../../indexer/src/native/read.ts';
 import { calendarView, documentJsonLd, eventDocument, eventList, feedOf, feedWindow, statsView, withoutCopies, type Format, type ViewDeps } from './views.ts';
 import { submitFeed, requestRemoval, type Outcome } from './writes.ts';
 import { fileNative, ownerAction, removeNow, requestClaim, verifyClaimNip05, type ClaimDeps } from './claims.ts';
 import { checkAuth } from '../../indexer/src/claim/auth.ts';
 import { brandFiles } from './brand.ts';
-import { CSP, SCRIPTED_CSP, STYLE, calendarPage, calendarsPage, claimPage, homePage, messagePage, nativePage, removeResultPage, submitResultPage } from './pages.ts';
+import { CSP, SCRIPTED_CSP, STYLE, calendarPage, calendarsPage, claimPage, homePage, messagePage, nativePage, removeBlockedPage, removeResultPage, submitBlockedPage, submitResultPage } from './pages.ts';
 import { cityCounts, cityZones, comingUp, dayGrid } from './home.ts';
 
 export interface ApiDeps {
@@ -149,6 +150,8 @@ function splitFormat(segment: string): { name: string; suffix: '' | '.ics' | '.j
 export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResponse) => void {
   const limits: Limits = { ...LIMITS, ...deps.limits };
   const limiter = rateLimiter();
+  // The forms anyone can send without a key (guard.ts).
+  const guard = formGuard();
   const view: ViewDeps = deps;
   const { dir, events, settings } = deps;
   const log = deps.log ?? (() => {});
@@ -172,6 +175,22 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
   };
   const limited = (kind: string, req: IncomingMessage, perHour: number, now: number): number | null =>
     limiter.take(`${kind} ${clientAddress(req)}`, perHour, now);
+  // What the guard keeps out is logged, never with the sender's address.
+  const blocked = (what: string, reason: string) => log(`blocked ${what}: ${reason}`);
+  // An unsigned remove request: limited per address and per calendar, then
+  // recorded, or answered with the request a long message sent again names.
+  function unsignedRemoval(req: IncomingMessage, entry: StoredEntry | null, message: unknown, now: number): Outcome | { wait: number } {
+    const what = `remove request for ${entry?.localName ?? 'an unknown calendar'}`;
+    const wait = limited('remove', req, limits.removeRequestsPerHour, now)
+      ?? (entry && !entry.removed ? limiter.take(`remove-calendar ${entry.d}`, limits.removeRequestsPerCalendarPerHour, now) : null);
+    if (wait) {
+      blocked(what, 'rate-limited');
+      return { wait };
+    }
+    const outcome = requestRemoval(writes, entry, message, now);
+    if (outcome.body['error'] === 'duplicate-message') blocked(what, 'duplicate');
+    return outcome;
+  }
 
   function calendarSearch(params: URLSearchParams): StoredEntry[] {
     const q = params.get('q')?.trim() || undefined;
@@ -226,14 +245,15 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       if (path === '/feeds/add') {
         const body = await readBody(req, limits.maxBodyBytes);
         const wait = limited('add', req, limits.submitsPerHour, now);
+        if (wait) blocked('submission', 'rate-limited');
         if (wait) return json(429, { error: 'rate-limited', message: 'Too many submissions from this address. Try again later.' }, { 'Retry-After': String(wait) });
         return outcomeJson(await submitFeed(writes, body['url'] ?? params.get('url'), now));
       }
       if (parts.length === 3 && parts[0] === 'calendars' && parts[2] === 'remove-request') {
         const body = await readBody(req, limits.maxBodyBytes);
-        const wait = limited('remove', req, limits.removeRequestsPerHour, now);
-        if (wait) return json(429, { error: 'rate-limited', message: 'Too many requests from this address. Try again later.' }, { 'Retry-After': String(wait) });
-        return outcomeJson(requestRemoval(writes, dir.byLocalName(decodeURIComponent(parts[1]!)), body['message'], now));
+        const outcome = unsignedRemoval(req, dir.byLocalName(decodeURIComponent(parts[1]!)), body['message'], now);
+        if ('wait' in outcome) return json(429, { error: 'rate-limited', message: 'Too many requests for this calendar or from this address. Try again later.' }, { 'Retry-After': String(outcome.wait) });
+        return outcomeJson(outcome);
       }
       throw new HttpError(405, 'method-not-allowed', 'This address takes GET.');
     }
@@ -348,15 +368,28 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
     const parts = url.pathname.split('/').filter(Boolean);
     if (method === 'POST' && url.pathname === '/submit') {
       const body = await readBody(req, limits.maxBodyBytes);
-      if (limited('add', req, limits.submitsPerHour, now)) return html(429, messagePage('Too many submissions', 'Too many submissions from this address. Try again later.'));
+      const stopped = guard.check('submit', body, now);
+      if (stopped) {
+        blocked('submission', stopped);
+        return html(400, submitBlockedPage(guard.issue('submit', now)));
+      }
+      if (limited('add', req, limits.submitsPerHour, now)) {
+        blocked('submission', 'rate-limited');
+        return html(429, messagePage('Too many submissions', 'Too many submissions from this address. Try again later.'));
+      }
       const outcome = await submitFeed(writes, body['url'], now);
       return html(outcome.status, submitResultPage(outcome));
     }
     if (method === 'POST' && parts.length === 3 && parts[0] === 'calendar' && parts[2] === 'remove') {
       const body = await readBody(req, limits.maxBodyBytes);
       const entry = dir.byLocalName(decodeURIComponent(parts[1]!));
-      if (limited('remove', req, limits.removeRequestsPerHour, now)) return html(429, messagePage('Too many requests', 'Too many requests from this address. Try again later.'));
-      const outcome = requestRemoval(writes, entry, body['message'], now);
+      const stopped = entry && !entry.removed ? guard.check(`remove ${entry.d}`, body, now) : null;
+      if (entry && stopped) {
+        blocked(`remove request for ${entry.localName}`, stopped);
+        return html(400, removeBlockedPage(entry, guard.issue(`remove ${entry.d}`, now)));
+      }
+      const outcome = unsignedRemoval(req, entry, body['message'], now);
+      if ('wait' in outcome) return html(429, messagePage('Too many requests', 'Too many requests for this calendar or from this address. Try again later.'));
       return html(outcome.status, removeResultPage(entry, outcome));
     }
     if (method !== 'GET' && method !== 'HEAD') return html(405, messagePage('Not allowed', 'This page takes GET.'));
@@ -374,6 +407,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
         cities: cityCounts(entries, deps.cities),
         settings,
         indexNpub: indexPubkey ? npubEncode(indexPubkey) : null,
+        form: guard.issue('submit', now),
       }));
     }
     if (url.pathname === '/style.css') return { status: 200, type: 'text/css; charset=utf-8', body: STYLE };
@@ -410,7 +444,7 @@ export function createApi(deps: ApiDeps): (req: IncomingMessage, res: ServerResp
       if (!entry) return html(404, messagePage('No such calendar', 'There is no such calendar in the directory.'));
       const zone = cityZones([entry], deps.cities).get(entry.d) ?? (dir.calendarMeta(entry.d) as { timezone?: string | null } | null)?.timezone ?? null;
       const upcoming = entry.removed ? [] : events.byCalendar(entry.d, now, now + YEAR, 50).map((r) => ({ ...r, tzid: r.tzid ?? zone }));
-      return html(200, calendarPage(entry, calendarView(view, entry), upcoming, settings));
+      return html(200, calendarPage(entry, calendarView(view, entry), upcoming, settings, guard.issue(`remove ${entry.d}`, now)));
     }
     return html(404, messagePage('Not found', 'There is nothing at this address.'));
   }

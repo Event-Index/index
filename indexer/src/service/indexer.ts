@@ -159,6 +159,8 @@ const ITEMS_PER_TICK = 2000;
 const ITEMS_PER_SECOND = 100;
 const ITEMS_EVERY = 600;
 const ITEM_MISSING_GRACE = DAY;
+// A remove request whose token is not seen in this long expires.
+const REMOVAL_PROOF_DAYS = 14;
 // Deletions of expired items signed in one tick (each holds up to 99 items).
 const EXPIRY_DELETIONS_PER_TICK = 50;
 // The daily reconcile: live items checked against each relay in one tick,
@@ -1279,6 +1281,13 @@ const NATIVE_BUILD_SHARE = 500;
     }
   }
 
+  // Remove requests without proof wait apart from the review list, and
+  // expire when their token is not seen in two weeks.
+  function expireRemovals(now: number): void {
+    const expired = queues.expireRemovals(now - REMOVAL_PROOF_DAYS * DAY, now);
+    if (expired) deps.log(`remove requests: ${expired} expired, their token not seen in ${REMOVAL_PROOF_DAYS} days`);
+  }
+
   function maybeDump(now: number): void {
     const last = Number(dir.fact('dump_at') ?? 0);
     if (now - last < DAY) return;
@@ -1427,6 +1436,7 @@ const NATIVE_BUILD_SHARE = 500;
       } catch (error) {
         deps.log(`event items: ${(error as Error).stack ?? error}`);
       }
+      expireRemovals(now);
       maybeDump(now);
       return report;
     },

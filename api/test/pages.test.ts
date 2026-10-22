@@ -150,7 +150,7 @@ test('a hidden venue shows no place on the page', async () => {
 
 test('the remove form answers with the token and what happens next', async () => {
   const name = local('mobilizon:mobilizon.fr/@lyontechhub');
-  const response = await h.post(`/calendar/${name}/remove`, 'message=Please+remove+us', from());
+  const response = await h.sendForm(`/calendar/${name}`, `/calendar/${name}/remove`, { message: 'Please remove us' }, from());
   const html = await response.text();
   assert.equal(response.status, 202);
   plainPage(response, html);
@@ -162,13 +162,13 @@ test('the remove form answers with the token and what happens next', async () =>
 test('the submit form answers in a page', async () => {
   const url = 'https://example.org/cal.ics';
   h.feeds.set(url, { status: 'ok', text: readFixture('synthetic/rich.ics'), etag: null, lastModified: null, finalUrl: url });
-  const ok = await h.post('/submit', `url=${encodeURIComponent(url)}`, from());
+  const ok = await h.sendForm('/', '/submit', { url }, from());
   const html = await ok.text();
   plainPage(ok, html);
   assert.equal(ok.status, 202);
   assert.match(html, /Rich Calendar/);
   assert.match(html, /review/);
-  const bad = await h.post('/submit', 'url=https%3A%2F%2Fexample.org%2Fnope.ics', from());
+  const bad = await h.sendForm('/', '/submit', { url: 'https://example.org/nope.ics' }, from());
   assert.equal(bad.status, 422);
   assert.match(await bad.text(), /could not be read/);
 });

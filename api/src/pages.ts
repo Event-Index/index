@@ -13,6 +13,7 @@ import type { StoredEntry } from '../../indexer/src/store/directory.ts';
 import type { EventRow } from '../../indexer/src/store/events.ts';
 import { ringFor, type CityCount, type GridDay, type Upcoming } from './home.ts';
 import type { calendarView, statsView } from './views.ts';
+import { FORM_FIELD, HONEYPOT } from './guard.ts';
 
 export const CSP = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 // The pages that sign in with a nostr key: the site's own script, talking
@@ -190,6 +191,7 @@ button:hover { opacity: .88; }
 .button { display: inline-block; padding: .6rem .95rem; border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 600; text-decoration: none; }
 .button:hover { opacity: .88; }
 .box + .box, .box + form.box, form.box + .box { margin-top: 1rem; }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .box h2 + p, .box h3 + p { margin-top: .6rem; }
 fieldset { border: 0; margin: 0 0 1rem; padding: 0; }
 legend { font-weight: 600; margin-bottom: .5rem; }
@@ -295,7 +297,20 @@ export interface HomeData {
   cities: CityCount[];
   settings: Settings;
   indexNpub: string | null;
+  // The submit form's token (guard.ts).
+  form: string;
 }
+
+// The fields every form sent without a key carries (guard.ts): its token,
+// and a field people never see and leave empty.
+const guarded = (form: string) => `<input type="hidden" name="${FORM_FIELD}" value="${esc(form)}">
+<div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="${HONEYPOT}" tabindex="-1" autocomplete="off"></label></div>`;
+
+const submitForm = (form: string) => `<form class="row" action="/submit" method="post">
+${guarded(form)}
+<input type="text" inputmode="url" name="url" placeholder="Paste a link to the calendar, group or event" aria-label="Link to the calendar, group or event" required>
+<button type="submit">Submit for review</button>
+</form>`;
 
 export function homePage(data: HomeData): string {
   const { stats, settings } = data;
@@ -339,10 +354,7 @@ ${data.cities.map((c) => `<li><a href="/calendars?city=${esc(c.slug)}">${esc(c.n
 <div id="add">
 <h2>For organizers</h2>
 <p><strong>Add a calendar.</strong> Paste a link to the calendar, group or event on Luma, Meetup®, Google Calendar or Mobilizon, its feed (<code>.ics</code> or <code>webcal://</code>), or a nostr address (an npub, or NIP-05). A maintainer reviews each feed before it is indexed; addresses with a private token are refused.</p>
-<form class="row" action="/submit" method="post">
-<input type="text" inputmode="url" name="url" placeholder="Paste a link to the calendar, group or event" aria-label="Link to the calendar, group or event" required>
-<button type="submit">Submit for review</button>
-</form>
+${submitForm(data.form)}
 <p><strong>Claim a calendar.</strong> Already on nostr? Find your calendar under <a href="/calendars">Calendars</a> and claim it, to publish its events from your own key: yourself, or by the index, as you.</p>
 <p><strong>Publish on nostr already?</strong> If your calendar's events are NIP-52 events from your own key, the index lists them on its own. <a href="/add/nostr">Add it by its key</a> to list it now and set its city.</p>
 <p><strong>Remove a calendar.</strong> Find it under <a href="/calendars">Calendars</a> and use the form on its page. Once a request is approved, its upcoming events are deleted and it is never indexed again.</p>
@@ -406,17 +418,18 @@ const shortNpub = (pubkey: string) => {
   return `${npub.slice(0, 12)}…${npub.slice(-6)}`;
 };
 
-function removeForm(entry: StoredEntry): string {
+function removeForm(entry: StoredEntry, form: string): string {
   return `<h3>Remove this calendar</h3>
 <p class="gap">You can have it removed from Event Index. A maintainer reviews each request. Once it is approved, the index stops reading the calendar, ${entry.mode === 'mirrored' ? 'deletes its upcoming events from relays that honor deletions, ' : ''}and never indexes it again.</p>
 <form action="/calendar/${esc(entry.localName)}/remove" method="post">
+${guarded(form)}
 <textarea name="message" maxlength="1000" placeholder="Anything a maintainer should know (optional). Please leave out personal details." aria-label="Message"></textarea>
 <button type="submit">Ask for removal</button>
 </form>`;
 }
 
 // What an organizer can do on a calendar's page.
-function organizerBox(entry: StoredEntry): string {
+function organizerBox(entry: StoredEntry, form: string): string {
   const name = esc(entry.localName);
   if (entry.mode === 'mirrored') {
     return `<div class="box">
@@ -428,7 +441,7 @@ function organizerBox(entry: StoredEntry): string {
 <p><a class="button" href="/calendar/${name}/claim">Claim this calendar</a></p>
 </div>
 <div>
-${removeForm(entry)}
+${removeForm(entry, form)}
 </div>
 </div>
 </div>`;
@@ -439,7 +452,7 @@ ${removeForm(entry)}
   return `<div class="box">
 <h2 id="organizer">Organizer of this calendar?</h2>
 ${manage}
-${removeForm(entry)}
+${removeForm(entry, form)}
 </div>`;
 }
 
@@ -453,7 +466,7 @@ ${place ? `<p class="where">${esc(place)}</p>\n` : ''}${row.summary ? `<p class=
 </div></li>`;
 }
 
-export function calendarPage(entry: StoredEntry, view: ReturnType<typeof calendarView>, upcoming: EventRow[], settings: Settings): string {
+export function calendarPage(entry: StoredEntry, view: ReturnType<typeof calendarView>, upcoming: EventRow[], settings: Settings, form: string): string {
   const name = entry.name ?? entry.d;
   const eyebrow = [platformName(entry), cityOf(entry)].filter(Boolean).join(' · ');
   if (entry.removed) {
@@ -485,7 +498,7 @@ ${upcoming.length ? `<ul class="rows">\n${upcoming.map((row) => eventRow(row, se
 </section>
 
 <section class="narrow" aria-labelledby="organizer">
-${organizerBox(entry)}
+${organizerBox(entry, form)}
 </section>`, `Events of ${name}, from ${platformName(entry)}.`);
 }
 
@@ -606,6 +619,25 @@ ${entry ? `<p><a href="/calendar/${esc(entry.localName)}">Back to ${esc(name)}</
 <p class="token"><code>${esc(outcome.body['token'])}</code></p>
 <p>${esc(outcome.body['instructions'])}</p>
 <p><a href="/calendar/${esc(entry!.localName)}">Back to ${esc(name)}</a></p>`);
+}
+
+// A form the guard blocked (guard.ts) comes back fresh, to send again.
+const NOT_SENT = 'The form could not be sent: it may have been open too long, or sent twice. Please send it again.';
+
+export function removeBlockedPage(entry: StoredEntry, form: string): string {
+  return layout('Request not sent · Event Index', `<div class="page-head"><h1>Request not sent</h1></div>
+<p>${NOT_SENT}</p>
+<div class="box">
+${removeForm(entry, form)}
+</div>
+<p><a href="/calendar/${esc(entry.localName)}">Back to ${esc(entry.name ?? entry.d)}</a></p>`);
+}
+
+export function submitBlockedPage(form: string): string {
+  return layout('Not sent · Event Index', `<div class="page-head"><h1>Not sent</h1></div>
+<p>${NOT_SENT}</p>
+${submitForm(form)}
+<p><a href="/">Back to Event Index</a></p>`);
 }
 
 export function submitResultPage(outcome: { status: number; body: Record<string, unknown> }): string {

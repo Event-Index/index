@@ -110,13 +110,16 @@ test('the remove flow: a request with a token, a maintainer\'s approval, the pol
   assert.equal(((await resubmit.json()) as any).error, 'not-indexed');
 });
 
-test('a remove request needs a listed calendar and a short message, and is rate-limited', async () => {
+test('a remove request needs a listed calendar and a short message, and is rate-limited per address', async () => {
   assert.equal((await h.post(`${API}/calendars/no-such-calendar/remove-request`, {}, from())).status, 404);
   const name = local('mobilizon:mobilizon.fr/@lyontechhub');
   assert.equal((await h.post(`${API}/calendars/${name}/remove-request`, { message: 'x'.repeat(1001) }, from())).status, 400);
   const headers = from();
   const codes = [];
-  for (let i = 0; i < 6; i += 1) codes.push((await h.post(`${API}/calendars/${name}/remove-request`, {}, headers)).status);
+  // Within each calendar's own hourly limit, across two calendars.
+  for (const d of ['luma:cal-BvuRd9eaZnDGBwy', 'luma:cal-BvuRd9eaZnDGBwy', 'luma:cal-BvuRd9eaZnDGBwy', 'luma:cal-f6iLyfD3TN5qUO2', 'luma:cal-f6iLyfD3TN5qUO2', 'luma:cal-f6iLyfD3TN5qUO2']) {
+    codes.push((await h.post(`${API}/calendars/${local(d)}/remove-request`, {}, headers)).status);
+  }
   assert.deepEqual(codes, [202, 202, 202, 202, 202, 429]);
 });
 

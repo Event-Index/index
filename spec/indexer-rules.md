@@ -218,7 +218,9 @@ is any `d` on the do-not-index list. The first poll validates the feed.
   writes in the feed (the calendar's name or description, or an event's title
   or description, its folded lines joined; never an attendee's name, a place
   or a link, which others may write), the request is marked verified, as
-  proof that its author controls the calendar. A maintainer approves or
+  proof that its author controls the calendar. The review list holds the
+  verified requests; the others wait apart, listed only when asked for, and
+  expire when their token is not seen in 14 days. A maintainer approves or
   rejects every request, verified or not.
 - **By the calendar's own key.** A remove request signed (NIP-98) with the
   key a calendar is published with (an organizer's own key: a native

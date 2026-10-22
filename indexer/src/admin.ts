@@ -12,7 +12,7 @@
 //   node indexer/src/admin.ts reject-submission <id>
 //   node indexer/src/admin.ts approvals
 //   node indexer/src/admin.ts undo-approval <id>
-//   node indexer/src/admin.ts removals
+//   node indexer/src/admin.ts removals [--unproven]
 //   node indexer/src/admin.ts approve-removal <id>
 //   node indexer/src/admin.ts reject-removal <id>
 //   node indexer/src/admin.ts remove <local name or d> [--message <text>]
@@ -59,7 +59,7 @@ const USAGE = `usage: admin.ts <command>
   reject-submission <id>
   approvals
   undo-approval <id>
-  removals
+  removals [--unproven]
   approve-removal <id>
   reject-removal <id>
   remove <local name or d> [--message <text>]
@@ -109,7 +109,7 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       out(`stale           ${r.stale.length}${r.stale.length ? `: ${r.stale.join(', ')}` : ''}`);
       out(`upcoming events ${r.upcomingEvents}`);
       out(`submissions     ${r.pendingSubmissions} pending`);
-      out(`remove requests ${r.pendingRemovals} pending`);
+      out(`remove requests ${r.pendingRemovals} pending, ${r.unprovenRemovals} without proof`);
       out(`claims          ${r.pendingClaims} pending`);
       out(`last dump       ${time(r.lastDump)}`);
       return;
@@ -205,13 +205,19 @@ function run(s: AdminStores, command: string | undefined, args: string[], now: n
       rejectSubmission(s, id(args[0]), now);
       out('rejected');
       return;
-    case 'removals':
-      for (const r of s.queues.removals('pending')) {
+    case 'removals': {
+      // The review list: requests whose token was seen. Those without proof
+      // wait apart until they expire.
+      const unproven = args.includes('--unproven');
+      for (const r of s.queues.waitingRemovals(!unproven)) {
         const entry = s.dir.get(r.d);
         out(`${r.id}\t${time(r.requestedAt)}\t${r.verifiedAt ? 'token in feed' : 'token not seen'}\t${entry?.localName ?? r.d}\t${entry?.name ?? '-'}\t${entry?.feedUrl ?? '-'}`);
         if (r.message) out(`\tmessage: ${r.message.replace(/\s+/g, ' ')}`);
       }
+      const apart = unproven ? 0 : s.queues.waitingRemovals(false).length;
+      if (apart) out(`${apart} more without proof (token not seen): removals --unproven`);
       return;
+    }
     case 'approve-removal':
       approveRemoval(s, id(args[0]), now);
       out('approved; the poll service removes the calendar on its next tick');

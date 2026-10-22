@@ -321,7 +321,8 @@ export function status(s: AdminStores, now: number) {
     neverPolled: polls.filter((p) => p.state.lastSuccessAt === null).length,
     upcomingEvents: s.events.countUpcoming(now),
     pendingSubmissions: s.queues.submissions('pending').length,
-    pendingRemovals: s.queues.removals('pending').length,
+    pendingRemovals: s.queues.waitingRemovals(true).length,
+    unprovenRemovals: s.queues.waitingRemovals(false).length,
     pendingClaims: s.queues.claims('pending').length,
     lastDump: dump ? Number(dump) : null,
   };

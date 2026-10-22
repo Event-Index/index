@@ -237,7 +237,8 @@ eventindex-admin undo-approval 7             # removes that calendar and keeps i
 eventindex-admin submissions                 # id, time, source, role, name, city, feed (or the key)
 eventindex-admin approve-submission 3 --city new-york
 eventindex-admin reject-submission 4
-eventindex-admin removals                    # id, time, whether the token was found in the feed, calendar
+eventindex-admin removals                    # those whose token was found in the feed: id, time, calendar
+eventindex-admin removals --unproven         # those whose token is not seen yet; they expire after 14 days
 eventindex-admin approve-removal 2
 eventindex-admin reject-removal 5
 eventindex-admin remove meetup-pythonsd --message "asked by email"
@@ -247,6 +248,12 @@ eventindex-admin approve-claim 7             # only once the claim is verified
 eventindex-admin reject-claim 8
 eventindex-admin status
 ```
+
+The two forms anyone can send without a key, the remove form and the submit
+form, are guarded ([`../spec/api.md`](../spec/api.md) § Write): a form token,
+a hidden field, limits kept in memory, and duplicate messages dropped. What
+the guard keeps out is logged by the API, never with an address:
+`journalctl -u eventindex-api | grep blocked`.
 
 A claim names a calendar's organizer, or hands the calendar to their own key
 ([`../spec/indexer-rules.md`](../spec/indexer-rules.md) § 13): linked, it

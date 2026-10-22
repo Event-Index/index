@@ -75,7 +75,7 @@ test('auto-approvals have a daily cap; past it, submissions wait for review', as
 test('the submit form says when a calendar was indexed at once', async () => {
   const url = 'https://www.meetup.com/formgroup/events/ical/';
   h.feeds.set(url, ok(url, readFixture('meetup-pythonsd.ics')));
-  const response = await h.post('/submit', `url=${encodeURIComponent(url)}`, from());
+  const response = await h.sendForm('/', '/submit', { url }, from());
   const html = await response.text();
   assert.equal(response.status, 201);
   assert.match(html, /<h1>Added<\/h1>/);

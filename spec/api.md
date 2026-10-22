@@ -187,9 +187,12 @@ Every event response names its source in `eventindex.source` (or the record's
 ## Write
 
 Writes need no key. They are limited per client address (10 submissions and
-5 remove requests an hour) and take a JSON object or a form of at most
+5 remove requests an hour), and a calendar takes at most 3 remove requests
+an hour from any address; the limits are kept in memory only, and no address
+is written anywhere. Writes take a JSON object or a form of at most
 16 KiB. A remove request always waits for a maintainer; a submitted feed is
-added at once when it is safe to, and otherwise waits for review.
+added at once when it is safe to, and otherwise waits for review. A remove
+request signed with the calendar's own key (below) is not limited this way.
 
 | Request | Does |
 |---|---|
@@ -227,11 +230,23 @@ A refused link answers with a code and a sentence saying why.
 `{"status": "received", "request": n, "d", "token": "eventindex-remove-…", "instructions": "…"}`.
 The token is the organizer's proof: placed in the calendar's description or
 in one of its events (its title or description), it is found at the next poll
-and marks the request verified. A maintainer approves or rejects each request; an approved removal
+and marks the request verified. A request whose token is not seen in 14 days
+expires. A maintainer approves or rejects each request; an approved removal
 is carried out as [`indexer-rules.md`](indexer-rules.md) § 10 describes.
+A message of 40 characters or more sent again (the same but for case and
+spacing, within 30 days) is a duplicate: for the same calendar, while its
+request waits, the answer is that request again; otherwise `409`
+`duplicate-message`.
 
 The pages of `eventindex.space` post the same requests as forms
 (`POST /submit`, `POST /calendar/<local name>/remove`) and answer in HTML.
+Each form carries a token the API signs when it renders the page, for that
+form alone, and a field people never see and leave empty. A form sent
+without its token, within 3 seconds of the page, more than a day after it,
+a second time, from before the API restarted, or with the hidden field
+filled in is not sent: it answers `400` with the form again, fresh. Each
+request the guard keeps out is logged (`blocked <what>: <reason>`), never
+with its address.
 
 ### Requests signed with your key
 
@@ -285,11 +300,11 @@ Errors are `{"error": "<code>", "message": "<text>"}` with an HTTP status:
 | 403 | `not-yours` (a claim made by another key), `not-owner` (a calendar its organizer does not publish, or another key's; or a remove request signed by a key other than the calendar's) |
 | 404 | `not-found` |
 | 405 | `method-not-allowed` |
-| 409 | `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request), `already-claimed`, `already-owner` (with `d` and `local_name`: the key publishes a listed calendar itself, or would, and so may own no other; [`indexer-rules.md`](indexer-rules.md) § 13), `not-a-calendar`, `not-pending`, `not-delegated`, `no-feed` |
+| 409 | `duplicate-message` (a remove request's message sent before), `already-listed` (with `d` and `local_name`), `not-indexed` (removed at its organizer's request), `already-claimed`, `already-owner` (with `d` and `local_name`: the key publishes a listed calendar itself, or would, and so may own no other; [`indexer-rules.md`](indexer-rules.md) § 13), `not-a-calendar`, `not-pending`, `not-delegated`, `no-feed` |
 | 410 | `removed` |
 | 413 | `too-large` (the request body) |
 | 422 | the feed could not be used: `private-address`, `too-large`, `not-icalendar`, `empty`, `dns`, `timeout`, `too-many-redirects`, `http-<status>`; a key with nothing to file: `no-relay-answered`, `no-events`; NIP-05: `nip05-invalid`, `nip05-domain` (with `nip05_domains`), `nip05-unreachable`, `nip05-mismatch` |
-| 429 | `rate-limited` (with `Retry-After`), `too-many-requests` (a calendar with 10 requests or claims waiting) |
+| 429 | `rate-limited` (with `Retry-After`: from this address, or for this calendar), `too-many-requests` (a calendar with 10 requests or claims waiting) |
 | 503 | `queue-full` (1,000 submissions waiting), `not-ready` (the poll service has not started), `not-available` (the index cannot read relays) |
 
 nostr developers can also add to the index by publishing: a directory entry

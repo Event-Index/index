@@ -76,7 +76,7 @@ test('the submit form says what to paste, and answers with what was found', asyn
   assert.match(home, /placeholder="Paste a link to the calendar, group or event"/);
   const feed = 'https://www.meetup.com/sdbitcoiners/events/ical/';
   h.feeds.set(feed, ok(readFixture('meetup-pythonsd.ics').replace(/San Diego Python Users Group/g, 'San Diego Bitcoiners'), feed));
-  const response = await h.post('/submit', 'url=https%3A%2F%2Fwww.meetup.com%2Fsdbitcoiners%2Fevents%2F312775793%2F', from());
+  const response = await h.sendForm('/', '/submit', { url: 'https://www.meetup.com/sdbitcoiners/events/312775793/' }, from());
   const html = await response.text();
   assert.equal(response.status, 201);
   assert.match(html, /<h1>Added<\/h1>/);
@@ -106,7 +106,7 @@ test('a nostr address with only past events is kept without a listing, and left 
   assert.equal(one.status, 200, 'it is still served by its own address');
   const view = await one.json() as { eventindex: { listed: boolean; address: string | null } };
   assert.deepEqual([view.eventindex.listed, view.eventindex.address], [false, null], 'it has no directory entry');
-  const page = await h.post('/submit', `url=${encodeURIComponent(npubEncode(pubkey))}`, from());
+  const page = await h.sendForm('/', '/submit', { url: npubEncode(pubkey) }, from());
   assert.equal(page.status, 202);
   assert.match(await page.text(), /<h1>Kept<\/h1>/);
 });

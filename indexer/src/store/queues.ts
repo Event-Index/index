@@ -84,7 +84,8 @@ export interface Claim {
   note: string | null;
   resolvedAt: number | null;
 }
-export type RemovalStatus = 'pending' | 'approved' | 'rejected' | 'done';
+// A request whose token was never seen expires (spec/indexer-rules.md § 10).
+export type RemovalStatus = 'pending' | 'approved' | 'rejected' | 'done' | 'expired';
 
 export interface Submission {
   id: number;
@@ -177,6 +178,15 @@ export function queueStore(index: IndexDb) {
     },
     removals: (status: RemovalStatus) =>
       db.prepare<[string], Record<string, unknown>>('SELECT * FROM remove_requests WHERE status = ? ORDER BY id').all(status).map(remOf),
+    // Pending requests whose token was seen (the review list), or not yet.
+    waitingRemovals: (proven: boolean) =>
+      db.prepare<[], Record<string, unknown>>(`SELECT * FROM remove_requests WHERE status = 'pending' AND verified_at IS ${proven ? 'NOT ' : ''}NULL ORDER BY id`).all().map(remOf),
+    // Requests made since a time, whatever became of them.
+    removalsSince: (since: number) =>
+      db.prepare<[number], Record<string, unknown>>('SELECT * FROM remove_requests WHERE requested_at >= ? ORDER BY id').all(since).map(remOf),
+    // Pending requests made before a time whose token was never seen.
+    expireRemovals: (before: number, at: number): number =>
+      db.prepare("UPDATE remove_requests SET status = 'expired', resolved_at = ? WHERE status = 'pending' AND verified_at IS NULL AND requested_at < ?").run(at, before).changes,
     removal(id: number): RemoveRequest | null {
       const r = db.prepare<[number], Record<string, unknown>>('SELECT * FROM remove_requests WHERE id = ?').get(id);
       return r ? remOf(r) : null;
