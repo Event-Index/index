@@ -75,11 +75,11 @@ test('Luma: the summary leaves out the address block and the hosts line', () => 
   );
 });
 
-test('Luma, Meetup and Mobilizon: the content policy keeps full descriptions and images out of public projections', () => {
+test('Luma, Meetup, Mobilizon and Gancio: the content policy keeps full descriptions and images out of public projections', () => {
   assert.deepEqual(adapterFor('luma').policy, { fullDescription: false, images: false });
   assert.deepEqual(adapterFor('meetup').policy, { fullDescription: false, images: false });
   assert.deepEqual(adapterFor('mobilizon').policy, { fullDescription: false, images: false });
-  assert.deepEqual(adapterFor('gancio').policy, { fullDescription: true, images: true });
+  assert.deepEqual(adapterFor('gancio').policy, { fullDescription: false, images: false });
   assert.deepEqual(adapterFor('ics').policy, { fullDescription: true, images: true });
 });
 

@@ -107,11 +107,16 @@ lists what it filed, skipped and refused.
 `gancio.json` lists Gancio instances from the project's list at
 `gancio.org/instances` whose instance-wide feed robots.txt allows and the
 index can read. `eventindex-admin import-gancio seeds/gancio.json` files
-each as one community calendar, named for the instance, with no area
-(`../spec/platform-adapters.md`, Gancio).
+each as one community calendar, named for the instance, under the area
+given it by hand: its city, `Worldwide`, or none
+(`../spec/platform-adapters.md`, Gancio). `held` lists instances left out,
+with why.
 
 ```json
-{ "instances": [{ "host": "bcn.convoca.la", "name": "Convoca-la BCN", "feed": "https://bcn.convoca.la/feed/ics" }] }
+{
+  "instances": [{ "host": "bcn.convoca.la", "name": "Convoca-la BCN", "feed": "https://bcn.convoca.la/feed/ics", "location": "Barcelona, ES", "g": "sp3e" }],
+  "held": [{ "host": "example.org", "reason": "…" }]
+}
 ```
 
 ## Mobilizon groups

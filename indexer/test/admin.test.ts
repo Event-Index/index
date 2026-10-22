@@ -269,19 +269,22 @@ test('importing the communities list files its feed calendars by their city, and
   assert.equal(again.existing.length, 3);
 });
 
-test('importing the Gancio list files each instance as one community calendar, named for the instance, with no area', () => {
+test('importing the Gancio list files each instance as one community calendar, named for the instance, under the area given it', () => {
   const s = stores();
   const list: GancioList = { instances: [
-    { host: 'bcn.convoca.la', name: 'Convoca-la BCN', feed: 'https://bcn.convoca.la/feed/ics' },
+    { host: 'bcn.convoca.la', name: 'Convoca-la BCN', feed: 'https://bcn.convoca.la/feed/ics', location: 'Barcelona, ES', g: 'sp3e' },
     { host: 'gancio.example.org', name: 'gancio.example.org', feed: 'https://gancio.example.org/feed/ics' },
-    { host: 'gone.example.org', name: 'Gone', feed: 'https://gone.example.org/feed/ics' },
-  ] };
+    { host: 'gone.example.org', name: 'Gone', feed: 'https://gone.example.org/feed/ics', location: 'Worldwide', g: null },
+  ], held: [{ host: 'held.example.org', reason: 'adult-themed; held pending a content-filter decision' }] };
   s.dir.block('gancio:gone.example.org', 'organizer request', NOW);
   const report = importGancio(s, list, NOW);
   assert.deepEqual(report, { filed: ['gancio:bcn.convoca.la', 'gancio:gancio.example.org'], existing: [], blocked: ['gancio:gone.example.org'] });
   const bcn = s.dir.get('gancio:bcn.convoca.la')!;
   assert.deepEqual([bcn.name, bcn.source, bcn.role, bcn.feedUrl, bcn.pageUrl, bcn.location, bcn.g, bcn.foundVia],
-    ['Convoca-la BCN', 'gancio', 'calendar', 'https://bcn.convoca.la/feed/ics', 'https://bcn.convoca.la', null, null, 'gancio.org/instances']);
+    ['Convoca-la BCN', 'gancio', 'calendar', 'https://bcn.convoca.la/feed/ics', 'https://bcn.convoca.la', 'Barcelona, ES', 'sp3e', 'gancio.org/instances']);
+  const unplaced = s.dir.get('gancio:gancio.example.org')!;
+  assert.deepEqual([unplaced.location, unplaced.g], [null, null]);
+  assert.equal(s.dir.get('gancio:held.example.org'), null, 'a held instance is not filed');
   assert.deepEqual(importGancio(s, list, NOW + 60).existing, ['gancio:bcn.convoca.la', 'gancio:gancio.example.org']);
   assert.throws(() => importGancio(s, { instances: [{ host: 'x.example.org', name: 'X', feed: 'https://x.example.org/feed/ics?tags=a' }] }, NOW), /not a Gancio instance feed/);
 });

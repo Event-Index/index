@@ -113,14 +113,16 @@ export function importCommunities(s: AdminStores, list: Communities, cities: Cit
 }
 
 // The Gancio instances to file (seeds/gancio.json), from the project's list
-// at gancio.org/instances: each instance's own feed, and its name.
+// at gancio.org/instances: each instance's own feed, its name, and the area
+// given it by hand (its city, Worldwide, or none); and those held out, with
+// why.
 export interface GancioList {
-  instances: Array<{ host: string; name: string; feed: string }>;
+  instances: Array<{ host: string; name: string; feed: string; location?: string | null; g?: string | null }>;
+  held?: Array<{ host: string; reason: string }>;
 }
 
 // Files each Gancio instance as one community calendar, named for the
-// instance, with no area: an instance is a city's or a community's shared
-// agenda, and states no place of its own.
+// instance, under the area given it: an instance states no place of its own.
 export function importGancio(s: AdminStores, list: GancioList, now: number) {
   const report = { filed: [] as string[], existing: [] as string[], blocked: [] as string[] };
   for (const instance of list.instances) {
@@ -132,7 +134,7 @@ export function importGancio(s: AdminStores, list: GancioList, now: number) {
     }
     const added = s.dir.add({
       d: identity.d, role: identity.role, source: identity.source, feedUrl: identity.feedUrl, pageUrl: identity.pageUrl,
-      name: instance.name.trim() || instance.host, description: null, image: null, location: null, g: null, foundVia: 'gancio.org/instances', addedAt: now,
+      name: instance.name.trim() || instance.host, description: null, image: null, location: instance.location ?? null, g: instance.g ?? null, foundVia: 'gancio.org/instances', addedAt: now,
     });
     (added ? report.filed : report.existing).push(identity.d);
   }

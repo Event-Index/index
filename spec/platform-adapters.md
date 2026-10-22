@@ -17,8 +17,16 @@ JSON-LD, NIP-52):
 | `luma` | no: the summary only | no |
 | `meetup` | no: the summary only | no |
 | `mobilizon` | no: the summary only | no |
-| `gancio`, `google`, `ics` | yes | yes |
+| `gancio` | no: the summary only | no |
+| `google`, `ics` | yes | yes |
 | `nostr` (events an organizer publishes on nostr themselves) | yes | yes |
+
+Every platform the index files calendars from in bulk (Luma, Meetup,
+Mobilizon, Gancio) is served as summary and link: their events' texts and
+images stay their organizers', and none of them licenses them to third
+parties. The full description and images are served only for a public
+Google calendar or another feed filed on its own, and for what organizers
+publish on nostr themselves.
 
 Where the full description is not served, public projections carry the summary
 ([`nip52-mapping.md`](nip52-mapping.md) § 3) in its place and drop
@@ -193,9 +201,13 @@ agenda, so the instance is one calendar, named for the instance: its
 `nodeinfo` name, or its host where that name is just `Gancio`. Feeds carry no
 calendar name, no `ORGANIZER`, `ATTENDEE` or `CONTACT` (so no event names who
 submitted it), no `GEO` and no images; `LOCATION` is the place's name and
-address as text. Instances come from the project's list at
+address as text. Public projections carry the summary and the link back. Instances come from the project's list at
 `gancio.org/instances` (`seeds/gancio.json`), those whose robots.txt allows
-the feed; an instance states no area, so its entry has no `location` or `g`.
+the feed, less those held out with their reason. An instance states no
+place, so its area is given by hand from its own description, domain or
+events: its city, with the city's geohash to 4 characters (a regional agenda
+is placed at the main city of its events); `Worldwide` for one of no one
+place; or none where it could not be placed.
 No adapter rules beyond the profile otherwise.
 
 ## Generic iCalendar (`ics`)
